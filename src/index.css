@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  html, body {
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    background-color: #060b14 !important;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: none;
+    overscroll-behavior: none;
+  }
+  #root {
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    overflow-x: clip;
+  }
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.safe-top-area {
+  padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.75rem), 2.5rem);
+}
+
+.safe-top-sticky {
+  padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.75rem), 2.25rem);
+}
+
+.safe-top-header-spacer {
+  height: max(calc(env(safe-area-inset-top, 0px) + 4.75rem), 5.75rem);
+}
+
+.safe-bottom-nav {
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) + 1rem), 1.25rem);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090d16;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+.animate-shake {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}

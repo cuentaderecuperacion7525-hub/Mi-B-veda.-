@@ -1,0 +1,69 @@
+name: Compilar APK Android (Capacitor)
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Generar APK de Android
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Descargar codigo fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js (v22 LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configurar Java JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Aceptar licencias de Android SDK
+        run: |
+          yes | sdkmanager --licenses || true
+
+      - name: Instalar dependencias
+        run: npm install --legacy-peer-deps
+
+      - name: Compilar aplicacion web
+        run: npm run build
+
+      - name: Sincronizar proyecto Android
+        run: |
+          npx cap sync android
+
+      - name: Configurar firma fija para evitar conflicto de paquete
+        run: |
+          # Si no existe debug.keystore, crearlo con credenciales fijas
+          if [ ! -f android/app/debug.keystore ]; then
+            keytool -genkey -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Boveda,O=Boveda,C=ES"
+          fi
+          # Incrementar versionCode con el run_number de GitHub para que Android siempre reconozca la actualización
+          BUILD_NUM=${{ github.run_number }}
+          sed -i "s/versionCode [0-9]*/versionCode $BUILD_NUM/g" android/app/build.gradle
+
+      - name: Compilar APK con Gradle
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Subir APK listo para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: Boveda-Segura-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
