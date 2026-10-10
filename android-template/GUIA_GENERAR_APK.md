@@ -99,5 +99,5 @@ Si al instalar el APK en tu teléfono Android aparece un mensaje como *"Se ha pr
 
 1. **Desinstala la versión anterior**: Si tenías instalada la versión web PWA / WebAPK desde Chrome o un APK generado anteriormente, Android bloquea la instalación porque las firmas digitales del instalador no coinciden (conflicto de paquete). Desinstala la app anterior y luego instala el nuevo APK.
 2. **Permitir orígenes desconocidos**: Asegúrate de que la app desde donde abres el archivo APK (Google Drive, WhatsApp, Archivos/Files) tenga activado el permiso *"Instalar aplicaciones de fuentes desconocidas"* en los Ajustes de Android.
-3. **Compatibilidad optimizada**: El proyecto ahora está configurado con **Java 17** y **doble firma v1 + v2**, garantizando compatibilidad total con todas las versiones de Android (desde Android 7.0 hasta Android 15).
+3. **Compatibilidad optimizada**: El proyecto está configurado con **Java 21 (LTS)** y Capacitor 8 (Target SDK 35), compatible con dispositivos Android desde Android 7.0 (API 24) hasta Android 15.
 
