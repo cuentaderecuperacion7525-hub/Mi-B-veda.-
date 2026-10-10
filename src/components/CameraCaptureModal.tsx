@@ -6,6 +6,7 @@ interface CameraCaptureModalProps {
   onClose: () => void;
   onMediaCaptured: (buffer: ArrayBuffer, mimeType: string, filename: string) => Promise<void>;
   showToast: (msg: string, type?: 'info' | 'success' | 'alert' | 'error') => void;
+  initialMode?: 'photo' | 'video';
 }
 
 export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
@@ -13,6 +14,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
   onClose,
   onMediaCaptured,
   showToast,
+  initialMode = 'photo',
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -20,6 +22,12 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
   const recordedChunksRef = useRef<Blob[]>([]);
 
   const [mode, setMode] = useState<'photo' | 'video'>('photo');
+
+  useEffect(() => {
+    if (isOpen && initialMode) {
+      setMode(initialMode);
+    }
+  }, [isOpen, initialMode]);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [hasCameraError, setHasCameraError] = useState(false);
