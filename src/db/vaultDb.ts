@@ -341,38 +341,76 @@ export async function getVaultStats(): Promise<{
 }
 
 /**
- * Creates exportable JSON containing encrypted blobs as Base64 strings.
+ * Fast synchronous binary buffer to Base64 conversion with 32KB chunks to prevent stack limits
  */
+export function bufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
+  try {
+    const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    let binary = '';
+    const len = bytes.byteLength;
+    const chunkSize = 0x8000; // 32KB chunks
+    for (let i = 0; i < len; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunkSize, len)) as any);
+    }
+    return btoa(binary);
+  } catch (err) {
+    console.warn('bufferToBase64 fallback failed:', err);
+    return '';
+  }
+}
+
 /**
- * Highly optimized native FileReader-based ArrayBuffer to Base64 conversion.
- * Leverages native Chrome C++ bindings for zero JS-side memory allocations.
+ * Creates exportable JSON containing encrypted blobs as Base64 strings.
+ * Highly optimized native FileReader-based ArrayBuffer to Base64 conversion with fallback.
  */
-async function arrayBufferToBase64Async(buffer: ArrayBuffer | undefined | null): Promise<string> {
+async function arrayBufferToBase64Async(buffer: ArrayBuffer | Uint8Array | string | undefined | null): Promise<string> {
   if (!buffer) return '';
+  if (typeof buffer === 'string') return buffer;
+
+  const uint8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+
   return new Promise((resolve) => {
     try {
-      const blob = new Blob([buffer]);
+      const blob = new Blob([uint8 as unknown as BlobPart]);
       const reader = new FileReader();
+
+      // Guard timeout in case FileReader hangs on mobile browser
+      const timeoutId = setTimeout(() => {
+        try {
+          resolve(bufferToBase64(uint8));
+        } catch {
+          resolve('');
+        }
+      }, 2500);
+
       reader.onloadend = () => {
+        clearTimeout(timeoutId);
         try {
           const dataUrl = reader.result as string;
           if (!dataUrl) {
-            resolve('');
+            resolve(bufferToBase64(uint8));
             return;
           }
           const commaIndex = dataUrl.indexOf(',');
           const base64 = commaIndex > -1 ? dataUrl.substring(commaIndex + 1) : '';
           resolve(base64);
         } catch (e) {
-          console.error('Error extracting base64:', e);
-          resolve('');
+          resolve(bufferToBase64(uint8));
         }
       };
-      reader.onerror = () => resolve('');
+
+      reader.onerror = () => {
+        clearTimeout(timeoutId);
+        resolve(bufferToBase64(uint8));
+      };
+
       reader.readAsDataURL(blob);
     } catch (err) {
-      console.warn('Native conversion failed, returning empty:', err);
-      resolve('');
+      try {
+        resolve(bufferToBase64(uint8));
+      } catch {
+        resolve('');
+      }
     }
   });
 }
@@ -706,8 +744,8 @@ async function saveItemsBatch(db: IDBDatabase, records: EncryptedVaultItem[]): P
 export async function importEncryptedBackupBlobStream(
   blob: Blob,
   onProgress?: (loadedBytes: number, totalBytes: number, itemCount: number) => void,
-  overwriteCryptographicTokens: boolean = false
-): Promise<{ importedCount: number }> {
+  overwriteCryptographicTokens: boolean = true
+): Promise<{ importedCount: number; saltHex?: string; testIvHex?: string; testCipherHex?: string }> {
   // First, verify header tokens if present
   const header = await readBackupHeaderFromBlob(blob);
 
@@ -745,6 +783,78 @@ export async function importEncryptedBackupBlobStream(
   let pendingBatch: EncryptedVaultItem[] = [];
   const decoder = new TextDecoder('utf-8', { fatal: false });
 
+  const parseAndQueueItem = (item: any) => {
+    let rawBase64 =
+      item.base64Data ||
+      item.base64 ||
+      item.content ||
+      item.dataUrl ||
+      item.data_url ||
+      item.base64_data ||
+      item.fileData ||
+      item.file_data ||
+      '';
+    if (!rawBase64 && typeof item.data === 'string') {
+      rawBase64 = item.data;
+    }
+
+    let dataBuffer: ArrayBuffer;
+    if (item.data instanceof ArrayBuffer) {
+      dataBuffer = item.data;
+    } else if (rawBase64) {
+      dataBuffer = base64ToArrayBuffer(rawBase64);
+    } else if (Array.isArray(item.data)) {
+      dataBuffer = new Uint8Array(item.data).buffer;
+    } else if (item.data && typeof item.data === 'object') {
+      if (item.data.type === 'Buffer' && Array.isArray(item.data.data)) {
+        dataBuffer = new Uint8Array(item.data.data).buffer;
+      } else {
+        const values = Object.values(item.data).map(Number);
+        dataBuffer = new Uint8Array(values).buffer;
+      }
+    } else {
+      dataBuffer = new ArrayBuffer(0);
+    }
+
+    // Auto-generate safe fallback ID and IV
+    const id = item.id || `item_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+    let iv: number[] = [];
+    if (Array.isArray(item.iv)) {
+      iv = item.iv;
+    } else if (item.iv && typeof item.iv === 'object') {
+      iv = Object.values(item.iv).map(Number);
+    } else if (typeof item.iv === 'string') {
+      if (/^[0-9a-fA-F]+$/.test(item.iv)) {
+        iv = Array.from(hexToBuf(item.iv));
+      } else {
+        try {
+          const bin = atob(item.iv);
+          iv = Array.from(bin).map((c) => c.charCodeAt(0));
+        } catch {}
+      }
+    }
+
+    const name = item.name || item.fileName || item.filename || item.title || 'archivo_restaurado';
+    const mimeType = item.mimeType || item.type || (item.category === 'video' ? 'video/mp4' : 'image/jpeg');
+    const category: VaultItemCategory = item.category || detectCategory(name, mimeType);
+
+    const record: EncryptedVaultItem = {
+      id,
+      timestamp: item.timestamp || Date.now(),
+      name,
+      mimeType,
+      size: item.size || dataBuffer.byteLength,
+      iv,
+      data: dataBuffer,
+      album: item.album || item.folder || item.subfolder || 'General',
+      isFavorite: !!item.isFavorite,
+      category,
+    };
+
+    pendingBatch.push(record);
+    count++;
+  };
+
   while (offset < totalBytes || cursor < buffer.length) {
     // Read next slice into buffer if needed
     if (offset < totalBytes && buffer.length - cursor < CHUNK_SIZE) {
@@ -759,8 +869,13 @@ export async function importEncryptedBackupBlobStream(
       const arrayKeyMatches = [
         buffer.indexOf('"items":'),
         buffer.indexOf('"photos":'),
+        buffer.indexOf('"files":'),
+        buffer.indexOf('"archivos":'),
         buffer.indexOf('"data":'),
         buffer.indexOf('"records":'),
+        buffer.indexOf('"media":'),
+        buffer.indexOf('"elements":'),
+        buffer.indexOf('"elementos":'),
       ].filter((idx) => idx !== -1);
 
       if (arrayKeyMatches.length > 0) {
@@ -815,47 +930,7 @@ export async function importEncryptedBackupBlobStream(
               const itemJson = buffer.substring(itemStart, cursor + 1);
               try {
                 const item = JSON.parse(itemJson);
-                const rawBase64 = item.base64Data || item.base64 || item.content || '';
-
-                let dataBuffer: ArrayBuffer;
-                if (item.data instanceof ArrayBuffer) {
-                  dataBuffer = item.data;
-                } else if (rawBase64) {
-                  dataBuffer = base64ToArrayBuffer(rawBase64);
-                } else {
-                  dataBuffer = new ArrayBuffer(0);
-                }
-
-                // Auto-generate safe fallback ID and IV
-                const id = item.id || `item_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
-                let iv: number[] = [];
-                if (Array.isArray(item.iv)) {
-                  iv = item.iv;
-                } else if (item.iv && typeof item.iv === 'object') {
-                  iv = Object.values(item.iv).map(Number);
-                } else if (typeof item.iv === 'string' && /^[0-9a-fA-F]+$/.test(item.iv)) {
-                  iv = Array.from(hexToBuf(item.iv));
-                }
-
-                const name = item.name || 'archivo_restaurado';
-                const mimeType = item.mimeType || 'application/octet-stream';
-                const category: VaultItemCategory = item.category || detectCategory(name, mimeType);
-
-                const record: EncryptedVaultItem = {
-                  id,
-                  timestamp: item.timestamp || Date.now(),
-                  name,
-                  mimeType,
-                  size: item.size || dataBuffer.byteLength,
-                  iv,
-                  data: dataBuffer,
-                  album: item.album || 'General',
-                  isFavorite: !!item.isFavorite,
-                  category,
-                };
-
-                pendingBatch.push(record);
-                count++;
+                parseAndQueueItem(item);
 
                 if (pendingBatch.length >= 10) {
                   await saveItemsBatch(db, pendingBatch);
@@ -901,11 +976,50 @@ export async function importEncryptedBackupBlobStream(
     pendingBatch = [];
   }
 
+  // Fallback for smaller files or unconventional JSON layout if stream found 0 items
+  if (count === 0 && blob.size < 30 * 1024 * 1024) {
+    try {
+      const fullText = await blob.text();
+      const parsed = parseWithAutoRepair(fullText);
+      const itemsList =
+        (Array.isArray(parsed) && parsed) ||
+        (Array.isArray(parsed.items) && parsed.items) ||
+        (Array.isArray(parsed.photos) && parsed.photos) ||
+        (Array.isArray(parsed.files) && parsed.files) ||
+        (Array.isArray(parsed.archivos) && parsed.archivos) ||
+        (Array.isArray(parsed.data) && parsed.data) ||
+        (Array.isArray(parsed.records) && parsed.records) ||
+        (Array.isArray(parsed.media) && parsed.media) ||
+        [];
+
+      if (itemsList.length > 0) {
+        for (const it of itemsList) {
+          parseAndQueueItem(it);
+          if (pendingBatch.length >= 10) {
+            await saveItemsBatch(db, pendingBatch);
+            pendingBatch = [];
+          }
+        }
+        if (pendingBatch.length > 0) {
+          await saveItemsBatch(db, pendingBatch);
+          pendingBatch = [];
+        }
+      }
+    } catch (fbErr) {
+      console.warn('Fallback full parse attempt error:', fbErr);
+    }
+  }
+
   if (onProgress) {
     onProgress(totalBytes, totalBytes, count);
   }
 
-  return { importedCount: count };
+  return {
+    importedCount: count,
+    saltHex: header.saltHex,
+    testIvHex: header.testIvHex,
+    testCipherHex: header.testCipherHex,
+  };
 }
 
 /**

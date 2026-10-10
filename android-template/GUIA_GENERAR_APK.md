@@ -90,3 +90,14 @@ Una vez abierto Android Studio:
 4. Android muestra la ventana oficial del sistema:  
    **"¿Permitir a Calculadora mover esta foto a la papelera o eliminarla?"**
 5. Al presionar **Permitir**, Android borra físicamente la foto original de la galería pública y refresca `MediaStore` inmediatamente.
+
+---
+
+## Solución a "Problemas con el paquete de instalación" o "Error al analizar el paquete"
+
+Si al instalar el APK en tu teléfono Android aparece un mensaje como *"Se ha producido un problema al analizar el paquete"* o *"No se puede instalar la aplicación"*:
+
+1. **Desinstala la versión anterior**: Si tenías instalada la versión web PWA / WebAPK desde Chrome o un APK generado anteriormente, Android bloquea la instalación porque las firmas digitales del instalador no coinciden (conflicto de paquete). Desinstala la app anterior y luego instala el nuevo APK.
+2. **Permitir orígenes desconocidos**: Asegúrate de que la app desde donde abres el archivo APK (Google Drive, WhatsApp, Archivos/Files) tenga activado el permiso *"Instalar aplicaciones de fuentes desconocidas"* en los Ajustes de Android.
+3. **Compatibilidad optimizada**: El proyecto ahora está configurado con **Java 17** y **doble firma v1 + v2**, garantizando compatibilidad total con todas las versiones de Android (desde Android 7.0 hasta Android 15).
+

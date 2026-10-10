@@ -167,6 +167,10 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
   const [isVerifyingBackupPin, setIsVerifyingBackupPin] = useState(false);
   const [showPasteInput, setShowPasteInput] = useState(false);
   const [pastedBackupText, setPastedBackupText] = useState('');
+  const [restartPromptInfo, setRestartPromptInfo] = useState<{
+    show: boolean;
+    importedCount: number;
+  }>({ show: false, importedCount: 0 });
 
   // Back button registrations para retroceder con teclas de navegación o botón físico
   useEffect(() => {
@@ -298,20 +302,45 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       const dateStr = new Date().toISOString().split('T')[0];
       const fileName = `Boveda_Respaldo_${dateStr}.json`;
 
-      const url = URL.createObjectURL(backupBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      let sharedSuccessfully = false;
+      try {
+        const backupFile = new File([backupBlob], fileName, { type: 'application/json' });
+        if (navigator.canShare && navigator.canShare({ files: [backupFile] })) {
+          await navigator.share({
+            files: [backupFile],
+            title: fileName,
+            text: 'Copia de seguridad cifrada de Mi Bóveda',
+          });
+          sharedSuccessfully = true;
+        }
+      } catch (shareErr) {
+        console.log('Mobile share dismissed or unavailable:', shareErr);
+      }
+
+      if (!sharedSuccessfully) {
+        const url = URL.createObjectURL(backupBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // Retener URL activa durante 3 minutos para que Android Download Manager no falle
+        setTimeout(() => {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {}
+        }, 180000);
+      }
 
       const now = Date.now();
       localStorage.setItem('nullvault_last_backup_timestamp', now.toString());
+      localStorage.setItem('vault_last_backup_timestamp', now.toString());
       localStorage.setItem('nullvault_last_backup_date', new Date().toISOString());
       setLastBackupTimestamp(now);
       window.dispatchEvent(new Event('nullvault_backup_updated'));
+      window.dispatchEvent(new Event('vault_backup_updated'));
 
       showToast('Copia de seguridad descargada con éxito', 'success');
     } catch (err) {
@@ -348,17 +377,27 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
           setSelectedBackupInfo((prev) =>
             prev ? { ...prev, status: 'restoring', statusText: 'Restaurando elementos...', percent: 45 } : null
           );
-          const result = await importEncryptedBackupBlobStream(file, (curr, tot) => {
-            const p = tot > 0 ? Math.round((curr / tot) * 50) + 45 : 50;
-            setSelectedBackupInfo((prev) => (prev ? { ...prev, percent: p } : null));
-          });
+          const result = await importEncryptedBackupBlobStream(
+            file,
+            (curr, tot) => {
+              const p = tot > 0 ? Math.round((curr / tot) * 50) + 45 : 50;
+              setSelectedBackupInfo((prev) => (prev ? { ...prev, percent: p } : null));
+            },
+            true
+          );
 
+          onMasterKeyUpdated(testKey);
           await onPhotosUpdated();
           setSelectedBackupInfo((prev) =>
             prev ? { ...prev, status: 'success', statusText: `¡Se restauraron ${result.importedCount} archivos!`, percent: 100 } : null
           );
           showToast(`Se restauraron ${result.importedCount} elementos a la bóveda`, 'success');
           setIsImporting(false);
+
+          setRestartPromptInfo({
+            show: true,
+            importedCount: result.importedCount,
+          });
           return;
         }
 
@@ -372,12 +411,16 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
 
       // Legacy direct import
       setIsImporting(true);
-      const result = await importEncryptedBackupBlobStream(file);
+      const result = await importEncryptedBackupBlobStream(file, undefined, true);
       await onPhotosUpdated();
       setSelectedBackupInfo((prev) =>
         prev ? { ...prev, status: 'success', statusText: `¡Se restauraron ${result.importedCount} archivos!`, percent: 100 } : null
       );
       showToast(`Se restauraron ${result.importedCount} elementos a la bóveda`, 'success');
+      setRestartPromptInfo({
+        show: true,
+        importedCount: result.importedCount,
+      });
     } catch (err: any) {
       setSelectedBackupInfo((prev) =>
         prev ? { ...prev, status: 'error', statusText: err?.message || 'Archivo dañado', percent: 100 } : null
@@ -415,7 +458,13 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       setShowBackupPinPrompt(false);
       setIsImporting(true);
 
-      const result = await importEncryptedBackupBlobStream(pendingBackupBlob);
+      const result = await importEncryptedBackupBlobStream(pendingBackupBlob, undefined, true);
+      onMasterKeyUpdated(testKey);
+      try {
+        sessionStorage.setItem('vault_session_pin', backupPinInput);
+        localStorage.setItem('vault_pin_length', backupPinInput.length.toString());
+      } catch {}
+
       await onPhotosUpdated();
 
       showToast(`Se restauraron ${result.importedCount} elementos a la bóveda`, 'success');
@@ -424,6 +473,11 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       setSelectedBackupInfo((prev) =>
         prev ? { ...prev, status: 'success', statusText: `¡Se restauraron ${result.importedCount} archivos!`, percent: 100 } : null
       );
+
+      setRestartPromptInfo({
+        show: true,
+        importedCount: result.importedCount,
+      });
     } catch (err: any) {
       setBackupPinError(err?.message || 'Error al restaurar');
     } finally {
@@ -446,12 +500,17 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
 
         if (isValid) {
           setIsImporting(true);
-          const result = await importEncryptedBackupBlobStream(blob);
+          const result = await importEncryptedBackupBlobStream(blob, undefined, true);
+          onMasterKeyUpdated(testKey);
           await onPhotosUpdated();
           showToast(`Se restauraron ${result.importedCount} elementos`, 'success');
           setPastedBackupText('');
           setShowPasteInput(false);
           setIsImporting(false);
+          setRestartPromptInfo({
+            show: true,
+            importedCount: result.importedCount,
+          });
           return;
         }
 
@@ -462,12 +521,16 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         setBackupPinError(null);
       } else {
         setIsImporting(true);
-        const result = await importEncryptedBackupBlobStream(blob);
+        const result = await importEncryptedBackupBlobStream(blob, undefined, true);
         await onPhotosUpdated();
         showToast(`Se restauraron ${result.importedCount} elementos`, 'success');
         setPastedBackupText('');
         setShowPasteInput(false);
         setIsImporting(false);
+        setRestartPromptInfo({
+          show: true,
+          importedCount: result.importedCount,
+        });
       }
     } catch (err: any) {
       showToast(`Error: ${err?.message || 'Texto inválido'}`, 'error');
@@ -1329,6 +1392,51 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Modal de Reinicio Requerido tras Restaurar Copia */}
+      {restartPromptInfo.show && (
+        <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in">
+          <div className="w-full max-w-sm bg-[#0a121d] border-2 border-emerald-500/60 rounded-3xl p-6 shadow-2xl space-y-5 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 rounded-3xl bg-emerald-500/20 border-2 border-emerald-500/50 text-emerald-400 flex items-center justify-center mx-auto shadow-xl shadow-emerald-500/20">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-lg font-black text-white tracking-tight">
+                ¡Copia de Seguridad Restaurada!
+              </h3>
+              <p className="text-xs text-emerald-300 font-semibold bg-emerald-500/10 py-1.5 px-3 rounded-full inline-block border border-emerald-500/30">
+                Se restauraron {restartPromptInfo.importedCount} archivos con éxito
+              </p>
+              <p className="text-xs text-slate-300 pt-1 leading-relaxed">
+                Para aplicar todos los cambios de forma segura, sincronizar las claves criptográficas y recargar todas tus fotos y videos en la bóveda, <strong className="text-white">es necesario reiniciar la aplicación</strong>.
+              </p>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.reload();
+                }}
+                className="w-full py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black rounded-2xl text-sm transition-all shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+              >
+                <span>🔄 Reiniciar Aplicación Ahora</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setRestartPromptInfo({ show: false, importedCount: 0 });
+                  await onPhotosUpdated();
+                }}
+                className="w-full py-2.5 text-slate-400 hover:text-white text-xs font-semibold rounded-xl hover:bg-slate-800/50 transition-colors cursor-pointer"
+              >
+                Cerrar y continuar sin reiniciar
+              </button>
+            </div>
           </div>
         </div>
       )}

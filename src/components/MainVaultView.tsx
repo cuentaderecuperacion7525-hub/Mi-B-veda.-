@@ -53,7 +53,7 @@ import {
   detectCategory,
   VaultItemCategory,
 } from '../db/vaultDb';
-import { encryptBuffer, decryptBuffer } from '../crypto/vaultCrypto';
+import { encryptBuffer, decryptBuffer, checkIsUnencryptedMedia } from '../crypto/vaultCrypto';
 import { PhotoViewerModal, DecryptedVaultItem } from './PhotoViewerModal';
 import { CameraCaptureModal } from './CameraCaptureModal';
 import { DeleteGalleryReminderModal } from './DeleteGalleryReminderModal';
@@ -240,7 +240,23 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       for (let i = 0; i < records.length; i++) {
         const rec = records[i];
         try {
-          const decryptedData = await decryptBuffer(rec.data, rec.iv, masterKey);
+          let decryptedData: ArrayBuffer;
+          const isProbablyUnencrypted = !rec.iv || rec.iv.length === 0 || checkIsUnencryptedMedia(rec.data);
+
+          if (isProbablyUnencrypted) {
+            decryptedData = rec.data;
+          } else {
+            try {
+              decryptedData = await decryptBuffer(rec.data, rec.iv, masterKey);
+            } catch (decErr) {
+              if (checkIsUnencryptedMedia(rec.data)) {
+                decryptedData = rec.data;
+              } else {
+                throw decErr;
+              }
+            }
+          }
+
           const blob = new Blob([decryptedData], { type: rec.mimeType || 'application/octet-stream' });
           const blobUrl = URL.createObjectURL(blob);
           blobUrlsRef.current.push(blobUrl);
@@ -1165,52 +1181,6 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
           {/* Spacer so content starts right below fixed header */}
           <div className="safe-top-header-spacer shrink-0 w-full mb-3" />
-
-          {/* Recordatorio de Copia de Seguridad (> 7 días) */}
-          {backupReminder.show && (
-            <div className="bg-gradient-to-r from-amber-950/40 via-amber-900/20 to-amber-950/40 border border-amber-500/40 rounded-3xl p-3.5 mb-3 shadow-lg flex items-center justify-between gap-3 animate-in fade-in select-none">
-              <div
-                onClick={() => {
-                  sessionStorage.setItem('open_backup_tab_on_settings', 'true');
-                  window.dispatchEvent(new Event('nullvault_switch_settings_backup'));
-                  navigateToTab('settings');
-                }}
-                className="flex items-center gap-3 min-w-0 cursor-pointer flex-1 group"
-              >
-                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 text-amber-400 text-[10px] font-bold tracking-wider uppercase">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                    <span>Recordatorio de Respaldo</span>
-                    <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 text-[9px] font-mono">
-                      {backupReminder.hasNeverBackedUp ? 'Pendiente' : `+${backupReminder.days} días`}
-                    </span>
-                  </div>
-                  <h4 className="text-xs font-bold text-white truncate mt-0.5">
-                    {backupReminder.hasNeverBackedUp
-                      ? 'Aún no has creado una copia de seguridad'
-                      : `Hace más de una semana sin respaldar (${backupReminder.days} días)`}
-                  </h4>
-                  <p className="text-[10px] text-amber-300 underline font-medium">
-                    Toca para respaldar tus archivos ahora →
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  dismissBackupReminder();
-                }}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800/60 shrink-0 cursor-pointer"
-                title="Posponer recordatorio"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
 
           {/* Card: BÓVEDA SELLADA (Real Data) - Compact sleek card */}
           <div className="bg-[#0a121d] border border-slate-800/90 rounded-2xl p-2.5 sm:p-3 mb-2.5 shadow-xl flex items-center justify-between">

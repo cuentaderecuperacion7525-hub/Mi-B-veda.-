@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.calculadora.boveda.privada">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Permisos de acceso a medios y galería en Android 13+ (API 33+) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />

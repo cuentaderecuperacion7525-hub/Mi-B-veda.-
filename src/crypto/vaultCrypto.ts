@@ -181,3 +181,35 @@ export async function verifyKey(
     return false;
   }
 }
+
+/**
+ * Checks if a given buffer starts with known magic bytes of unencrypted media (images, videos, audio, PDF)
+ */
+export function checkIsUnencryptedMedia(buffer: ArrayBuffer | Uint8Array | null | undefined): boolean {
+  if (!buffer) return false;
+  const byteLen = buffer instanceof Uint8Array ? buffer.byteLength : buffer.byteLength;
+  if (byteLen < 4) return false;
+
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer, 0, Math.min(byteLen, 16));
+
+  // JPEG: FF D8 FF
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return true;
+  // PNG: 89 50 4E 47
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return true;
+  // GIF: 47 49 46 38 ('GIF8')
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return true;
+  // WEBP / RIFF: 52 49 46 46 ('RIFF')
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) return true;
+  // MP4 / MOV: 'ftyp' at offset 4
+  if (bytes.length >= 8 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) return true;
+  // PDF: 25 50 44 46 ('%PDF')
+  if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) return true;
+  // MP3: 'ID3' (49 44 33) or sync word FF FB / FF F3
+  if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) return true;
+  if (bytes[0] === 0xff && (bytes[1] === 0xfb || bytes[1] === 0xf3 || bytes[1] === 0xf2)) return true;
+  // WebM / Matroska: 1A 45 DF A3
+  if (bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) return true;
+
+  return false;
+}
+
