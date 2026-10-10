@@ -2195,8 +2195,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           onChange={handleFileInputChange}
         />
 
-      {/* Botón flotante estilo WhatsApp (+) en cada carpeta con Speed-Dial adaptativo */}
-      {activeNavTab === 'vault' && !isSelectMode && selectedIds.size === 0 && (
+      {/* Botón flotante (+) exclusivo en la pestaña de Importar con los colores de la aplicación */}
+      {activeNavTab === 'import' && (
         <>
           {/* Telón oscuro al desplegar opciones */}
           {isWhatsAppFabOpen && (
@@ -2206,7 +2206,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
             />
           )}
 
-          {/* Opciones desplegadas sobre el botón (estilo adjuntos / Speed-Dial WhatsApp) */}
+          {/* Opciones desplegadas sobre el botón (estilo Speed-Dial con los colores de la app) */}
           {isWhatsAppFabOpen && (
             <div className="fixed bottom-[148px] sm:bottom-[164px] right-4 sm:right-6 z-50 flex flex-col items-end gap-3 select-none animate-in slide-in-from-bottom-4 fade-in duration-200">
               {/* Opción 1: Nueva Carpeta */}
@@ -2218,11 +2218,11 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 }}
                 className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
               >
-                <span className="px-3 py-1.5 rounded-full bg-[#1f2c34] text-[#e9edef] text-xs font-semibold shadow-lg border border-slate-700/60 whitespace-nowrap">
+                <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg shadow-black/60 border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
                   Nueva carpeta
                 </span>
-                <div className="w-12 h-12 rounded-full bg-[#00a884] hover:bg-[#008f6f] text-white flex items-center justify-center shadow-lg shadow-black/40 border border-teal-300/30 transition-all">
-                  <FolderPlus className="w-5 h-5 stroke-[2.2]" />
+                <div className="w-12 h-12 rounded-full bg-[#00e5ff] hover:bg-[#00cce6] text-black flex items-center justify-center shadow-lg shadow-cyan-500/40 border border-cyan-200/50 transition-all">
+                  <FolderPlus className="w-5 h-5 stroke-[2.4]" />
                 </div>
               </button>
 
@@ -2231,179 +2231,100 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 type="button"
                 onClick={() => {
                   setIsWhatsAppFabOpen(false);
-                  if (activeCategory === 'video' || activeTab === 'video') {
-                    setCameraInitialMode('video');
-                  } else {
-                    setCameraInitialMode('photo');
-                  }
+                  setCameraInitialMode('photo');
                   setIsCameraOpen(true);
                 }}
                 className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
               >
-                <span className="px-3 py-1.5 rounded-full bg-[#1f2c34] text-[#e9edef] text-xs font-semibold shadow-lg border border-slate-700/60 whitespace-nowrap">
+                <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg shadow-black/60 border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
                   Abrir cámara
                 </span>
-                <div className="w-12 h-12 rounded-full bg-[#d33a6b] hover:bg-[#b82e5b] text-white flex items-center justify-center shadow-lg shadow-black/40 border border-pink-300/30 transition-all">
-                  <Camera className="w-5 h-5 stroke-[2.2]" />
+                <div className="w-12 h-12 rounded-full bg-[#0a1424] hover:bg-[#00e5ff] text-[#00e5ff] hover:text-black flex items-center justify-center shadow-lg shadow-cyan-500/20 border border-cyan-400/50 transition-all">
+                  <Camera className="w-5 h-5 stroke-[2.4]" />
                 </div>
               </button>
 
-              {/* Opción contextual según la carpeta en que nos encontremos */}
-              {/* A) Si estamos en carpeta de Fotos */}
-              {(activeCategory === 'photo' || (activeCategory === null && activeTab === 'photo')) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsWhatsAppFabOpen(false);
-                    triggerPicker(photoInputRef);
-                  }}
-                  className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
-                >
-                  <span className="px-3 py-1.5 rounded-full bg-[#1f2c34] text-[#e9edef] text-xs font-semibold shadow-lg border border-slate-700/60 whitespace-nowrap">
-                    {activeSubfolder ? `Añadir fotos a "${activeSubfolder}"` : 'Añadir fotos'}
-                  </span>
-                  <div className="w-12 h-12 rounded-full bg-[#ac44cf] hover:bg-[#9233b2] text-white flex items-center justify-center shadow-lg shadow-black/40 border border-purple-300/30 transition-all">
-                    <ImageIcon className="w-5 h-5 stroke-[2.2]" />
-                  </div>
-                </button>
-              )}
+              {/* Opción 3: Añadir Fotos */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsWhatsAppFabOpen(false);
+                  triggerPicker(photoInputRef);
+                }}
+                className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
+              >
+                <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg shadow-black/60 border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                  Añadir fotos
+                </span>
+                <div className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 border border-blue-400/40 transition-all">
+                  <ImageIcon className="w-5 h-5 stroke-[2.4]" />
+                </div>
+              </button>
 
-              {/* B) Si estamos en carpeta de Videos */}
-              {(activeCategory === 'video' || (activeCategory === null && activeTab === 'video')) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsWhatsAppFabOpen(false);
-                    triggerPicker(videoInputRef);
-                  }}
-                  className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
-                >
-                  <span className="px-3 py-1.5 rounded-full bg-[#1f2c34] text-[#e9edef] text-xs font-semibold shadow-lg border border-slate-700/60 whitespace-nowrap">
-                    {activeSubfolder ? `Añadir videos a "${activeSubfolder}"` : 'Añadir videos'}
-                  </span>
-                  <div className="w-12 h-12 rounded-full bg-[#536dfe] hover:bg-[#3d5afe] text-white flex items-center justify-center shadow-lg shadow-black/40 border border-indigo-300/30 transition-all">
-                    <Film className="w-5 h-5 stroke-[2.2]" />
-                  </div>
-                </button>
-              )}
+              {/* Opción 4: Añadir Videos */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsWhatsAppFabOpen(false);
+                  triggerPicker(videoInputRef);
+                }}
+                className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
+              >
+                <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg shadow-black/60 border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                  Añadir videos
+                </span>
+                <div className="w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 border border-indigo-400/40 transition-all">
+                  <Film className="w-5 h-5 stroke-[2.4]" />
+                </div>
+              </button>
 
-              {/* C) Si estamos en carpeta de Música / Audio */}
-              {(activeCategory === 'audio' || (activeCategory === null && activeTab === 'audio')) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsWhatsAppFabOpen(false);
-                    triggerPicker(audioInputRef);
-                  }}
-                  className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
-                >
-                  <span className="px-3 py-1.5 rounded-full bg-[#1f2c34] text-[#e9edef] text-xs font-semibold shadow-lg border border-slate-700/60 whitespace-nowrap">
-                    {activeSubfolder ? `Añadir música a "${activeSubfolder}"` : 'Añadir música'}
-                  </span>
-                  <div className="w-12 h-12 rounded-full bg-[#e67e22] hover:bg-[#d35400] text-white flex items-center justify-center shadow-lg shadow-black/40 border border-orange-300/30 transition-all">
-                    <Music className="w-5 h-5 stroke-[2.2]" />
-                  </div>
-                </button>
-              )}
+              {/* Opción 5: Añadir Música */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsWhatsAppFabOpen(false);
+                  triggerPicker(audioInputRef);
+                }}
+                className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
+              >
+                <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                  Añadir música
+                </span>
+                <div className="w-12 h-12 rounded-full bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center shadow-lg shadow-amber-500/30 border border-amber-300/40 transition-all">
+                  <Music className="w-5 h-5 stroke-[2.4]" />
+                </div>
+              </button>
 
-              {/* D) Si estamos en carpeta de Apps / Archivos */}
-              {(activeCategory === 'app' || (activeCategory === null && activeTab === 'app')) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsWhatsAppFabOpen(false);
-                    triggerPicker(appInputRef);
-                  }}
-                  className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
-                >
-                  <span className="px-3 py-1.5 rounded-full bg-[#1f2c34] text-[#e9edef] text-xs font-semibold shadow-lg border border-slate-700/60 whitespace-nowrap">
-                    {activeSubfolder ? `Añadir aplicación a "${activeSubfolder}"` : 'Añadir aplicación / archivos'}
-                  </span>
-                  <div className="w-12 h-12 rounded-full bg-[#00a3e0] hover:bg-[#008cc2] text-white flex items-center justify-center shadow-lg shadow-black/40 border border-sky-300/30 transition-all">
-                    <Package className="w-5 h-5 stroke-[2.2]" />
-                  </div>
-                </button>
-              )}
-
-              {/* E) Si estamos en la vista raíz de Mi Bóveda (sin categoría específica seleccionada) */}
-              {activeCategory === null && activeTab === 'all' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsWhatsAppFabOpen(false);
-                      triggerPicker(photoInputRef);
-                    }}
-                    className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
-                  >
-                    <span className="px-3 py-1.5 rounded-full bg-[#1f2c34] text-[#e9edef] text-xs font-semibold shadow-lg border border-slate-700/60 whitespace-nowrap">
-                      Añadir fotos
-                    </span>
-                    <div className="w-12 h-12 rounded-full bg-[#ac44cf] hover:bg-[#9233b2] text-white flex items-center justify-center shadow-lg shadow-black/40 border border-purple-300/30 transition-all">
-                      <ImageIcon className="w-5 h-5 stroke-[2.2]" />
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsWhatsAppFabOpen(false);
-                      triggerPicker(videoInputRef);
-                    }}
-                    className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
-                  >
-                    <span className="px-3 py-1.5 rounded-full bg-[#1f2c34] text-[#e9edef] text-xs font-semibold shadow-lg border border-slate-700/60 whitespace-nowrap">
-                      Añadir videos
-                    </span>
-                    <div className="w-12 h-12 rounded-full bg-[#536dfe] hover:bg-[#3d5afe] text-white flex items-center justify-center shadow-lg shadow-black/40 border border-indigo-300/30 transition-all">
-                      <Film className="w-5 h-5 stroke-[2.2]" />
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsWhatsAppFabOpen(false);
-                      triggerPicker(audioInputRef);
-                    }}
-                    className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
-                  >
-                    <span className="px-3 py-1.5 rounded-full bg-[#1f2c34] text-[#e9edef] text-xs font-semibold shadow-lg border border-slate-700/60 whitespace-nowrap">
-                      Añadir música
-                    </span>
-                    <div className="w-12 h-12 rounded-full bg-[#e67e22] hover:bg-[#d35400] text-white flex items-center justify-center shadow-lg shadow-black/40 border border-orange-300/30 transition-all">
-                      <Music className="w-5 h-5 stroke-[2.2]" />
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsWhatsAppFabOpen(false);
-                      triggerPicker(appInputRef);
-                    }}
-                    className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
-                  >
-                    <span className="px-3 py-1.5 rounded-full bg-[#1f2c34] text-[#e9edef] text-xs font-semibold shadow-lg border border-slate-700/60 whitespace-nowrap">
-                      Añadir aplicación / archivos
-                    </span>
-                    <div className="w-12 h-12 rounded-full bg-[#00a3e0] hover:bg-[#008cc2] text-white flex items-center justify-center shadow-lg shadow-black/40 border border-sky-300/30 transition-all">
-                      <Package className="w-5 h-5 stroke-[2.2]" />
-                    </div>
-                  </button>
-                </>
-              )}
+              {/* Opción 6: Añadir Aplicación / Archivos */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsWhatsAppFabOpen(false);
+                  triggerPicker(appInputRef);
+                }}
+                className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
+              >
+                <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                  Añadir aplicación / archivos
+                </span>
+                <div className="w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center shadow-lg shadow-emerald-500/30 border border-emerald-300/40 transition-all">
+                  <Package className="w-5 h-5 stroke-[2.4]" />
+                </div>
+              </button>
             </div>
           )}
 
-          {/* Botón flotante circular verde WhatsApp (+) con giro a (x) al abrir */}
+          {/* Botón flotante circular con los colores de la aplicación (cyan #00e5ff) */}
           <div className="fixed bottom-20 right-4 sm:bottom-24 sm:right-6 z-50 select-none">
             <button
               type="button"
               onClick={() => setIsWhatsAppFabOpen((prev) => !prev)}
-              className="w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#20ba59] active:scale-90 text-white flex items-center justify-center shadow-2xl shadow-green-950/70 border-2 border-emerald-300/40 transition-all duration-300 cursor-pointer group"
-              title={isWhatsAppFabOpen ? 'Cerrar menú' : 'Opciones (estilo WhatsApp)'}
-              aria-label="Abrir opciones estilo WhatsApp"
+              className="w-14 h-14 rounded-full bg-[#00e5ff] hover:bg-[#00cce6] active:scale-90 text-black flex items-center justify-center shadow-2xl shadow-cyan-500/50 border-2 border-cyan-200/60 transition-all duration-300 cursor-pointer group"
+              title={isWhatsAppFabOpen ? 'Cerrar menú' : 'Opciones para importar'}
+              aria-label="Abrir opciones para importar"
             >
               <Plus
-                className={`w-7 h-7 text-white stroke-[2.8] transition-transform duration-300 ease-out ${
+                className={`w-7 h-7 text-black stroke-[3] transition-transform duration-300 ease-out ${
                   isWhatsAppFabOpen ? 'rotate-45' : 'rotate-0 group-hover:rotate-90'
                 }`}
               />
