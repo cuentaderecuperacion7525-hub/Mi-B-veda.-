@@ -33,6 +33,8 @@ import {
 import { EncryptedVaultItem } from '../db/vaultDb';
 import { registerBackHandler } from '../services/backButtonService';
 import { exportVaultItemToDevice } from '../services/nativeVaultBridge';
+import { BarraAccionesInferior } from './BarraAccionesInferior';
+import { ModalEliminar } from './ModalEliminar';
 
 export interface DecryptedVaultItem {
   id: string;
@@ -337,96 +339,66 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col justify-between select-none overflow-hidden">
-      {/* Top Bar */}
-      <header className={`absolute top-0 left-0 right-0 px-4 safe-top-sticky pb-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent flex items-center justify-between text-slate-200 z-30 transition-all duration-300 ease-in-out ${
-        isImmersive ? '-translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
-      }`}>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-            title="Cerrar (Esc)"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <div className="text-left">
-            <div className="flex items-center gap-1.5">
-              {isVideo && <Film className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
-              {isApp && <Smartphone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
-              {isPhoto && <ImageIcon className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
-              <h4 className="text-xs sm:text-sm font-semibold text-slate-100 max-w-[200px] sm:max-w-xs truncate">
-                {activeItem.record.name}
-              </h4>
-            </div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-400">
-              <span>{new Date(activeItem.record.timestamp).toLocaleDateString()}</span>
-              <span>·</span>
-              <span className="capitalize">{activeItem.record.category}</span>
-              <span>·</span>
-              <span>
-                {currentIndex + 1} de {allItems.length}
-              </span>
+      {/* Botón flotante limpio para cerrar imágenes (sin encabezado invasivo) */}
+      {isPhoto && (
+        <button
+          onClick={onClose}
+          className={`absolute top-3 left-3 sm:top-5 sm:left-5 z-40 p-2.5 sm:p-3 rounded-full bg-black/60 hover:bg-black/90 text-white/90 hover:text-white backdrop-blur-md transition-all duration-300 active:scale-95 border border-white/10 shadow-2xl ${
+            isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          }`}
+          title="Cerrar (Esc)"
+        >
+          <X className="w-5 h-5 sm:w-6 sm:h-6" />
+        </button>
+      )}
+
+      {/* Top Bar solo para videos, audios y documentos */}
+      {!isPhoto && (
+        <header className={`absolute top-0 left-0 right-0 px-4 safe-top-sticky pb-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent flex items-center justify-between text-slate-200 z-30 transition-all duration-300 ease-in-out ${
+          isImmersive ? '-translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+        }`}>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+              title="Cerrar (Esc)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="text-left">
+              <div className="flex items-center gap-1.5">
+                {isVideo && <Film className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+                {isApp && <Smartphone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                <h4 className="text-xs sm:text-sm font-semibold text-slate-100 max-w-[200px] sm:max-w-xs truncate">
+                  {activeItem.record.name}
+                </h4>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                <span>{new Date(activeItem.record.timestamp).toLocaleDateString()}</span>
+                <span>·</span>
+                <span className="capitalize">{activeItem.record.category}</span>
+                <span>·</span>
+                <span>
+                  {currentIndex + 1} de {allItems.length}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Top Controls */}
-        <div className="flex items-center gap-1.5">
-          {isPhoto && (
-            <>
-              <button
-                onClick={() => {
-                  setScale(1);
-                  setIsImmersive((prev) => !prev);
-                }}
-                className={`p-2 rounded-xl transition-colors ${
-                  isImmersive ? 'text-[#00e5ff] bg-[#00e5ff]/20 font-bold' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-                title={isImmersive ? 'Mostrar controles' : 'Ocultar barras y ver tamaño real'}
-              >
-                {isImmersive ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              </button>
-              <button
-                onClick={() => setScale((s) => Math.max(1, +(s - 0.5).toFixed(1)))}
-                disabled={scale <= 1}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                title="Alejar"
-              >
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <span className="text-xs font-mono text-cyan-300 font-bold px-2.5 py-1 bg-cyan-950/60 rounded-lg border border-cyan-800/50 min-w-[42px] text-center select-none shadow-inner">
-                {scale.toFixed(1)}x
-              </span>
-              <button
-                onClick={() => setScale((s) => Math.min(4, +(s + 0.5).toFixed(1)))}
-                disabled={scale >= 4}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                title="Acercar"
-              >
-                <ZoomIn className="w-4 h-4" />
-              </button>
-              <div className="h-5 w-px bg-slate-700/60 mx-1 hidden sm:block" />
-              <button
-                onClick={() => setRotation((r) => (r + 90) % 360)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-colors active:scale-95"
-                title="Rotar 90°"
-              >
-                <RotateCw className="w-4 h-4" />
-              </button>
-            </>
-          )}
-
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className={`p-2 rounded-xl transition-colors ${
-              showDetails ? 'text-indigo-400 bg-indigo-500/20' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-            }`}
-            title="Detalles"
-          >
-            <Info className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
+          {/* Top Controls */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowDetails(!showDetails)}
+              className={`p-2 rounded-xl transition-colors ${
+                showDetails ? 'text-indigo-400 bg-indigo-500/20' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+              }`}
+              title="Detalles"
+            >
+              <Info className="w-4 h-4" />
+            </button>
+          </div>
+        </header>
+      )}
 
       {/* Main Content Stage */}
       <div 
@@ -696,88 +668,25 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         )}
       </div>
 
-      {/* Bottom Actions Bar - Horizontally Scrollable & Exact Pill Style */}
-      <footer className={`absolute bottom-0 left-0 right-0 px-3 sm:px-4 py-3 bg-gradient-to-t from-black via-black/90 to-transparent w-full z-30 transition-all duration-300 ease-in-out ${
-        isImmersive ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
-      }`}>
-        <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar py-1 px-1 justify-start sm:justify-center max-w-lg mx-auto touch-pan-x">
-          <button
-            onClick={() => onToggleFavorite(activeItem.id, !activeItem.record.isFavorite)}
-            className={`flex items-center gap-2.5 px-5 py-2.5 rounded-full text-sm font-medium shrink-0 transition-colors active:scale-95 ${
-              activeItem.record.isFavorite
-                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                : 'bg-[#0f172a] text-slate-100 border border-slate-800 hover:bg-slate-800'
-            }`}
-            title="Favorito"
-          >
-            <Heart className={`w-4 h-4 ${activeItem.record.isFavorite ? 'fill-rose-500 text-rose-500' : 'text-slate-100'}`} />
-            <span>Favorito</span>
-          </button>
+      {/* Barra de Acciones Inferior - Íconos limpios con trazo fino outline perfectamente distribuidos */}
+      <BarraAccionesInferior
+        esFavorito={!!activeItem.record.isFavorite}
+        onAlternarFavorito={() => onToggleFavorite(activeItem.id, !activeItem.record.isFavorite)}
+        onCopiar={handleCopyToClipboard}
+        onSacarDeBoveda={handleExport}
+        onEliminar={() => setShowDeleteConfirm(true)}
+        mostrarCopiar={isPhoto}
+        estaSacando={isExporting}
+        esInmersivo={isImmersive}
+      />
 
-          {isPhoto && (
-            <button
-              onClick={handleCopyToClipboard}
-              className="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-[#0f172a] border border-slate-800 text-slate-100 hover:bg-slate-800 text-sm font-medium shrink-0 transition-colors active:scale-95"
-              title="Copiar imagen"
-            >
-              <Copy className="w-4 h-4 text-slate-100" />
-              <span>Copiar</span>
-            </button>
-          )}
-
-          <button
-            onClick={handleExport}
-            disabled={isExporting}
-            className="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-[#00e5ff] hover:bg-[#00cce6] disabled:opacity-50 text-black text-sm font-bold shrink-0 shadow-lg shadow-cyan-500/30 transition-colors active:scale-95 cursor-pointer"
-            title="Sacar archivo fuera de la caja fuerte a tu galería"
-          >
-            <Download className={`w-4 h-4 text-black stroke-[2.5] ${isExporting ? 'animate-bounce' : ''}`} />
-            <span>{isExporting ? 'Sacando...' : 'Sacar'}</span>
-          </button>
-
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-[#270e17] border border-rose-900/60 hover:bg-[#34131f] text-rose-400 text-sm font-medium shrink-0 transition-colors active:scale-95"
-            title="Eliminar permanentemente"
-          >
-            <Trash2 className="w-4 h-4 text-rose-400" />
-            <span>Eliminar</span>
-          </button>
-        </div>
-      </footer>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-xs bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl text-center">
-            <div className="w-12 h-12 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 text-rose-400">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h4 className="text-base font-bold text-white mb-1.5">¿Eliminar este elemento privado?</h4>
-            <p className="text-xs text-slate-400 mb-5">
-              Esta acción es irreversible y eliminará el registro cifrado de tu bóveda de forma permanente.
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(false)}
-                disabled={isDeleting}
-                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={isDeleting}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-rose-600/30 transition-colors"
-              >
-                {isDeleting ? 'Borrando...' : 'Eliminar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal de Confirmación de Eliminación */}
+      <ModalEliminar
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirmar={handleConfirmDelete}
+        isDeleting={isDeleting}
+      />
 
       {/* Export Progress Modal */}
       {isExporting && (
