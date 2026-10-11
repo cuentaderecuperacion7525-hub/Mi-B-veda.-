@@ -33,6 +33,7 @@ import {
   Music,
   FileText,
   Check,
+  CheckCircle2,
   Clock,
   Home,
   Video,
@@ -170,6 +171,11 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBatchExportModal, setShowBatchExportModal] = useState<boolean>(false);
   const [isExportingBatch, setIsExportingBatch] = useState<boolean>(false);
+  const [exportProgress, setExportProgress] = useState<number>(0);
+  const [exportCurrentIndex, setExportCurrentIndex] = useState<number>(0);
+  const [exportTotalCount, setExportTotalCount] = useState<number>(0);
+  const [exportCurrentFileName, setExportCurrentFileName] = useState<string>('');
+  const [isExportComplete, setIsExportComplete] = useState<boolean>(false);
 
   // Subfolders / Custom independent folders per category
   const [customFolders, setCustomFolders] = useState<{
@@ -1039,23 +1045,48 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   const confirmBatchExport = async () => {
     if (selectedIds.size === 0 || isExportingBatch) return;
     setIsExportingBatch(true);
+    setIsExportComplete(false);
+    setExportProgress(5);
     const selected = items.filter((p) => selectedIds.has(p.id));
+    setExportTotalCount(selected.length);
+    setExportCurrentIndex(0);
     const exportedIds: string[] = [];
 
     try {
-      for (const item of selected) {
+      for (let i = 0; i < selected.length; i++) {
+        const item = selected[i];
+        setExportCurrentIndex(i + 1);
+        setExportCurrentFileName(item.record.name || `archivo_${i + 1}`);
+
+        const startPct = Math.round((i / selected.length) * 100);
+        setExportProgress(Math.max(8, startPct));
+
+        // Yield slightly so browser repaints progress
+        await new Promise((r) => setTimeout(r, 60));
+
         const res = await exportVaultItemToDevice({
           blobUrl: item.blobUrl,
           filename: item.record.name || `archivo_${item.id}`,
           mimeType: item.record.mimeType,
           category: item.record.category,
         });
+
         if (res.success) {
           exportedIds.push(item.id);
         }
+
+        const donePct = Math.round(((i + 1) / selected.length) * 100);
+        setExportProgress(donePct);
+
+        // Small yield so user visibly sees the progress bar fill up
+        await new Promise((r) => setTimeout(r, 120));
       }
 
       if (exportedIds.length > 0) {
+        setIsExportComplete(true);
+        setExportProgress(100);
+        await new Promise((r) => setTimeout(r, 450));
+
         await deleteMultipleEncryptedItems(exportedIds);
         setItems((prev) => prev.filter((p) => !exportedIds.includes(p.id)));
         showToast(
@@ -1073,6 +1104,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       showToast('Error al procesar la exportación a la galería', 'error');
     } finally {
       setIsExportingBatch(false);
+      setIsExportComplete(false);
+      setExportProgress(0);
     }
   };
 
@@ -1448,11 +1481,11 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </p>
                 <button
                   type="button"
-                  onClick={() => navigateToTab('import')}
+                  onClick={() => setIsWhatsAppFabOpen(true)}
                   className="mt-3 px-3.5 py-1.5 rounded-full bg-[#00e5ff] hover:bg-[#00cce6] text-black text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md shadow-cyan-500/20 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                  <span>Importar a Bóveda</span>
+                  <span>Añadir a Bóveda</span>
                 </button>
               </div>
             )}
@@ -2108,7 +2141,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           </nav>
         </div>
       ) : (
-        <nav className="fixed safe-bottom-nav left-2 right-2 z-40 max-w-[390px] mx-auto bg-[#0a121d]/90 backdrop-blur-2xl border border-slate-800/90 rounded-full py-2 px-3 sm:px-4 flex items-center justify-between shadow-2xl shadow-black/80 select-none">
+        <nav className="fixed safe-bottom-nav left-4 right-4 z-40 max-w-[320px] mx-auto bg-[#0a121d]/90 backdrop-blur-2xl border border-slate-800/90 rounded-full py-2 px-6 flex items-center justify-between shadow-2xl shadow-black/80 select-none">
           <button
             type="button"
             onClick={() => {
@@ -2121,20 +2154,6 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           >
             <Home className="w-5 h-5" />
             <span className="text-[10px] sm:text-[11px] font-medium">Mi Bóveda</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveCategory(null);
-              navigateToTab('import');
-            }}
-            className={`flex flex-col items-center gap-1 transition-all cursor-pointer ${
-              activeNavTab === 'import' ? 'text-[#00e5ff]' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Plus className="w-5 h-5 stroke-[2.5]" />
-            <span className="text-[10px] sm:text-[11px] font-medium">Importar</span>
           </button>
 
           <button
@@ -2229,8 +2248,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           onChange={handleFileInputChange}
         />
 
-      {/* Botón flotante (+) estilo WhatsApp exclusivo dentro de cada carpeta */}
-      {activeNavTab === 'vault' && activeCategory !== null && !isSelectMode && selectedIds.size === 0 && (
+      {/* Botón flotante (+) estilo WhatsApp para todas las funciones de añadir e importar */}
+      {activeNavTab === 'vault' && !isSelectMode && selectedIds.size === 0 && (
         <>
           {/* Telón oscuro al desplegar opciones */}
           {isWhatsAppFabOpen && (
@@ -2278,8 +2297,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </div>
               </button>
 
-              {/* Opción contextual según la categoría de la carpeta */}
-              {activeCategory === 'photo' && (
+              {/* Opción contextual según la categoría de la carpeta o menú completo en bóveda principal */}
+              {(activeCategory === 'photo' || activeCategory === null) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2297,7 +2316,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </button>
               )}
 
-              {activeCategory === 'video' && (
+              {(activeCategory === 'video' || activeCategory === null) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2315,7 +2334,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </button>
               )}
 
-              {activeCategory === 'audio' && (
+              {(activeCategory === 'audio' || activeCategory === null) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2333,7 +2352,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </button>
               )}
 
-              {activeCategory === 'app' && (
+              {(activeCategory === 'app' || activeCategory === null) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2343,7 +2362,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
                 >
                   <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
-                    Añadir aplicación / archivos
+                    Añadir archivos / apps
                   </span>
                   <div className="w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center shadow-lg shadow-emerald-500/30 border border-emerald-300/40 transition-all">
                     <Package className="w-5 h-5 stroke-[2.4]" />
@@ -2351,22 +2370,24 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </button>
               )}
 
-              {/* Botón para añadir archivos de cualquier tipo a la carpeta */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsWhatsAppFabOpen(false);
-                  triggerPicker(appInputRef);
-                }}
-                className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
-              >
-                <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
-                  {activeCategory === 'app' ? 'Otros documentos' : 'Añadir archivos'}
-                </span>
-                <div className="w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 text-[#00e5ff] flex items-center justify-center shadow-lg shadow-black/40 border border-slate-700 transition-all">
-                  <FileText className="w-5 h-5 stroke-[2.2]" />
-                </div>
-              </button>
+              {/* Botón para añadir archivos de cualquier tipo si está dentro de una carpeta específica */}
+              {activeCategory !== null && activeCategory !== 'app' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsWhatsAppFabOpen(false);
+                    triggerPicker(appInputRef);
+                  }}
+                  className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
+                >
+                  <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                    Otros documentos
+                  </span>
+                  <div className="w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 text-[#00e5ff] flex items-center justify-center shadow-lg shadow-black/40 border border-slate-700 transition-all">
+                    <FileText className="w-5 h-5 stroke-[2.2]" />
+                  </div>
+                </button>
+              )}
             </div>
           )}
 
@@ -2469,40 +2490,88 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         </div>
       )}
 
-      {/* Batch Export / Sacar Confirmation Modal */}
+      {/* Batch Export / Sacar Confirmation & Progress Modal */}
       {showBatchExportModal && (
         <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-          <div className="w-full max-w-xs bg-[#131c2e] border border-cyan-500/30 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
-            <div className="w-12 h-12 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl flex items-center justify-center mx-auto text-[#00e5ff]">
-              <Download className="w-6 h-6 stroke-[2.5]" />
-            </div>
-            <div>
-              <h4 className="text-base font-bold text-white mb-1">
-                ¿Sacar {selectedIds.size} elemento{selectedIds.size > 1 ? 's' : ''} a tu galería?
-              </h4>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Los archivos se restaurarán a la galería y almacenamiento de tu teléfono, y se retirarán de la bóveda privada.
-              </p>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowBatchExportModal(false)}
-                disabled={isExportingBatch}
-                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmBatchExport}
-                disabled={isExportingBatch}
-                className="flex-1 py-2.5 bg-[#00e5ff] hover:bg-[#00cce6] text-black text-xs font-bold rounded-xl shadow-lg shadow-cyan-500/30 transition-colors flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer disabled:opacity-50"
-              >
-                <Download className={`w-4 h-4 stroke-[2.5] ${isExportingBatch ? 'animate-bounce' : ''}`} />
-                <span>{isExportingBatch ? 'Sacando...' : `Sacar (${selectedIds.size})`}</span>
-              </button>
-            </div>
+          <div className="w-full max-w-sm bg-[#131c2e] border border-cyan-500/30 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
+            {isExportingBatch ? (
+              <div className="space-y-4 py-1">
+                <div className="w-14 h-14 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl flex items-center justify-center mx-auto text-[#00e5ff] relative">
+                  {isExportComplete ? (
+                    <CheckCircle2 className="w-7 h-7 text-emerald-400 animate-in zoom-in-75 duration-200" />
+                  ) : (
+                    <Download className="w-7 h-7 animate-bounce text-[#00e5ff]" />
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="text-base font-bold text-white mb-1">
+                    {isExportComplete
+                      ? '¡Fotos sacadas con éxito!'
+                      : `Sacando a tu galería (${exportCurrentIndex}/${exportTotalCount})`}
+                  </h4>
+                  <p className="text-xs text-slate-400 truncate max-w-[260px] mx-auto">
+                    {isExportComplete
+                      ? 'Los archivos se restauraron en tu celular'
+                      : exportCurrentFileName || 'Procesando archivo...'}
+                  </p>
+                </div>
+
+                {/* Barra de progreso interactiva y dinámica */}
+                <div className="space-y-2 pt-1 text-left">
+                  <div className="flex items-center justify-between text-xs font-semibold px-1">
+                    <span className="text-cyan-300 font-mono">
+                      {exportCurrentIndex} de {exportTotalCount}
+                    </span>
+                    <span className="text-[#00e5ff] font-mono font-bold">
+                      {Math.round(exportProgress)}%
+                    </span>
+                  </div>
+
+                  <div className="w-full bg-slate-900/90 rounded-full h-3.5 overflow-hidden border border-slate-700/60 p-0.5 shadow-inner">
+                    <div
+                      className="h-full bg-gradient-to-r from-cyan-500 via-[#00e5ff] to-emerald-400 rounded-full transition-all duration-300 ease-out shadow-[0_0_12px_rgba(0,229,255,0.7)]"
+                      style={{ width: `${Math.min(100, Math.max(exportProgress, 5))}%` }}
+                    />
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 italic text-center">
+                    Guardando en la galería y retirando de la bóveda...
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="w-12 h-12 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl flex items-center justify-center mx-auto text-[#00e5ff]">
+                  <Download className="w-6 h-6 stroke-[2.5]" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-white mb-1">
+                    ¿Sacar {selectedIds.size} elemento{selectedIds.size > 1 ? 's' : ''} a tu galería?
+                  </h4>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Los archivos se restaurarán a la galería y almacenamiento de tu teléfono, y se retirarán de la bóveda privada.
+                  </p>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowBatchExportModal(false)}
+                    className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmBatchExport}
+                    className="flex-1 py-2.5 bg-[#00e5ff] hover:bg-[#00cce6] text-black text-xs font-bold rounded-xl shadow-lg shadow-cyan-500/30 transition-colors flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 stroke-[2.5]" />
+                    <span>Sacar ({selectedIds.size})</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

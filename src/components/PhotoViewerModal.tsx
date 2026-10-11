@@ -28,6 +28,7 @@ import {
   Film,
   Image as ImageIcon,
   Music,
+  Check,
 } from 'lucide-react';
 import { EncryptedVaultItem } from '../db/vaultDb';
 import { registerBackHandler } from '../services/backButtonService';
@@ -63,6 +64,8 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   const [isImmersive, setIsImmersive] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [exportProgress, setExportProgress] = useState<number>(0);
+  const [exportStage, setExportStage] = useState<string>('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
 
   // Video playback controls
@@ -192,7 +195,13 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   const handleExport = async () => {
     if (!activeItem || isExporting) return;
     setIsExporting(true);
+    setExportProgress(15);
+    setExportStage('Preparando archivo...');
     try {
+      await new Promise((r) => setTimeout(r, 120));
+      setExportProgress(45);
+      setExportStage('Guardando en la galería de tu dispositivo...');
+
       const res = await exportVaultItemToDevice({
         blobUrl: activeItem.blobUrl,
         filename: activeItem.record.name || `archivo_caja_fuerte_${activeItem.id}`,
@@ -205,9 +214,14 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         return;
       }
 
-      // El archivo ya se restauró en la galería/almacenamiento del teléfono.
-      // Ahora lo retiramos de la bóveda para completar la acción de "sacar".
+      setExportProgress(85);
+      setExportStage('Retirando de la bóveda privada...');
       await onDelete(activeItem.id);
+
+      setExportProgress(100);
+      setExportStage('¡Listo! Guardado en tu galería');
+      await new Promise((r) => setTimeout(r, 400));
+
       showToast(
         isApp
           ? 'Aplicación / Archivo sacado de la caja fuerte a tu dispositivo'
@@ -224,6 +238,8 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       showToast('Error al sacar el elemento de la bóveda', 'error');
     } finally {
       setIsExporting(false);
+      setExportProgress(0);
+      setExportStage('');
     }
   };
 
@@ -712,6 +728,44 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               >
                 {isDeleting ? 'Borrando...' : 'Eliminar'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Progress Modal */}
+      {isExporting && (
+        <div className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 select-none">
+          <div className="w-full max-w-xs bg-[#131c2e] border border-cyan-500/30 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-14 h-14 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl flex items-center justify-center mx-auto text-[#00e5ff] relative">
+              {exportProgress === 100 ? (
+                <Check className="w-7 h-7 text-emerald-400 animate-in zoom-in-75 duration-200" />
+              ) : (
+                <Download className="w-7 h-7 animate-bounce text-[#00e5ff]" />
+              )}
+            </div>
+
+            <div>
+              <h4 className="text-base font-bold text-white mb-1">
+                {exportProgress === 100 ? '¡Foto sacada con éxito!' : 'Sacando a tu galería...'}
+              </h4>
+              <p className="text-xs text-slate-400">
+                {exportStage || 'Guardando archivo en tu dispositivo'}
+              </p>
+            </div>
+
+            {/* Barra de progreso */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex justify-between text-xs font-semibold px-1">
+                <span className="text-slate-400">Progreso</span>
+                <span className="text-[#00e5ff] font-mono font-bold">{exportProgress}%</span>
+              </div>
+              <div className="w-full bg-slate-900 rounded-full h-3 overflow-hidden border border-slate-700/60 p-0.5">
+                <div
+                  className="h-full bg-gradient-to-r from-cyan-500 via-[#00e5ff] to-emerald-400 rounded-full transition-all duration-300 ease-out shadow-[0_0_12px_rgba(0,229,255,0.7)]"
+                  style={{ width: `${Math.min(100, Math.max(exportProgress, 5))}%` }}
+                />
+              </div>
             </div>
           </div>
         </div>
