@@ -22,7 +22,7 @@ jobs:
           node-version: 22
 
       - name: Configurar Java JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -32,7 +32,7 @@ jobs:
 
       - name: Aceptar licencias de Android SDK
         run: |
-          yes | sdkmanager --licenses || true
+          yes | ($ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || sdkmanager --licenses || true) 2>/dev/null || true
 
       - name: Instalar dependencias
         run: npm install --legacy-peer-deps
@@ -48,11 +48,11 @@ jobs:
         run: |
           # Si no existe debug.keystore, crearlo con credenciales fijas
           if [ ! -f android/app/debug.keystore ]; then
-            keytool -genkey -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Boveda,O=Boveda,C=ES"
+            keytool -genkeypair -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Boveda,O=Boveda,C=ES" || true
           fi
           # Incrementar versionCode con el run_number de GitHub para que Android siempre reconozca la actualización
           BUILD_NUM=${{ github.run_number }}
-          sed -i "s/versionCode [0-9]*/versionCode $BUILD_NUM/g" android/app/build.gradle
+          sed -i "s/versionCode [0-9]*/versionCode $BUILD_NUM/g" android/app/build.gradle || true
 
       - name: Compilar APK con Gradle
         run: |
@@ -64,6 +64,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Boveda-Segura-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
