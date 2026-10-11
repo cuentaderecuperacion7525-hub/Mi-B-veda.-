@@ -2215,7 +2215,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
           {/* Opciones desplegadas sobre el botón según la carpeta actual */}
           {isWhatsAppFabOpen && (
-            <div className="fixed bottom-[148px] sm:bottom-[164px] right-4 sm:right-6 z-50 flex flex-col items-end gap-3 select-none animate-in slide-in-from-bottom-4 fade-in duration-200">
+            <div className="fixed safe-bottom-fab-menu right-5 sm:right-6 z-50 flex flex-col items-end gap-3 select-none animate-in slide-in-from-bottom-4 fade-in duration-200">
               {/* Opción 1: Nueva Carpeta */}
               <button
                 type="button"
@@ -2344,7 +2344,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           )}
 
           {/* Botón flotante circular con los colores de la aplicación (cyan #00e5ff) */}
-          <div className="fixed bottom-20 right-4 sm:bottom-24 sm:right-6 z-40 select-none">
+          <div className="fixed safe-bottom-fab right-5 sm:right-6 z-40 select-none">
             <button
               type="button"
               onClick={() => setIsWhatsAppFabOpen((prev) => !prev)}

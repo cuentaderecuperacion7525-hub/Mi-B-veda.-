@@ -30,6 +30,7 @@ import {
   formatRecoveryKeyDisplay,
   normalizeRecoveryKey,
 } from '../services/recoveryKeyService';
+import { App as CapacitorApp } from '@capacitor/app';
 import { PinKeypad } from './PinKeypad';
 
 interface LockVaultViewProps {
@@ -316,19 +317,27 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
     }
   }, [pin, isVerifying, isBioLoading]);
 
-  // Sensor de huella automático y reconexión al volver a la app
+  // Sensor de huella automático y reconexión al volver a la app o maximizar
   useEffect(() => {
     let isMounted = true;
+    let bioDebounceTimeout: any = null;
+    let lastAutoTriggerTime = 0;
 
-    const triggerAutoBiometrics = async () => {
+    const triggerAutoBiometrics = async (forceFresh = false) => {
       if (!isBiometricsAutoPromptEnabled()) return;
+      if (document.visibilityState !== 'visible') return;
       if (isUnlockingRef.current || isAuthenticatingBiometricsRef.current) return;
+
+      const now = Date.now();
+      if (now - lastAutoTriggerTime < 800) return; // evitar llamadas duplicadas rápidas
+      lastAutoTriggerTime = now;
+
       isAuthenticatingBiometricsRef.current = true;
 
       try {
-        setIsBioLoading(true);
-        const decryptedPin = await authenticateWithBiometrics(false);
-        if (isMounted) {
+        if (isMounted) setIsBioLoading(true);
+        const decryptedPin = await authenticateWithBiometrics(forceFresh);
+        if (isMounted && decryptedPin) {
           await attemptUnlockRef.current(decryptedPin);
         }
       } catch (err: any) {
@@ -343,31 +352,39 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       }
     };
 
-    if (!hasAutoTriggeredBioRef.current) {
-      hasAutoTriggeredBioRef.current = true;
-      const timer = setTimeout(() => {
-        triggerAutoBiometrics();
-      }, 350);
-      return () => {
-        isMounted = false;
-        clearTimeout(timer);
-      };
+    // Disparar en el montaje inicial si la ventana ya está visible
+    if (document.visibilityState === 'visible') {
+      bioDebounceTimeout = setTimeout(() => {
+        triggerAutoBiometrics(true);
+      }, 300);
     }
 
-    const handleVisibilityChange = () => {
+    const handleResumeOrVisible = () => {
       if (document.visibilityState === 'visible') {
         setPin('');
         setErrorMessage(null);
-        if (isBiometricsAutoPromptEnabled() && !isAuthenticatingBiometricsRef.current) {
-          triggerAutoBiometrics();
-        }
+        clearTimeout(bioDebounceTimeout);
+        bioDebounceTimeout = setTimeout(() => {
+          triggerAutoBiometrics(true);
+        }, 200);
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    const handleFocus = () => {
+      handleResumeOrVisible();
+    };
+
+    // Escuchar visibilidad, foco y reactivación tras minimizar/maximizar
+    document.addEventListener('visibilitychange', handleResumeOrVisible);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('vault_app_resumed', handleResumeOrVisible);
+
     return () => {
       isMounted = false;
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearTimeout(bioDebounceTimeout);
+      document.removeEventListener('visibilitychange', handleResumeOrVisible);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('vault_app_resumed', handleResumeOrVisible);
     };
   }, []);
 

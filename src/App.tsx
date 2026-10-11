@@ -178,6 +178,8 @@ export default function App() {
           }
           if (!state.isActive) {
             handleMinimizeOrBackground();
+          } else {
+            window.dispatchEvent(new CustomEvent('vault_app_resumed'));
           }
         }).then((h) => {
           appStateHandle = h;
@@ -192,6 +194,8 @@ export default function App() {
       }
       if (isHidden) {
         handleMinimizeOrBackground();
+      } else {
+        window.dispatchEvent(new CustomEvent('vault_app_resumed'));
       }
     };
 
@@ -204,6 +208,7 @@ export default function App() {
 
     const handleWindowFocus = () => {
       setIsPrivacyBlurActive(false);
+      window.dispatchEvent(new CustomEvent('vault_app_resumed'));
     };
 
     document.addEventListener('visibilitychange', handleDocVisibility);

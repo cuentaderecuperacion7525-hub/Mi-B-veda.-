@@ -18,6 +18,7 @@ import {
   ChevronRight,
   ArrowLeft,
   Code2,
+  Smartphone,
 } from 'lucide-react';
 import {
   exportEncryptedBackupBlob,
@@ -75,7 +76,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
   showToast,
 }) => {
   // Sub-menús de Configuración: null = menú principal vertical
-  const [activeSubMenu, setActiveSubMenu] = useState<'security' | 'backup' | 'danger' | null>(() => {
+  const [activeSubMenu, setActiveSubMenu] = useState<'security' | 'backup' | 'danger' | 'updates' | null>(() => {
     if (sessionStorage.getItem('open_backup_tab_on_settings') === 'true') {
       sessionStorage.removeItem('open_backup_tab_on_settings');
       return 'backup';
@@ -687,6 +688,8 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     ? 'Seguridad y PIN'
                     : activeSubMenu === 'backup'
                     ? 'Copia de Seguridad'
+                    : activeSubMenu === 'updates'
+                    ? 'Actualizaciones y APK'
                     : 'Restablecer Bóveda'}
                 </h1>
                 <p className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase truncate">
@@ -694,6 +697,8 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     ? 'Políticas de acceso y credenciales'
                     : activeSubMenu === 'backup'
                     ? 'Respaldo y restauración cifrada'
+                    : activeSubMenu === 'updates'
+                    ? 'Instalación y actualización sin errores'
                     : 'Zona de peligro'}
                 </p>
               </div>
@@ -754,7 +759,30 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             </div>
           </div>
 
-          {/* Tarjeta 3: Restablecer Bóveda (Zona de Peligro) */}
+          {/* Tarjeta 3: Actualizaciones y APK */}
+          <div
+            onClick={() => setActiveSubMenu('updates')}
+            className="bg-[#0a121d] border border-slate-800/90 hover:border-cyan-500/40 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-[#00e5ff] shrink-0 group-hover:scale-105 transition-transform">
+                <Smartphone className="w-4.5 h-4.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-white group-hover:text-[#00e5ff] transition-colors truncate">
+                  Actualizaciones y APK
+                </h3>
+                <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                  Cómo instalar actualizaciones sin perder fotos ni datos
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-slate-900 border border-slate-800 text-slate-500 group-hover:text-[#00e5ff] group-hover:border-[#00e5ff]/40 transition-colors">
+              <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </div>
+
+          {/* Tarjeta 4: Restablecer Bóveda (Zona de Peligro) */}
           <div
             onClick={() => setActiveSubMenu('danger')}
             className="bg-[#0a121d] border border-rose-950/60 hover:border-rose-500/50 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
@@ -1188,6 +1216,92 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 <Trash2 className="w-4 h-4" />
                 <span>Borrar todos los datos y restablecer</span>
               </button>
+            </div>
+          </div>
+        )}
+
+        {activeSubMenu === 'updates' && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Tarjeta de estado de versión y firma */}
+            <div className="bg-[#0a121d] p-4.5 rounded-3xl border border-cyan-500/30 shadow-xl space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-[#00e5ff] shrink-0">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">Instalación y Actualizaciones de la App</h4>
+                  <p className="text-[11px] text-cyan-400 font-medium">Firma digital permanente activada</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/80 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-1.5">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-400">Versión actual:</span>
+                  <span className="font-mono font-bold text-[#00e5ff]">v1.0.1</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-400">Firma criptográfica:</span>
+                  <span className="text-emerald-400 font-bold">Unificada y permanente</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Solución al error "El paquete no es válido" */}
+            <div className="bg-[#0a121d] p-4.5 rounded-3xl border border-slate-800 shadow-xl space-y-3">
+              <div className="flex items-center gap-2 text-amber-400">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <h5 className="text-xs font-bold uppercase tracking-wider">
+                  ¿Te salió "El paquete no es válido"?
+                </h5>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Al descargar el archivo desde GitHub Actions, se descarga empaquetado dentro de un archivo comprimido <b className="text-amber-300">.zip</b> (por ejemplo <code className="text-cyan-300">Boveda-Calculadora-...zip</code>). Si intentas abrir ese archivo .zip directamente con el instalador de Android, el celular marcará <b className="text-rose-400">"El paquete no es válido"</b>.
+              </p>
+
+              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2.5 text-xs">
+                <p className="font-bold text-white text-[11px] uppercase tracking-wider">
+                  Pasos para actualizar en 3 simples pasos:
+                </p>
+
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-[#00e5ff] flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 border border-cyan-500/30">
+                    1
+                  </span>
+                  <p className="text-slate-300 leading-snug">
+                    Abre la aplicación <strong className="text-white">"Archivos"</strong> o <strong className="text-white">"Mis Archivos"</strong> de tu celular y entra a la carpeta <strong className="text-white">Descargas</strong>.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-[#00e5ff] flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 border border-cyan-500/30">
+                    2
+                  </span>
+                  <p className="text-slate-300 leading-snug">
+                    Toca el archivo <strong className="text-amber-300">.zip</strong> descargado y selecciona <strong className="text-emerald-400">"Extraer"</strong> o <strong className="text-emerald-400">"Descomprimir"</strong>.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-[#00e5ff] flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 border border-cyan-500/30">
+                    3
+                  </span>
+                  <p className="text-slate-300 leading-snug">
+                    Toca el archivo <strong className="text-[#00e5ff]">.apk</strong> extraído y pulsa <strong className="text-white">"Actualizar"</strong>. Se instalará limpiamente sin borrar ninguna de tus fotos ni configuración.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Consejo de seguridad */}
+            <div className="bg-emerald-950/20 p-4 rounded-3xl border border-emerald-500/30 text-xs space-y-2">
+              <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>Consejo para mayor seguridad</span>
+              </div>
+              <p className="text-slate-300 leading-relaxed text-[11px]">
+                Antes de instalar cualquier actualización en Android, siempre es buena práctica ir a la pestaña <button type="button" onClick={() => setActiveSubMenu('backup')} className="text-emerald-300 underline font-bold cursor-pointer">Copia de Seguridad</button> y exportar un respaldo cifrado de tus archivos para tener total tranquilidad.
+              </p>
             </div>
           </div>
         )}

@@ -46,13 +46,17 @@ jobs:
 
       - name: Configurar firma fija para evitar conflicto de paquete
         run: |
-          # Si no existe debug.keystore, crearlo con credenciales fijas
+          # Si por alguna razon no esta el archivo, restaurar el keystore permanente del proyecto
           if [ ! -f android/app/debug.keystore ]; then
-            keytool -genkeypair -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Boveda,O=Boveda,C=ES" || true
+            echo "Restaurando debug.keystore permanente para firma identica..."
+            echo "MIIKzgIBAzCCCoQGCSqGSIb3DQEHAaCCCnUEggpxMIIKbTCCBLIGCSqGSIb3DQEHBqCCBKMwggSfAgEAMIIEmAYJKoZIhvcNAQcBMFcGCSqGSIb3DQEFDTBKMCkGCSqGSIb3DQEFDDAcBAhjeuGXzO7DhwICCAAwDAYIKoZIhvcNAgkFADAdBglghkgBZQMEASoEEDM3jJ84BSv8+gJd8I4M5D6AggQwYM/Buc8YEtU84MYZy32Hs2FJiIDB0XGKC9vKHEvvVgw42I6CFDJMTa5tvEu0xBbw6hIuw79c4lNatnwLO7972Fkax5+QGvbBkY5sBILszi0QxT0wyzeGVATvd8L8PIhhXjFT1DukJKBpX5EqNvKnG+yriVxI9eP5T5RUlt5G61QEJLRjjM7S1F6lxFHUMrrP/mbEtw8vVLbtMApIXi+bisnz9yupZSIzAOnr8Z3oLLcTkY0njcaOKnfyNdGxJ/o5271d/1l0w7F4wmdN8Tu5DX/r2/bmWypNNxEg/OZtCwhP2CGPDnbP/1WLpXMCAkz5hnwmetZY5Zx7k5VtCvAP1BjzLPsk7Qor+FDTJyzmraIjE6ISKbf+iI1lx5mICZ5vTbdwvVMCqptaBSoNfuL7ejBhLdYwPdoCAZUspK4NQn+gkwzRht0+1FRXPjezQs6mOz3Ig7+7sl0ecIEL5gNaMMl5Yxq6QtKdjDlH36ZecVDEMDqqKHadHepuAU/HfuM6a3D6EzIU55rk5ykx4kdhgzy+VBpP9bLCL7Qfzl37zEI7lOXi3noHnaRQsGpX6MwnxQ3zofqg8w5aLSBfvHXstVosdQWmxwmfUAj5ATtaI73yN/xU/jrPQozOVYo480H23wSiEp1+g3LLsq6t2G+VajYfWG/j/Y4fossx9sVqY0BbdnqgeU17NHJLN1+TyhoYVqFJMufroH2Y2aALrfPod05f59s9P+PsIL4G4XPz+cgtJp+OUdf74eZoTSHpi9MrRu0qCCx98BRJViQoaYvwQwh8jcWX2tgcG1erRBNrBK/2la8MX11SzJGJsraGAlOJPeVGshd/reeAKH2/tHKrlR33QVIXr1GpoePT1EH67YGMsYzipbg4PE8WVgQDEBRzsKDquhsxUeEKzLxzfgDB/n2lMoX7CpDWRZEy99r8lsrdvGyfNNlVcJlvKSEBXNa4B5SORULA69CWmc1Vs199/S3toOD9bpOT4kghVMQqzOAMoguytrfzDHhYFMVgG9OSIAmoDtdf2ZerKnPlKPGdwQHfqTCKJnU3zxDzkUp0PFK9APm0Zz0Is7iyEygraye2dPNFF4zLASZi6jLz/QpBvpafB9bOQVu8wABwTltWLJc3ZbIZJgei/rMZiuxDAIW/sXyyLv/l1RFqb5FiVuSmIS1GjNZKkX2qnl6GnShany7eEH/L82mF+rt8M9vK7RpyDZm9CpR5nXw8+WLFjQAgUpTcF9Kv3KMogpOTwFzV2idUUvQINRH9awImcj265SNWF8oT0w/PyGGG0bY9II4nmP/B/LnqzqgJpEnD6MpjBMn4WIhVYzoFL5VP2RTFLH/6Jk7H/c+ASpjHNBCJ6mkaPjZKDBXwGwE8bPSKcqavJirLDyW5yu7bwwe1abbfRe1GReykv5KLEI+PJ/yDWjbN3zCCBbMGCSqGSIb3DQEHAaCCBaQEggWgMIIFnDCCBZgGCyqGSIb3DQEMCgECoIIFMTCCBS0wVwYJKoZIhvcNAQUNMEowKQYJKoZIhvcNAQUMMBwECHyd8jOKKgK/AgIIADAMBggqhkiG9w0CCQUAMB0GCWCGSAFlAwQBKgQQauHsDozuy7UKohFkk7dFmgSCBNAk5i2EzclCuWszbHa6J4XNNdLJgdJrPJpoBAxgPV0TUjW/RzOLh8yk64kSIXeToztkmxZnxMfG986BfFj7i+9IJaWpUBSpGarXl62Agbbbqt5mOfg/GUmwpgdiQ/cXYwesH9of6FhQqTpqX67h8fNeWNEH4sClmekeZYK+MVrSGRchCDBc8GlY7kfDYF9laJHeQ8y1h3Z7VA3mrHK/GPm4uezyflIjSDotKVnDJjcv2yaC73IvhpthS7WPtdhjiozGy6M6DKm8ETjuEItkSct/ebFlK/IxrAWASyWSbEQzP2sRH4fdAC59NxAOWIzUIhil/74NCnFr1tmMu2/oszvH2wERDSvMYNZBO6j164dbNCC6e1wav4oYWaALrYQVa3k/ywJoVKhthl49p9cNXipCR1g5wYnrl6dvkwNbv2C0CKrvphcwNGVmO/23fh/oiLVZM4Kq+eJfCNJlRlI2o8NobB91CIWKF7z0S9/TAwwNcQqy+nF8g+ej9O7a4kxz8Rvx2Fxtgt6H14lRvaUFIqZucLWqaq1wMZujgWz5OHTEBZ64VA/3X1yId9jgplI5w0SpH8RZ++X7LHeSLcAa+RPxnyYdE6jqQk3oxurAlBpQg7QJ9G96kaE+6haFEXs+Mu3fDlan42siRv+FQ5q7yjUMz+1Q0GkNyj567jm9SgXu673l4Eg3oDzHQ1gxU0+a8SVsZ/PdRh6IEMKHgwvp0z19LQ8zZamTe4oGeEt2KrbtF5WQeYpDJWoQdgToyytB6YdCzTtiWBXYsuRjQDhsHK8w9iUAPVUaNhF3BqbADkpIwn+mH/fe8OlQVy50cu+xOtHKocF33+Ua8fXe/QmLjYN40tawPA0/meFAhSYmj8ONy6peMXoDjMfKmg8y2upxRPyMcf/edOVD3WoXaaiMS+HDZAX3YFRjYRySOzjludViquklCqUJtP31eia/pbVGBhHoSa/gM+73q73oNkJRfeGG3e4Q3Ac/tfoyCQEsN30jUkBfzl0hpPKpZX7KncaKgHEq17SwH1CPwrnN3+j2+NXUijCAcbF4kpjw9sG4PrDwfv4EI+3D3dsG6GqHQGCDTrnzwuR2hj24Jm5r4pd67sPQqAmCHIV1x/t5zsX2JPGtNOelFbYYm37LI8e3R5FXIwGwbI+JbB6b1MNUz2wR3cbdp/Qtb+TO7PnKALjCK/biQPqnSesNvtM90A504GPMTSW++tlKTZZp3V5Ze5zrZOUGZVTLKAqie/sPQOAiZAuM2VVzRg+nTcljYj+qOVzFcnJl/+0ZwY2ikRV069qhVcH1wTxZ38V4kV01pMtr7Id8/346EqDKSJ0+IlBprkqEnM1DJc5hX3QyHIs/MZmXp+VMXYK3woqzGXzR9CrbkWHmrf0NHFcxwm4/LS+iZyvVwHJKlnGPurNXeZhtB3G5RQoEubyy2Zc8J67k38pHsAvOF1NiKqWUrf8rcy1wVE2XaO5j8ZXHDkzwcN2jQf0okufJIPgGal7q1RtZ+hUGkqhGIV1L6rgRqyzNsgYCwm/tVjYx/HTvrdRA4EUIEwub1okVwoobJl0UbOUcjPXQfZPEOsbgaexDi+cSbLED+cMJArJCLzg+1n38YSKsvZVVmfm/c6vx7NRgeQJcpOgH1+ib4zFUMCMGCSqGSIb3DQEJFTEWBBQ9PVhk+8+HcgWhcagyg0PrSZzq4DAtBgkqhkiG9w0BCRQxIB4eAGEAbgBkAHIAbwBpAGQAZABlAGIAdQBnAGsAZQB5MEEwMTANBglghkgBZQMEAgEFAAQg+qrzAlqLo3N3PkODzqWH77buA6U9Q99qP7eT9HGWjcgECCZaEyWB0wH+AgIIAA==" | base64 -d > android/app/debug.keystore
           fi
-          # Incrementar versionCode con el run_number de GitHub para que Android siempre reconozca la actualización
+          # Incrementar versionCode de forma ascendente garantizada (mínimo 100 + run_number)
+          # para que Android siempre reconozca la actualización sin error de conflicto
           BUILD_NUM=${{ github.run_number }}
-          sed -i "s/versionCode [0-9]*/versionCode $BUILD_NUM/g" android/app/build.gradle || true
+          NEW_VERSION_CODE=$((100 + BUILD_NUM))
+          sed -i "s/versionCode [0-9]*/versionCode $NEW_VERSION_CODE/g" android/app/build.gradle || true
+          sed -i "s/versionName \".*\"/versionName \"1.0.$BUILD_NUM\"/g" android/app/build.gradle || true
 
       - name: Compilar APK con Gradle
         run: |
@@ -60,10 +64,16 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
+      - name: Preparar archivo APK final
+        run: |
+          mkdir -p apk-output
+          cp android/app/build/outputs/apk/debug/*.apk apk-output/Boveda-Calculadora-v1.0.${{ github.run_number }}.apk
+          ls -la apk-output/
+
       - name: Subir APK listo para descargar
         uses: actions/upload-artifact@v4
         with:
-          name: Boveda-Segura-APK
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: Boveda-Calculadora-v1.0.${{ github.run_number }}
+          path: apk-output/*.apk
           if-no-files-found: error
           retention-days: 30

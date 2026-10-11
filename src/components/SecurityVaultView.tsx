@@ -26,6 +26,7 @@ import {
   hasBiometricCredentials,
   isBiometricsAutoPromptEnabled,
   setBiometricsAutoPromptEnabled,
+  authenticateWithBiometrics,
 } from '../services/biometricService';
 import {
   isRecoveryKeyConfigured,
@@ -205,11 +206,35 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
     }
   };
 
+  const triggerBiometricForScreenshot = async () => {
+    if (!hasBiometricCredentials()) return;
+    setIsVerifyingPin(true);
+    setConfirmPinError(null);
+    try {
+      const decryptedPin = await authenticateWithBiometrics(true);
+      if (decryptedPin) {
+        await handleVerifyDisableScreenshotPin(decryptedPin);
+      }
+    } catch (err: any) {
+      console.debug('Sensor de huella cancelado o fallido:', err);
+      if (err?.name !== 'NotAllowedError' && !err?.message?.includes('cancelada')) {
+        setConfirmPinError(err?.message || 'Sensor de huella no reconocido. Usa tu PIN.');
+      }
+    } finally {
+      setIsVerifyingPin(false);
+    }
+  };
+
   const handleToggleScreenshot = () => {
     if (screenshotBlockActive) {
       setConfirmPin('');
       setConfirmPinError(null);
       setShowDisableScreenshotModal(true);
+      if (hasBiometricCredentials()) {
+        setTimeout(() => {
+          triggerBiometricForScreenshot();
+        }, 150);
+      }
     } else {
       setScreenshotBlockActive(true);
       localStorage.setItem('vault_screenshot_block_active', 'true');
@@ -724,9 +749,23 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                 Desactivar Bloqueo de Capturas
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                Ingresa tu PIN Maestro para autorizar la desactivación del bloqueo de capturas de pantalla.
+                {hasBiometricCredentials()
+                  ? 'Toca el sensor de huella o ingresa tu PIN Maestro para autorizar la desactivación.'
+                  : 'Ingresa tu PIN Maestro para autorizar la desactivación del bloqueo de capturas de pantalla.'}
               </p>
             </div>
+
+            {hasBiometricCredentials() && (
+              <button
+                type="button"
+                onClick={triggerBiometricForScreenshot}
+                disabled={isVerifyingPin}
+                className="w-full mb-3.5 py-2.5 px-3 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 active:scale-95 border border-cyan-500/30 text-[#00e5ff] text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
+              >
+                <Fingerprint className="w-4 h-4 text-[#00e5ff]" />
+                <span>{isVerifyingPin ? 'Verificando huella...' : 'Usar sensor de huella'}</span>
+              </button>
+            )}
 
             {confirmPinError && (
               <div className="mb-4 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs text-center font-medium">

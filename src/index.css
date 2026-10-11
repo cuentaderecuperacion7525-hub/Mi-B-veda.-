@@ -49,6 +49,14 @@
   bottom: max(calc(env(safe-area-inset-bottom, 0px) + 1rem), 1.25rem);
 }
 
+.safe-bottom-fab {
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) + 6.75rem), 7.75rem);
+}
+
+.safe-bottom-fab-menu {
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) + 11.25rem), 12.5rem);
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
