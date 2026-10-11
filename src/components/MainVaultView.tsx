@@ -71,6 +71,18 @@ import { SecurityVaultView } from './SecurityVaultView';
 import { SettingsVaultView } from './SettingsVaultView';
 import { registerBackHandler, triggerBackAction } from '../services/backButtonService';
 
+export interface Carpeta {
+  id: string;
+  nombre: string;
+}
+
+export interface ArchivoCifrado {
+  id: string;
+  nombre: string;
+  tipo: string;
+  carpetaId: string;
+}
+
 interface MainVaultViewProps {
   masterKey: CryptoKey;
   sessionPin?: string | null;
@@ -210,7 +222,12 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     };
   });
 
-  const [activeSubfolder, setActiveSubfolder] = useState<string | null>(null);
+  // Estado para la carpeta activa ('todas' por defecto para mostrar el menú de carpetas)
+  const [carpetaActiva, setCarpetaActiva] = useState<string>('todas');
+  const activeSubfolder = carpetaActiva === 'todas' ? null : carpetaActiva;
+  const setActiveSubfolder = (folder: string | null) => {
+    setCarpetaActiva(folder === null ? 'todas' : folder);
+  };
   const [folderToRename, setFolderToRename] = useState<string | null>(null);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState<boolean>(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState<boolean>(false);
@@ -481,6 +498,14 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     });
     return Array.from(set);
   }, [activeTab, activeCategory, customFolders, items]);
+
+  // Lista tipada de carpetas disponibles según la interfaz Carpeta
+  const listaCarpetas: Carpeta[] = useMemo(() => {
+    return activeCategoryFolders.map((fName) => ({
+      id: fName,
+      nombre: fName,
+    }));
+  }, [activeCategoryFolders]);
 
   // Robust Native Android Back Button & Gesture Navigation Stack
   useEffect(() => {
@@ -1558,15 +1583,15 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         </div>
       ) : (
         /* Detailed Category View */
-        <div className="max-w-4xl w-full mx-auto p-4 flex-1 flex flex-col animate-in fade-in duration-200">
+        <div className="max-w-4xl w-full mx-auto p-4 pb-28 sm:pb-32 flex-1 flex flex-col animate-in fade-in duration-200">
           {/* Sticky Header & Filter Controls Container */}
           <header className="sticky top-0 z-30 bg-zinc-950/85 backdrop-blur-md border-b border-zinc-900 px-3 safe-top-sticky pb-2 mb-3 shadow-lg -mx-4 sm:mx-0 sm:px-3">
             <div className="flex items-center justify-between gap-3 mb-2.5">
               <button
                 type="button"
                 onClick={() => {
-                  if (activeSubfolder !== null) {
-                    setActiveSubfolder(null);
+                  if (carpetaActiva !== 'todas') {
+                    setCarpetaActiva('todas');
                   } else {
                     setActiveCategory(null);
                   }
@@ -1584,15 +1609,15 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                         : activeCategory === 'audio'
                         ? 'Audio'
                         : 'Apps'}
-                      {activeSubfolder !== null && (
+                      {carpetaActiva !== 'todas' && (
                         <span className="text-zinc-400 font-semibold ml-1.5">
-                          / {activeSubfolder}
+                          / {carpetaActiva}
                         </span>
                       )}
                     </h1>
                     <span className="text-sm font-normal text-zinc-500">
                       (
-                      {activeSubfolder !== null
+                      {carpetaActiva !== 'todas'
                         ? filteredItems.length
                         : activeCategory === 'photo'
                         ? counts.photos
@@ -1605,28 +1630,24 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-zinc-500">
-                    {activeSubfolder !== null ? 'Volver a Carpetas' : 'Volver a Bóveda'}
+                    {carpetaActiva !== 'todas' ? 'Volver a Carpetas' : 'Volver a Bóveda'}
                   </p>
                 </div>
               </button>
 
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => navigateToTab('settings')}
-                  className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900/60 transition-colors cursor-pointer"
-                  title="Ajustes"
-                  aria-label="Ajustes"
-                >
-                  <Settings size={20} strokeWidth={1.5} />
-                </button>
-                <button
-                  onClick={onLock}
-                  className="p-2 rounded-xl text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-                  title="Bloquear bóveda"
-                  aria-label="Seguridad"
-                >
-                  <ShieldAlert size={20} strokeWidth={1.5} />
-                </button>
+              <div className="flex items-center gap-1.5">
+                {/* Botón estilizado para Volver a Carpetas cuando está dentro de un álbum */}
+                {carpetaActiva !== 'todas' && (
+                  <button
+                    type="button"
+                    onClick={() => setCarpetaActiva('todas')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-medium border border-zinc-800 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    title="Volver a la vista de carpetas"
+                  >
+                    <Folder size={14} strokeWidth={1.5} className="text-amber-400" />
+                    <span>Volver a Carpetas</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1778,213 +1799,158 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         ) : (
           /* VISTA DE CONTENIDO DE LA SECCIÓN */
           <div className="space-y-4">
-            {/* Carpetas horizontales tipo chips/pills para acceso inmediato */}
-            {!searchQuery && (
-              <div className="mb-2">
-                <div className="flex items-center justify-between mb-2 px-1">
-                  <h3 className="text-xs font-semibold text-zinc-400 tracking-wider uppercase flex items-center gap-1.5">
-                    <Folder className="w-3.5 h-3.5 text-zinc-400" strokeWidth={1.5} />
-                    <span>Carpetas de {activeTab === 'photo' ? 'Fotos' : activeTab === 'video' ? 'Videos' : activeTab === 'audio' ? 'Audio' : activeTab === 'app' ? 'Apps' : 'Favoritos'}</span>
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateFolderOpen(true)}
-                    className="text-xs font-medium text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 cursor-pointer transition-colors"
-                  >
-                    <FolderPlus className="w-3.5 h-3.5" strokeWidth={1.5} />
-                    <span>Nueva Carpeta</span>
-                  </button>
+            {/* Si carpetaActiva es 'todas' y no hay búsqueda activa:
+                OCULTAR la cuadrícula de fotos y mostrar ÚNICAMENTE bloques grandes o tarjetas de subcarpetas */}
+            {carpetaActiva === 'todas' && !searchQuery ? (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="px-1">
+                  <h2 className="text-sm font-semibold text-zinc-100 flex items-center gap-2">
+                    <Folder size={18} strokeWidth={1.5} className="text-amber-400" />
+                    <span>
+                      Carpetas de {activeCategory === 'photo' ? 'Fotos' : activeCategory === 'video' ? 'Videos' : activeCategory === 'audio' ? 'Audio' : activeCategory === 'app' ? 'Apps' : 'Favoritos'}
+                    </span>
+                  </h2>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Selecciona una carpeta para ver sus archivos cifrados
+                  </p>
                 </div>
 
-                <div className="flex items-center gap-2 overflow-x-auto pb-1.5 no-scrollbar text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setActiveSubfolder(null)}
-                    className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                      activeSubfolder === null
-                        ? 'bg-zinc-800 text-zinc-100 border border-zinc-700 font-semibold shadow-sm'
-                        : 'bg-zinc-900/40 text-zinc-400 hover:text-zinc-200 border border-zinc-800/60 hover:border-zinc-700'
-                    }`}
-                  >
-                    <Layers className="w-3.5 h-3.5" strokeWidth={1.5} />
-                    <span>Todas</span>
-                  </button>
-
-                  {activeCategoryFolders.map((fName) => {
-                    const folderItems = items.filter((it) => {
-                      const matchesCat =
+                {/* Lista Vertical de Subcarpetas */}
+                <div className="flex flex-col gap-2.5">
+                  {listaCarpetas.map((carpeta) => {
+                    const cantidadArchivos = items.filter((it) => {
+                      const coincideCategoria =
                         activeTab === 'favorites'
                           ? it.record.isFavorite
                           : activeTab === 'all'
                           ? true
-                          : it.record.category === activeTab;
-                      const itemAlbum = it.record.album || 'General';
-                      return matchesCat && itemAlbum === fName;
-                    });
-                    const count = folderItems.length;
-                    const isSelected = activeSubfolder === fName;
+                          : it.record.category === (activeCategory || 'photo');
+                      const carpetaId = it.record.album || 'General';
+                      return coincideCategoria && carpetaId === carpeta.id;
+                    }).length;
 
                     return (
                       <div
-                        key={fName}
-                        className={`flex items-center rounded-xl overflow-hidden shrink-0 border transition-all ${
-                          isSelected
-                            ? 'bg-zinc-800 text-zinc-100 border-zinc-700 font-semibold shadow-sm'
-                            : 'bg-zinc-900/40 text-zinc-400 border-zinc-800/60 hover:text-zinc-200 hover:border-zinc-700'
-                        }`}
+                        key={carpeta.id}
+                        onClick={() => setCarpetaActiva(carpeta.id)}
+                        className="group relative bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-800 hover:border-zinc-700/80 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between text-left transition-all duration-200 active:scale-[0.99] cursor-pointer shadow-md backdrop-blur-sm"
                       >
-                        <button
-                          type="button"
-                          onClick={() => setActiveSubfolder(fName)}
-                          className="px-3 py-1.5 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                        >
-                          <Folder className="w-3.5 h-3.5" strokeWidth={1.5} />
-                          <span>{fName} ({count})</span>
-                        </button>
-                        {fName !== 'General' && (
-                          <div className="flex items-center pr-1 gap-0.5">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setFolderToRename(fName);
-                              }}
-                              className="p-1 hover:text-zinc-200 rounded text-zinc-500 transition-colors"
-                              title="Renombrar"
-                            >
-                              <Edit3 className="w-3 h-3" strokeWidth={1.5} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteFolder(fName);
-                              }}
-                              className="p-1 hover:text-red-400 rounded text-zinc-500 transition-colors"
-                              title="Eliminar"
-                            >
-                              <Trash2 className="w-3 h-3" strokeWidth={1.5} />
-                            </button>
+                        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                          {/* Icono de carpeta estilizado en ámbar suave */}
+                          <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                            <Folder size={22} strokeWidth={1.5} className="text-amber-400/90" />
                           </div>
-                        )}
+
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm sm:text-base font-semibold text-zinc-100 group-hover:text-white truncate transition-colors">
+                              {carpeta.nombre}
+                            </h3>
+                            <p className="text-xs text-zinc-500 mt-0.5 font-mono">
+                              {cantidadArchivos} {cantidadArchivos === 1 ? 'archivo' : 'archivos'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0 ml-3">
+                          {carpeta.id !== 'General' && (
+                            <div
+                              className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setFolderToRename(carpeta.id)}
+                                className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                                title="Renombrar carpeta"
+                              >
+                                <Edit3 size={15} strokeWidth={1.5} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteFolder(carpeta.id)}
+                                className="p-2 hover:bg-red-500/10 rounded-lg text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
+                                title="Eliminar carpeta"
+                              >
+                                <Trash2 size={15} strokeWidth={1.5} />
+                              </button>
+                            </div>
+                          )}
+
+                          <ChevronRight size={18} strokeWidth={1.5} className="text-zinc-600 group-hover:text-zinc-300 transition-colors" />
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-            )}
-
-            {/* Grid de Archivos Cifrados - SIEMPRE VISIBLE */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between px-1 mb-1">
-                <span className="text-xs font-semibold text-slate-400">
-                  {activeSubfolder ? `Carpeta: ${activeSubfolder}` : 'Todos los archivos'}
-                </span>
-                <span className="text-xs text-slate-400 font-mono">
-                  {filteredItems.length} {filteredItems.length === 1 ? 'archivo' : 'archivos'}
-                </span>
-              </div>
+            ) : (
+              /* VISTA DE CONTENIDO DENTRO DE LA CARPETA ESPECÍFICA (O RESULTADOS DE BÚSQUEDA) */
+              <div className="space-y-3 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between px-1 mb-1">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCarpetaActiva('todas')}
+                      className="text-xs font-medium text-zinc-400 hover:text-zinc-200 flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <ArrowLeft size={14} strokeWidth={1.5} />
+                      <span>Carpetas</span>
+                    </button>
+                    <span className="text-zinc-600">/</span>
+                    <span className="text-xs font-semibold text-zinc-200">
+                      {carpetaActiva !== 'todas' ? carpetaActiva : 'Resultados de búsqueda'}
+                    </span>
+                  </div>
+                  <span className="text-xs text-zinc-500 font-mono">
+                    {filteredItems.length} {filteredItems.length === 1 ? 'archivo' : 'archivos'}
+                  </span>
+                </div>
 
                 {filteredItems.length === 0 ? (
-          <div className="text-center py-16 px-4 bg-[#131c2e]/40 border border-dashed border-slate-800 rounded-3xl">
-            <div className="w-16 h-16 bg-slate-800/60 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-500">
-              {activeTab === 'photo' ? (
-                <ImageIcon className="w-8 h-8 text-blue-400" />
-              ) : activeTab === 'audio' ? (
-                <Music className="w-8 h-8 text-amber-400" />
-              ) : activeTab === 'video' ? (
-                <Film className="w-8 h-8 text-purple-400" />
-              ) : activeTab === 'app' ? (
-                <Folder className="w-8 h-8 text-emerald-400" />
-              ) : (
-                <FolderArchive className="w-8 h-8 text-blue-400" />
-              )}
-            </div>
-            <h3 className="text-base font-semibold text-slate-200 mb-1">
-              {searchQuery
-                ? 'No se encontraron resultados'
-                : activeTab === 'photo'
-                ? 'No hay imágenes en Caja fuerte'
-                : activeTab === 'audio'
-                ? 'No hay audios en Caja fuerte'
-                : activeTab === 'video'
-                ? 'No hay videos en Caja fuerte'
-                : activeTab === 'app'
-                ? 'No hay archivos en Caja fuerte'
-                : 'Sin favoritos aún'}
-            </h3>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto mb-6">
-              {activeTab === 'photo'
-                ? 'Añade fotos para mantenerlas cifradas de forma privada en tu teléfono.'
-                : activeTab === 'audio'
-                ? 'Añade audios o notas de voz para protegerlos en tu Caja fuerte.'
-                : activeTab === 'video'
-                ? 'Guarda tus videos privados para reproducirlos de forma segura en tu teléfono.'
-                : activeTab === 'app'
-                ? 'Guarda aplicaciones (.apk) o documentos cifrados localmente.'
-                : 'Toca el corazón en cualquier elemento para destacarlo aquí.'}
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-2.5">
-              {(activeTab === 'photo' || activeTab === 'all') && (
-                <button
-                  type="button"
-                  onClick={() => mediaInputRef.current?.click()}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2 active:scale-95"
-                >
-                  <ImagePlus className="w-4 h-4" />
-                  <span>Añadir Fotos</span>
-                </button>
-              )}
-              {activeTab === 'audio' && (
-                <button
-                  type="button"
-                  onClick={() => audioInputRef.current?.click()}
-                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-amber-600/30 transition-all flex items-center gap-2 active:scale-95"
-                >
-                  <Music className="w-4 h-4" />
-                  <span>Añadir Audio</span>
-                </button>
-              )}
-              {activeTab === 'video' && (
-                <button
-                  type="button"
-                  onClick={() => mediaInputRef.current?.click()}
-                  className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2 active:scale-95"
-                >
-                  <Film className="w-4 h-4" />
-                  <span>Añadir Videos</span>
-                </button>
-              )}
-              {activeTab === 'app' && (
-                <button
-                  type="button"
-                  onClick={() => appInputRef.current?.click()}
-                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 active:scale-95"
-                >
-                  <Folder className="w-4 h-4" />
-                  <span>Añadir Archivo (.apk)</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setIsCameraOpen(true)}
-                className="px-4 py-2.5 bg-[#131c2e] hover:bg-slate-800 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition-all flex items-center gap-2 active:scale-95"
-              >
-                <Camera className="w-4 h-4 text-blue-400" />
-                <span>Usar Cámara</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div
-            className={`grid gap-2.5 sm:gap-3 ${
-              gridColumns === 2
-                ? 'grid-cols-2'
-                : gridColumns === 3
-                ? 'grid-cols-3'
-                : 'grid-cols-4'
-            }`}
-          >
+                  <div className="text-center py-20 px-4 bg-zinc-900/30 border border-dashed border-zinc-800 rounded-3xl">
+                    <div className="w-16 h-16 bg-zinc-900/70 border border-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-3 text-amber-400/80">
+                      <Folder size={28} strokeWidth={1.5} />
+                    </div>
+                    <h3 className="text-base font-semibold text-zinc-200 mb-1">
+                      No hay elementos cifrados en este álbum
+                    </h3>
+                    <p className="text-xs text-zinc-500 max-w-sm mx-auto mb-6">
+                      Esta carpeta no contiene archivos. Agrega fotos o captura nuevo contenido para guardarlo aquí de forma protegida.
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activeCategory === 'video') mediaInputRef.current?.click();
+                          else if (activeCategory === 'audio') audioInputRef.current?.click();
+                          else if (activeCategory === 'app') appInputRef.current?.click();
+                          else mediaInputRef.current?.click();
+                        }}
+                        className="px-4 py-2.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4 stroke-[2.5]" />
+                        <span>Añadir a esta carpeta</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsCameraOpen(true)}
+                        className="px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl border border-zinc-800 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                      >
+                        <Camera className="w-4 h-4 text-zinc-400" />
+                        <span>Usar Cámara</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className={`grid gap-2.5 sm:gap-3 ${
+                      gridColumns === 2
+                        ? 'grid-cols-2'
+                        : gridColumns === 3
+                        ? 'grid-cols-3'
+                        : 'grid-cols-4'
+                    }`}
+                  >
             {filteredItems.map((item) => {
               const isSelected = selectedIds.has(item.id);
               const isPhoto = item.record.category === 'photo';
@@ -2136,13 +2102,14 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </div>
               );
             })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      </div>
+    )}
 
       {/* Floating Bottom Navigation Bar for Selection Mode */}
       {isSelectMode || selectedIds.size > 0 ? (
