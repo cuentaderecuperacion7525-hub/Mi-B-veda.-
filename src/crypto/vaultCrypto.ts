@@ -183,32 +183,54 @@ export async function verifyKey(
 }
 
 /**
- * Checks if a given buffer starts with known magic bytes of unencrypted media (images, videos, audio, PDF)
+ * Checks if a given buffer starts with known magic bytes of unencrypted media (images, videos, audio, PDF, archives, docs)
  */
 export function checkIsUnencryptedMedia(buffer: ArrayBuffer | Uint8Array | null | undefined): boolean {
   if (!buffer) return false;
   const byteLen = buffer instanceof Uint8Array ? buffer.byteLength : buffer.byteLength;
-  if (byteLen < 4) return false;
+  if (byteLen < 2) return false;
 
-  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer, 0, Math.min(byteLen, 16));
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer, 0, Math.min(byteLen, 32));
 
   // JPEG: FF D8 FF
-  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return true;
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return true;
   // PNG: 89 50 4E 47
-  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return true;
+  if (bytes.length >= 4 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return true;
   // GIF: 47 49 46 38 ('GIF8')
-  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return true;
-  // WEBP / RIFF: 52 49 46 46 ('RIFF')
-  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) return true;
-  // MP4 / MOV: 'ftyp' at offset 4
-  if (bytes.length >= 8 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) return true;
+  if (bytes.length >= 4 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return true;
+  // WEBP / RIFF (WAV, AVI, WEBP): 52 49 46 46 ('RIFF')
+  if (bytes.length >= 4 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) return true;
+  // MP4 / MOV / 3GP / M4A / QuickTime: 'ftyp', 'moov', 'mdat'
+  if (bytes.length >= 8) {
+    const s = String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]);
+    if (s === 'ftyp' || s === 'moov' || s === 'mdat' || s === 'free' || s === 'skip' || s === 'wide') return true;
+  }
   // PDF: 25 50 44 46 ('%PDF')
-  if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) return true;
-  // MP3: 'ID3' (49 44 33) or sync word FF FB / FF F3
-  if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) return true;
-  if (bytes[0] === 0xff && (bytes[1] === 0xfb || bytes[1] === 0xf3 || bytes[1] === 0xf2)) return true;
-  // WebM / Matroska: 1A 45 DF A3
-  if (bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) return true;
+  if (bytes.length >= 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) return true;
+  // MP3: 'ID3' (49 44 33) or sync word FF FB / FF F3 / FF F2
+  if (bytes.length >= 3 && bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) return true;
+  if (bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] === 0xfb || bytes[1] === 0xf3 || bytes[1] === 0xf2)) return true;
+  // WebM / Matroska / MKV: 1A 45 DF A3
+  if (bytes.length >= 4 && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) return true;
+  // ZIP / APK / DOCX / XLSX / PPTX / JAR: 50 4B 03 04 / 50 4B 05 06 / 50 4B 07 08 ('PK..')
+  if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && (bytes[2] === 0x03 || bytes[2] === 0x05 || bytes[2] === 0x07)) return true;
+  // RAR: 52 61 72 21 ('Rar!')
+  if (bytes.length >= 4 && bytes[0] === 0x52 && bytes[1] === 0x61 && bytes[2] === 0x72 && bytes[3] === 0x21) return true;
+  // 7Z: 37 7A BC AF 27 1C ('7z..')
+  if (bytes.length >= 6 && bytes[0] === 0x37 && bytes[1] === 0x7a && bytes[2] === 0xbc && bytes[3] === 0xaf) return true;
+  // GZIP: 1F 8B
+  if (bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) return true;
+  // OGG: 4F 67 67 53 ('OggS')
+  if (bytes.length >= 4 && bytes[0] === 0x4f && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53) return true;
+  // FLAC: 66 4C 61 43 ('fLaC')
+  if (bytes.length >= 4 && bytes[0] === 0x66 && bytes[1] === 0x4c && bytes[2] === 0x61 && bytes[3] === 0x43) return true;
+  // BMP: 42 4D ('BM')
+  if (bytes.length >= 2 && bytes[0] === 0x42 && bytes[1] === 0x4d) return true;
+  // TIFF: 49 49 2A 00 (little endian) or 4D 4D 00 2A (big endian)
+  if (bytes.length >= 4 && ((bytes[0] === 0x49 && bytes[1] === 0x49 && bytes[2] === 0x2a && bytes[3] === 0x00) || (bytes[0] === 0x4d && bytes[1] === 0x4d && bytes[2] === 0x00 && bytes[3] === 0x2a))) return true;
+
+  // JSON or XML text
+  if (bytes.length >= 1 && (bytes[0] === 0x7b || bytes[0] === 0x5b || bytes[0] === 0x3c)) return true;
 
   return false;
 }

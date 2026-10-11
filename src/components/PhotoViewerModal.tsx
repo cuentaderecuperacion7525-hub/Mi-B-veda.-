@@ -132,18 +132,22 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (scale !== 1 || isImmersive) return;
-    touchStartXRef.current = e.touches[0].clientX;
-    touchStartYRef.current = e.touches[0].clientY;
+    if (e.touches && e.touches.length > 0) {
+      touchStartXRef.current = e.touches[0].clientX;
+      touchStartYRef.current = e.touches[0].clientY;
+    }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    if (!e.changedTouches || e.changedTouches.length === 0) return;
     const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
     const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
     touchStartXRef.current = null;
     touchStartYRef.current = null;
 
-    if (!isImmersive && scale === 1 && Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
+    // Umbral de deslizamiento horizontal (75px)
+    if (!isImmersive && scale === 1 && Math.abs(deltaX) > 75 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
       if (deltaX < 0) {
         handleNext();
       } else {
@@ -152,21 +156,52 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     }
   };
 
-  // Al tocar la foto: toma su tamaño real (escala 1, sin zoom artificial) y oculta elementos de arriba y abajo; al tocar de nuevo reaparecen
+  // Doble toque (Double Tap) estilo galería: alterna entre 1x y 2.5x
+  // Toque simple: alterna el modo inmersivo (ocultar/mostrar barras)
+  const singleTapTimeoutRef = useRef<any>(null);
+  const lastTapRef = useRef<number>(0);
+
   const handlePhotoTap = (e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation();
     }
-    // Asegurar escala normal 1 (tamaño real, sin magnificar)
-    setScale(1);
-    setIsImmersive((prev) => {
-      const next = !prev;
-      if (next) {
-        setShowDetails(false);
+    const ahora = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+
+    if (ahora - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      // Es un doble toque: cancela el toque simple pendiente
+      if (singleTapTimeoutRef.current) {
+        clearTimeout(singleTapTimeoutRef.current);
+        singleTapTimeoutRef.current = null;
       }
-      return next;
-    });
+      // Alterna instantáneamente el zoom (si está ampliado vuelve a 1x, si no pasa a 2.5x)
+      setScale((prev) => (prev > 1 ? 1 : 2.5));
+    } else {
+      // Toque simple: pequeña espera para descartar que sea doble toque
+      if (singleTapTimeoutRef.current) {
+        clearTimeout(singleTapTimeoutRef.current);
+      }
+      singleTapTimeoutRef.current = setTimeout(() => {
+        setIsImmersive((prev) => {
+          const next = !prev;
+          if (next) {
+            setShowDetails(false);
+          }
+          return next;
+        });
+        singleTapTimeoutRef.current = null;
+      }, DOUBLE_TAP_DELAY);
+    }
+    lastTapRef.current = ahora;
   };
+
+  useEffect(() => {
+    return () => {
+      if (singleTapTimeoutRef.current) {
+        clearTimeout(singleTapTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Keyboard navigation
   useEffect(() => {
@@ -352,22 +387,28 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
                 {isImmersive ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               </button>
               <button
-                onClick={() => setScale((s) => Math.max(0.5, s - 0.25))}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-colors"
+                onClick={() => setScale((s) => Math.max(1, +(s - 0.5).toFixed(1)))}
+                disabled={scale <= 1}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 title="Alejar"
               >
                 <ZoomOut className="w-4 h-4" />
               </button>
+              <span className="text-xs font-mono text-cyan-300 font-bold px-2.5 py-1 bg-cyan-950/60 rounded-lg border border-cyan-800/50 min-w-[42px] text-center select-none shadow-inner">
+                {scale.toFixed(1)}x
+              </span>
               <button
-                onClick={() => setScale((s) => Math.min(3, s + 0.25))}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-colors"
+                onClick={() => setScale((s) => Math.min(4, +(s + 0.5).toFixed(1)))}
+                disabled={scale >= 4}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 title="Acercar"
               >
                 <ZoomIn className="w-4 h-4" />
               </button>
+              <div className="h-5 w-px bg-slate-700/60 mx-1 hidden sm:block" />
               <button
                 onClick={() => setRotation((r) => (r + 90) % 360)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-colors"
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-colors active:scale-95"
                 title="Rotar 90°"
               >
                 <RotateCw className="w-4 h-4" />
@@ -390,6 +431,8 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       {/* Main Content Stage */}
       <div 
         onClick={handlePhotoTap}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         className={`relative flex-1 w-full h-full flex items-center justify-center overflow-hidden cursor-pointer transition-all duration-300 ${
           isImmersive ? 'p-0' : 'p-2 sm:p-6'
         }`}
@@ -437,10 +480,11 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
                 transform: `scale(${scale}) rotate(${rotation}deg)`,
                 maxHeight: isImmersive ? '100vh' : 'calc(100vh - 160px)',
                 maxWidth: isImmersive ? '100vw' : '100%',
+                imageRendering: 'auto',
               }}
               className="object-contain rounded-xl shadow-2xl transition-all duration-300 select-none pointer-events-auto cursor-pointer"
               draggable={false}
-              title="Toca para tamaño real y ocultar barras (toca de nuevo para mostrar)"
+              title="Toca para modo inmersivo (doble toque para zoom 2.5x)"
             />
           </div>
         )}
@@ -452,6 +496,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               ref={videoRef}
               src={activeItem.blobUrl}
               playsInline
+              controlsList="nodownload"
               onClick={togglePlayVideo}
               onTimeUpdate={() => {
                 if (videoRef.current) {
@@ -545,6 +590,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
             <audio
               src={activeItem.blobUrl}
               controls
+              controlsList="nodownload"
               className="w-full mb-6 accent-amber-500 rounded-xl"
             />
 

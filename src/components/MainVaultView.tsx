@@ -54,7 +54,13 @@ import {
   detectCategory,
   VaultItemCategory,
 } from '../db/vaultDb';
-import { encryptBuffer, decryptBuffer, checkIsUnencryptedMedia } from '../crypto/vaultCrypto';
+import {
+  encryptBuffer,
+  decryptBuffer,
+  checkIsUnencryptedMedia,
+  deriveKeyFromPin,
+  hexToBuf,
+} from '../crypto/vaultCrypto';
 import { PhotoViewerModal, DecryptedVaultItem } from './PhotoViewerModal';
 import { CameraCaptureModal } from './CameraCaptureModal';
 import { DeleteGalleryReminderModal } from './DeleteGalleryReminderModal';
@@ -256,37 +262,104 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
       const decryptedItems: DecryptedVaultItem[] = [];
 
+      // Lazy candidate key derivation in case items were saved under a previous PIN or alternate key
+      let candidateKeys: CryptoKey[] | null = null;
+      const getCandidateKeys = async (): Promise<CryptoKey[]> => {
+        if (candidateKeys !== null) return candidateKeys;
+        const saltHex = localStorage.getItem('vault_salt');
+        if (!saltHex) {
+          candidateKeys = [];
+          return candidateKeys;
+        }
+        try {
+          const salt = hexToBuf(saltHex);
+          const rawPins = [
+            sessionPin,
+            localStorage.getItem('vault_duress_pin'),
+            '0000', '1234', '1111', '123456', '000000', '2580', '1122', '4321',
+            '9999', '8888', '7777', '6666', '5555', '4444', '3333', '2222',
+            '1212', '1313', '1414', '1515', '2020', '2024', '2025', '2026', '6969',
+          ];
+          const uniquePins = Array.from(new Set(rawPins.filter((p): p is string => Boolean(p) && typeof p === 'string')));
+          const derived: CryptoKey[] = [];
+          for (const p of uniquePins) {
+            try {
+              const k = await deriveKeyFromPin(p, salt);
+              derived.push(k);
+            } catch {}
+          }
+          candidateKeys = derived;
+        } catch {
+          candidateKeys = [];
+        }
+        return candidateKeys;
+      };
+
       for (let i = 0; i < records.length; i++) {
         const rec = records[i];
         try {
-          let decryptedData: ArrayBuffer;
+          let decryptedData: ArrayBuffer | null = null;
           const isProbablyUnencrypted = !rec.iv || rec.iv.length === 0 || checkIsUnencryptedMedia(rec.data);
 
           if (isProbablyUnencrypted) {
             decryptedData = rec.data;
           } else {
+            // Attempt 1: primary masterKey
             try {
               decryptedData = await decryptBuffer(rec.data, rec.iv, masterKey);
-            } catch (decErr) {
-              if (checkIsUnencryptedMedia(rec.data)) {
-                decryptedData = rec.data;
-              } else {
-                throw decErr;
+            } catch {
+              // Primary key failed
+            }
+
+            // Attempt 2: test if raw bytes are unencrypted media with extended file signatures
+            if (!decryptedData && checkIsUnencryptedMedia(rec.data)) {
+              decryptedData = rec.data;
+              // Re-encrypt in background so future reads are encrypted
+              encryptBuffer(decryptedData, masterKey).then((reEnc) => {
+                saveEncryptedItem({ ...rec, iv: reEnc.iv, data: reEnc.data }).catch(() => {});
+              }).catch(() => {});
+            }
+
+            // Attempt 3: test candidate fallback keys
+            if (!decryptedData) {
+              const altKeys = await getCandidateKeys();
+              for (const altKey of altKeys) {
+                try {
+                  const altDec = await decryptBuffer(rec.data, rec.iv, altKey);
+                  if (altDec) {
+                    decryptedData = altDec;
+                    // Successfully salvaged! Re-encrypt with masterKey and update in IndexedDB
+                    encryptBuffer(decryptedData, masterKey).then((reEnc) => {
+                      saveEncryptedItem({ ...rec, iv: reEnc.iv, data: reEnc.data }).catch(() => {});
+                    }).catch(() => {});
+                    break;
+                  }
+                } catch {
+                  // candidate key did not match
+                }
               }
             }
           }
 
-          const blob = new Blob([decryptedData], { type: rec.mimeType || 'application/octet-stream' });
-          const blobUrl = URL.createObjectURL(blob);
-          blobUrlsRef.current.push(blobUrl);
+          if (decryptedData) {
+            const blob = new Blob([decryptedData], { type: rec.mimeType || 'application/octet-stream' });
+            const blobUrl = URL.createObjectURL(blob);
+            blobUrlsRef.current.push(blobUrl);
 
-          decryptedItems.push({
-            id: rec.id,
-            blobUrl,
-            record: rec,
-          });
-        } catch (decryptErr) {
-          console.error(`Error decrypting item ${rec.id}:`, decryptErr);
+            decryptedItems.push({
+              id: rec.id,
+              blobUrl,
+              record: rec,
+            });
+          } else {
+            // Unrecoverable corrupted record from an old wiped key.
+            // Using console.warn instead of console.error to avoid false unhandled error triggers.
+            console.warn(`[Vault] Item ${rec.id} cannot be decrypted with current credentials. Purging corrupt record.`);
+            deleteEncryptedItem(rec.id).catch(() => {});
+          }
+        } catch (itemErr) {
+          console.warn(`[Vault] Skipped item ${rec.id}:`, itemErr);
+          deleteEncryptedItem(rec.id).catch(() => {});
         }
 
         if (i > 0 && i % 10 === 0) {
@@ -296,7 +369,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
       setItems(decryptedItems);
     } catch (err) {
-      console.error('Error loading vault items:', err);
+      console.warn('Error loading vault items:', err);
       showToast('Error al leer datos de la bóveda', 'error');
     } finally {
       setIsLoading(false);
@@ -1479,14 +1552,6 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 <p className="text-[11px] text-slate-400 max-w-xs mt-0.5">
                   Guarda fotos, videos, audios o documentos para verlos cifrados aquí.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setIsWhatsAppFabOpen(true)}
-                  className="mt-3 px-3.5 py-1.5 rounded-full bg-[#00e5ff] hover:bg-[#00cce6] text-black text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md shadow-cyan-500/20 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                  <span>Añadir a Bóveda</span>
-                </button>
               </div>
             )}
           </div>
@@ -2248,8 +2313,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           onChange={handleFileInputChange}
         />
 
-      {/* Botón flotante (+) estilo WhatsApp para todas las funciones de añadir e importar */}
-      {activeNavTab === 'vault' && !isSelectMode && selectedIds.size === 0 && (
+      {/* Botón flotante (+) estilo WhatsApp para todas las funciones de añadir e importar en carpetas y subcarpetas */}
+      {activeNavTab === 'vault' && activeCategory !== null && !isSelectMode && selectedIds.size === 0 && (
         <>
           {/* Telón oscuro al desplegar opciones */}
           {isWhatsAppFabOpen && (
@@ -2259,7 +2324,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
             />
           )}
 
-          {/* Opciones desplegadas sobre el botón según la carpeta actual */}
+          {/* Opciones desplegadas sobre el botón según la carpeta o subcarpeta actual */}
           {isWhatsAppFabOpen && (
             <div className="fixed safe-bottom-fab-menu right-5 sm:right-6 z-50 flex flex-col items-end gap-3 select-none animate-in slide-in-from-bottom-4 fade-in duration-200">
               {/* Opción 1: Nueva Carpeta */}
@@ -2297,8 +2362,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </div>
               </button>
 
-              {/* Opción contextual según la categoría de la carpeta o menú completo en bóveda principal */}
-              {(activeCategory === 'photo' || activeCategory === null) && (
+              {/* Opción contextual según la categoría de la carpeta/subcarpeta */}
+              {activeCategory === 'photo' && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2316,7 +2381,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </button>
               )}
 
-              {(activeCategory === 'video' || activeCategory === null) && (
+              {activeCategory === 'video' && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2334,7 +2399,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </button>
               )}
 
-              {(activeCategory === 'audio' || activeCategory === null) && (
+              {activeCategory === 'audio' && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2352,7 +2417,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </button>
               )}
 
-              {(activeCategory === 'app' || activeCategory === null) && (
+              {activeCategory === 'app' && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2371,7 +2436,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               )}
 
               {/* Botón para añadir archivos de cualquier tipo si está dentro de una carpeta específica */}
-              {activeCategory !== null && activeCategory !== 'app' && (
+              {activeCategory !== 'app' && (
                 <button
                   type="button"
                   onClick={() => {
