@@ -39,6 +39,16 @@ export interface NativeVaultMediaPlugin {
    * Abre la aplicación nativa de Galería del dispositivo
    */
   openGalleryApp(): Promise<{ success: boolean; error?: string }>;
+
+  /**
+   * Guarda y restaura un archivo multimedia o documento en el almacenamiento público del dispositivo / galería (MediaStore)
+   */
+  exportMediaToDevice(options: {
+    base64Data: string;
+    filename: string;
+    mimeType?: string;
+    category?: string;
+  }): Promise<{ success: boolean; uri?: string; path?: string; message?: string }>;
 }
 
 // Registro del plugin nativo de Capacitor (se enlaza en Android con VaultMediaPlugin.java)
@@ -140,3 +150,73 @@ export const requestNativeBatchGalleryDeletion = async (
     return { handledNatively: true, success: false };
   }
 };
+
+/**
+ * Convierte un Blob a cadena base64 limpia (sin prefijo data URI)
+ */
+export const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = (reader.result as string) || '';
+      const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
+/**
+ * Guarda y restaura un archivo de la bóveda en la galería nativa de Android o almacenamiento del teléfono.
+ * En la web, descarga el archivo directamente.
+ */
+export const exportVaultItemToDevice = async (item: {
+  blobUrl: string;
+  filename: string;
+  mimeType?: string;
+  category?: string;
+}): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const res = await fetch(item.blobUrl);
+    const blob = await res.blob();
+    const effectiveMime = item.mimeType || blob.type || 'application/octet-stream';
+
+    if (isNativeApp()) {
+      try {
+        const base64Data = await blobToBase64(blob);
+        const nativeRes = await NativeVaultMedia.exportMediaToDevice({
+          base64Data,
+          filename: item.filename,
+          mimeType: effectiveMime,
+          category: item.category || 'photo',
+        });
+        if (nativeRes && nativeRes.success) {
+          return { success: true };
+        }
+      } catch (nativeErr: any) {
+        console.warn('Native export failed, attempting web download fallback:', nativeErr);
+      }
+    }
+
+    // Web / Fallback standard download
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = item.filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
+    }, 60000);
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error in exportVaultItemToDevice:', err);
+    return { success: false, error: err?.message || 'Error al exportar archivo' };
+  }
+};
+

@@ -58,7 +58,7 @@ import { PhotoViewerModal, DecryptedVaultItem } from './PhotoViewerModal';
 import { CameraCaptureModal } from './CameraCaptureModal';
 import { DeleteGalleryReminderModal } from './DeleteGalleryReminderModal';
 import { CreateFolderModal, MoveToFolderModal, RenameFolderModal } from './FolderModals';
-import { isNativeApp, requestNativeBatchGalleryDeletion } from '../services/nativeVaultBridge';
+import { isNativeApp, requestNativeBatchGalleryDeletion, exportVaultItemToDevice } from '../services/nativeVaultBridge';
 import { ImportVaultView } from './ImportVaultView';
 import { SecurityVaultView } from './SecurityVaultView';
 import { SettingsVaultView } from './SettingsVaultView';
@@ -168,6 +168,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   // Selection mode
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBatchExportModal, setShowBatchExportModal] = useState<boolean>(false);
+  const [isExportingBatch, setIsExportingBatch] = useState<boolean>(false);
 
   // Subfolders / Custom independent folders per category
   const [customFolders, setCustomFolders] = useState<{
@@ -1031,22 +1033,47 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
   const handleBatchExport = () => {
     if (selectedIds.size === 0) return;
+    setShowBatchExportModal(true);
+  };
+
+  const confirmBatchExport = async () => {
+    if (selectedIds.size === 0 || isExportingBatch) return;
+    setIsExportingBatch(true);
     const selected = items.filter((p) => selectedIds.has(p.id));
+    const exportedIds: string[] = [];
 
-    selected.forEach((p, idx) => {
-      setTimeout(() => {
-        const link = document.createElement('a');
-        link.href = p.blobUrl;
-        link.download = p.record.name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }, idx * 250);
-    });
+    try {
+      for (const item of selected) {
+        const res = await exportVaultItemToDevice({
+          blobUrl: item.blobUrl,
+          filename: item.record.name || `archivo_${item.id}`,
+          mimeType: item.record.mimeType,
+          category: item.record.category,
+        });
+        if (res.success) {
+          exportedIds.push(item.id);
+        }
+      }
 
-    showToast(`Exportando ${selected.length} elemento(s)...`, 'success');
-    setIsSelectMode(false);
-    setSelectedIds(new Set());
+      if (exportedIds.length > 0) {
+        await deleteMultipleEncryptedItems(exportedIds);
+        setItems((prev) => prev.filter((p) => !exportedIds.includes(p.id)));
+        showToast(
+          `${exportedIds.length} elemento(s) sacado(s) exitosamente a tu galería`,
+          'success'
+        );
+      } else {
+        showToast('No se pudieron exportar los elementos al dispositivo', 'error');
+      }
+      setSelectedIds(new Set());
+      setIsSelectMode(false);
+      setShowBatchExportModal(false);
+    } catch (err) {
+      console.error('Error al sacar elementos:', err);
+      showToast('Error al procesar la exportación a la galería', 'error');
+    } finally {
+      setIsExportingBatch(false);
+    }
   };
 
   // Counts by category
@@ -2438,6 +2465,44 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
             <p className="text-[11px] text-slate-400">
               Cifrando y guardando localmente en tu teléfono...
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Export / Sacar Confirmation Modal */}
+      {showBatchExportModal && (
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 select-none">
+          <div className="w-full max-w-xs bg-[#131c2e] border border-cyan-500/30 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl flex items-center justify-center mx-auto text-[#00e5ff]">
+              <Download className="w-6 h-6 stroke-[2.5]" />
+            </div>
+            <div>
+              <h4 className="text-base font-bold text-white mb-1">
+                ¿Sacar {selectedIds.size} elemento{selectedIds.size > 1 ? 's' : ''} a tu galería?
+              </h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Los archivos se restaurarán a la galería y almacenamiento de tu teléfono, y se retirarán de la bóveda privada.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBatchExportModal(false)}
+                disabled={isExportingBatch}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmBatchExport}
+                disabled={isExportingBatch}
+                className="flex-1 py-2.5 bg-[#00e5ff] hover:bg-[#00cce6] text-black text-xs font-bold rounded-xl shadow-lg shadow-cyan-500/30 transition-colors flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                <Download className={`w-4 h-4 stroke-[2.5] ${isExportingBatch ? 'animate-bounce' : ''}`} />
+                <span>{isExportingBatch ? 'Sacando...' : `Sacar (${selectedIds.size})`}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

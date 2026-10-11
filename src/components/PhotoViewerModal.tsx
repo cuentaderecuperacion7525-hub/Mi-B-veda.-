@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { EncryptedVaultItem } from '../db/vaultDb';
 import { registerBackHandler } from '../services/backButtonService';
+import { exportVaultItemToDevice } from '../services/nativeVaultBridge';
 
 export interface DecryptedVaultItem {
   id: string;
@@ -61,6 +62,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   const [showDetails, setShowDetails] = useState<boolean>(false);
   const [isImmersive, setIsImmersive] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
 
   // Video playback controls
@@ -187,23 +189,42 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   const isPhoto = activeItem.record.category === 'photo';
   const isAudio = activeItem.record.category === 'audio' || activeItem.record.mimeType?.startsWith('audio/');
 
-  const handleExport = () => {
-    const link = document.createElement('a');
-    link.href = activeItem.blobUrl;
-    link.download = activeItem.record.name || `archivo_caja_fuerte_${activeItem.id}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast(
-      isApp
-        ? 'Aplicación / Archivo sacado de la caja fuerte'
-        : isAudio
-        ? 'Audio sacado de la caja fuerte'
-        : isVideo
-        ? 'Video sacado de la caja fuerte'
-        : 'Foto sacada de la caja fuerte a tu galería',
-      'success'
-    );
+  const handleExport = async () => {
+    if (!activeItem || isExporting) return;
+    setIsExporting(true);
+    try {
+      const res = await exportVaultItemToDevice({
+        blobUrl: activeItem.blobUrl,
+        filename: activeItem.record.name || `archivo_caja_fuerte_${activeItem.id}`,
+        mimeType: activeItem.record.mimeType,
+        category: activeItem.record.category,
+      });
+
+      if (!res.success) {
+        showToast(res.error || 'No se pudo guardar el archivo en el dispositivo', 'error');
+        return;
+      }
+
+      // El archivo ya se restauró en la galería/almacenamiento del teléfono.
+      // Ahora lo retiramos de la bóveda para completar la acción de "sacar".
+      await onDelete(activeItem.id);
+      showToast(
+        isApp
+          ? 'Aplicación / Archivo sacado de la caja fuerte a tu dispositivo'
+          : isAudio
+          ? 'Audio sacado de la caja fuerte a tu dispositivo'
+          : isVideo
+          ? 'Video sacado de la caja fuerte a tu galería'
+          : 'Foto sacada de la caja fuerte a tu galería',
+        'success'
+      );
+      onClose();
+    } catch (err: any) {
+      console.error('Error al sacar elemento:', err);
+      showToast('Error al sacar el elemento de la bóveda', 'error');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleCopyToClipboard = async () => {
@@ -528,10 +549,11 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
             <button
               onClick={handleExport}
-              className="w-full py-3.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-2xl shadow-lg shadow-amber-600/30 transition-all flex items-center justify-center gap-2"
+              disabled={isExporting}
+              className="w-full py-3.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold rounded-2xl shadow-lg shadow-amber-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Download className="w-5 h-5" />
-              <span>Sacar a mi dispositivo</span>
+              <Download className={`w-5 h-5 ${isExporting ? 'animate-bounce' : ''}`} />
+              <span>{isExporting ? 'Sacando a tu dispositivo...' : 'Sacar a mi dispositivo'}</span>
             </button>
           </div>
         )}
@@ -577,10 +599,11 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
             <button
               onClick={handleExport}
-              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2"
+              disabled={isExporting}
+              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <PackageCheck className="w-5 h-5" />
-              <span>Descargar e Instalar / Ejecutar</span>
+              <PackageCheck className={`w-5 h-5 ${isExporting ? 'animate-bounce' : ''}`} />
+              <span>{isExporting ? 'Sacando paquete...' : 'Descargar e Instalar / Ejecutar'}</span>
             </button>
             <p className="text-[11px] text-slate-500 mt-2">
               El archivo se descifrará en tu navegador para que puedas guardarlo o abrirlo en tu dispositivo.
@@ -642,11 +665,12 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
           <button
             onClick={handleExport}
-            className="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-medium shrink-0 shadow-lg shadow-blue-600/30 transition-colors active:scale-95"
-            title="Sacar archivo fuera de la caja fuerte"
+            disabled={isExporting}
+            className="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-[#00e5ff] hover:bg-[#00cce6] disabled:opacity-50 text-black text-sm font-bold shrink-0 shadow-lg shadow-cyan-500/30 transition-colors active:scale-95 cursor-pointer"
+            title="Sacar archivo fuera de la caja fuerte a tu galería"
           >
-            <Download className="w-4 h-4 text-white" />
-            <span>Sacar</span>
+            <Download className={`w-4 h-4 text-black stroke-[2.5] ${isExporting ? 'animate-bounce' : ''}`} />
+            <span>{isExporting ? 'Sacando...' : 'Sacar'}</span>
           </button>
 
           <button
