@@ -451,7 +451,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
           type="button"
           onClick={handleBiometricClick}
           disabled={isVerifying}
-          className={`w-18 h-18 sm:w-20 sm:h-20 rounded-3xl flex flex-col items-center justify-center mx-auto mb-4 transition-all cursor-pointer relative group active:scale-95 shadow-xl ${
+          className={`w-18 h-18 sm:w-20 sm:h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 transition-all cursor-pointer relative group active:scale-95 shadow-xl ${
             isBioLoading
               ? 'bg-[#00e5ff]/20 border-2 border-[#00e5ff] text-[#00e5ff] shadow-[0_0_25px_rgba(0,229,255,0.4)]'
               : isBioEnrolled
@@ -459,20 +459,18 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
               : 'bg-slate-800/60 hover:bg-slate-800/90 border border-slate-700/60 text-slate-300 hover:text-[#00e5ff]'
           }`}
           title={isBioEnrolled ? 'Toca para activar sensor de huella' : 'Toca para vincular sensor de huella'}
+          aria-label="Sensor de huella digital"
         >
           {isBioLoading ? (
             <div className="relative flex items-center justify-center">
-              <span className="absolute w-11 h-11 rounded-full border-2 border-[#00e5ff] border-t-transparent animate-spin" />
-              <Fingerprint className="w-8 h-8 text-[#00e5ff] animate-pulse" />
+              <span className="absolute w-12 h-12 rounded-full border-2 border-[#00e5ff] border-t-transparent animate-spin" />
+              <Fingerprint className="w-8 h-8 sm:w-9 sm:h-9 text-[#00e5ff] animate-pulse" />
             </div>
           ) : isBioEnrolled ? (
             <Fingerprint className="w-8 h-8 sm:w-9 sm:h-9 text-[#00e5ff] group-hover:scale-110 transition-transform" />
           ) : (
             <Fingerprint className="w-8 h-8 sm:w-9 sm:h-9 text-slate-400 group-hover:text-[#00e5ff] group-hover:scale-110 transition-transform" />
           )}
-          <span className="text-[8.5px] font-bold tracking-widest uppercase mt-1 text-[#00e5ff]">
-            {isBioLoading ? 'Leyendo...' : 'Sensor'}
-          </span>
         </button>
 
         <h1 className="text-2xl font-black tracking-tight text-white mb-0.5">

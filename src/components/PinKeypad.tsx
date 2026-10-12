@@ -120,24 +120,26 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({
                     ? 'Toca para escanear huella digital'
                     : 'Toca para activar sensor de huella'
                 }
-                className={`h-15 sm:h-16 rounded-2xl flex flex-col items-center justify-center relative transition-all active:scale-95 group cursor-pointer ${
+                className={`h-15 sm:h-16 rounded-2xl flex items-center justify-center relative transition-all active:scale-95 group cursor-pointer ${
                   isBiometricsEnrolled
                     ? 'bg-[#00e5ff]/10 hover:bg-[#00e5ff]/20 border border-[#00e5ff]/35 text-[#00e5ff] shadow-[0_0_16px_rgba(0,229,255,0.15)]'
                     : 'bg-slate-800/40 hover:bg-slate-800/70 border border-slate-700/50 text-slate-400 hover:text-[#00e5ff] hover:border-[#00e5ff]/30'
                 } disabled:opacity-30 disabled:pointer-events-none`}
               >
-                <Fingerprint
-                  className={`w-6 h-6 transition-transform group-hover:scale-110 ${
-                    isBiometricsLoading
-                      ? 'animate-pulse text-[#00e5ff]'
-                      : isBiometricsEnrolled
-                      ? 'text-[#00e5ff]'
-                      : 'text-slate-400 group-hover:text-[#00e5ff]'
-                  }`}
-                />
-                <span className="text-[8px] font-bold tracking-wider uppercase mt-0.5 text-slate-400 group-hover:text-[#00e5ff]">
-                  {isBiometricsLoading ? 'Leyendo...' : 'Huella'}
-                </span>
+                {isBiometricsLoading ? (
+                  <div className="relative flex items-center justify-center">
+                    <span className="absolute w-8 h-8 rounded-full border-2 border-[#00e5ff] border-t-transparent animate-spin" />
+                    <Fingerprint className="w-6 h-6 text-[#00e5ff] animate-pulse" />
+                  </div>
+                ) : (
+                  <Fingerprint
+                    className={`w-6.5 h-6.5 transition-transform group-hover:scale-110 ${
+                      isBiometricsEnrolled
+                        ? 'text-[#00e5ff]'
+                        : 'text-slate-400 group-hover:text-[#00e5ff]'
+                    }`}
+                  />
+                )}
               </button>
             );
           }
