@@ -136,19 +136,45 @@ export const requestNativeBatchGalleryDeletion = async (
     return { handledNatively: false, success: false };
   }
 
+  // 1. Intento por lote único
   try {
     (window as any).__isPickingFile = true;
     (window as any).__filePickingStartTime = Date.now();
     const result = await NativeVaultMedia.deleteBatchFromGallery({ items });
-    return {
-      handledNatively: true,
-      success: result.success,
-      requested: result.requested,
-    };
+    if (result && (result.requested || result.success)) {
+      return {
+        handledNatively: true,
+        success: result.success,
+        requested: true,
+      };
+    }
   } catch (error) {
-    console.warn('Native batch deletion error:', error);
-    return { handledNatively: true, success: false };
+    console.warn('Native batch deletion error, trying single fallback:', error);
   }
+
+  // 2. Fallback de respaldo: si el borrado por lote no fue ejecutado por el sistema,
+  // intentar solicitar eliminación individual para cada archivo (el método que sí funciona en Android)
+  try {
+    let anyHandled = false;
+    for (const item of items) {
+      const res = await NativeVaultMedia.deleteFromGallery({
+        filename: item.filename,
+        uri: item.uri,
+        size: item.size,
+        lastModified: item.lastModified,
+      });
+      if (res && res.success) {
+        anyHandled = true;
+      }
+    }
+    if (anyHandled) {
+      return { handledNatively: true, success: true, requested: true };
+    }
+  } catch (err) {
+    console.warn('Fallback individual deletion error:', err);
+  }
+
+  return { handledNatively: false, success: false };
 };
 
 /**

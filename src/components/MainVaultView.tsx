@@ -1006,7 +1006,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
             mimeType: r.mimeType,
           }));
           const res = await requestNativeBatchGalleryDeletion(itemsToDelete);
-          if (res && res.requested) {
+          if (res && (res.requested || res.success)) {
             handledNatively = true;
           }
         }

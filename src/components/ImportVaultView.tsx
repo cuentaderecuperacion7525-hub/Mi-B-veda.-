@@ -133,7 +133,7 @@ export const ImportVaultView: React.FC<ImportVaultViewProps> = ({
           (window as any).__isPickingFile = true;
           (window as any).__filePickingStartTime = Date.now();
           const res = await requestNativeBatchGalleryDeletion(mediaItemsToDelete);
-          if (res && res.requested) {
+          if (res && (res.requested || res.success)) {
             handledNatively = true;
           }
         } catch (e) {

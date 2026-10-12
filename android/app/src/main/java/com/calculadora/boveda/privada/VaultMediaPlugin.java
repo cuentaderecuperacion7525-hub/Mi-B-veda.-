@@ -227,7 +227,8 @@ public class VaultMediaPlugin extends Plugin {
             Uri[] baseUris = new Uri[]{
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                MediaStore.Files.getContentUri("external")
             };
 
             for (int i = 0; i < itemsArray.length(); i++) {
@@ -257,6 +258,7 @@ public class VaultMediaPlugin extends Plugin {
                 JSObject ret = new JSObject();
                 ret.put("success", false);
                 ret.put("matchedCount", 0);
+                ret.put("requested", false);
                 ret.put("message", "No se encontraron los archivos en MediaStore");
                 call.resolve(ret);
                 return;
@@ -264,18 +266,52 @@ public class VaultMediaPlugin extends Plugin {
 
             // En Android 11+ (API 30+) MediaStore.createDeleteRequest pide permiso al usuario con el diálogo nativo del sistema
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                PendingIntent pi = MediaStore.createDeleteRequest(resolver, urisToDelete);
-                IntentSender intentSender = pi.getIntentSender();
+                // Intentar agrupar por colección o lanzar todos juntos
+                PendingIntent pi = null;
                 try {
-                    // Lanzar directamente mediante el Activity host
-                    getActivity().startIntentSenderForResult(intentSender, 2002, null, 0, 0, 0, null);
+                    pi = MediaStore.createDeleteRequest(resolver, urisToDelete);
+                } catch (Exception exBatch) {
+                    // Si falla por mezcla de colecciones, filtrar solo las imágenes/videos principales
+                    List<Uri> imageOnly = new ArrayList<>();
+                    for (Uri u : urisToDelete) {
+                        if (u.toString().contains("images")) imageOnly.add(u);
+                    }
+                    if (!imageOnly.isEmpty()) {
+                        try {
+                            pi = MediaStore.createDeleteRequest(resolver, imageOnly);
+                        } catch (Exception ignored) {}
+                    }
+                    if (pi == null && !urisToDelete.isEmpty()) {
+                        // Último recurso: crear para el primer elemento
+                        try {
+                            List<Uri> single = new ArrayList<>();
+                            single.add(urisToDelete.get(0));
+                            pi = MediaStore.createDeleteRequest(resolver, single);
+                        } catch (Exception ignored) {}
+                    }
+                }
+
+                if (pi != null) {
+                    IntentSender intentSender = pi.getIntentSender();
+                    try {
+                        getActivity().startIntentSenderForResult(intentSender, 2002, null, 0, 0, 0, null);
+                        JSObject ret = new JSObject();
+                        ret.put("success", true);
+                        ret.put("requested", true);
+                        ret.put("urisCount", urisToDelete.size());
+                        call.resolve(ret);
+                        return;
+                    } catch (Exception exSender) {
+                        call.reject("No se pudo iniciar el diálogo de eliminación: " + exSender.getMessage());
+                        return;
+                    }
+                } else {
                     JSObject ret = new JSObject();
-                    ret.put("success", true);
-                    ret.put("requested", true);
-                    ret.put("urisCount", urisToDelete.size());
+                    ret.put("success", false);
+                    ret.put("requested", false);
+                    ret.put("message", "No se pudo crear la solicitud de eliminación de MediaStore");
                     call.resolve(ret);
-                } catch (Exception exSender) {
-                    call.reject("No se pudo iniciar el diálogo de eliminación: " + exSender.getMessage());
+                    return;
                 }
             } else {
                 int deletedCount = 0;
@@ -288,12 +324,14 @@ public class VaultMediaPlugin extends Plugin {
                 }
                 JSObject ret = new JSObject();
                 ret.put("success", deletedCount > 0);
+                ret.put("requested", true);
                 ret.put("deletedCount", deletedCount);
                 call.resolve(ret);
             }
         } catch (Exception e) {
             JSObject ret = new JSObject();
             ret.put("success", false);
+            ret.put("requested", false);
             ret.put("error", e.getMessage());
             call.resolve(ret);
         }
@@ -307,9 +345,10 @@ public class VaultMediaPlugin extends Plugin {
     /**
      * Búsqueda flexible y robusta en MediaStore:
      * 1) Por Nombre y Tamaño exactos
-     * 2) Por Nombre exacto
-     * 3) Por prefijo del nombre (en caso de que Photo Picker haya modificado extensión o sufijo)
-     * 4) Por Tamaño exacto si es único
+     * 2) Por Nombre exacto (insensible a mayúsculas/minúsculas)
+     * 3) Por ID numérico extraído de Photo Picker / DocumentsUI (ej: "image:12345" o "12345")
+     * 4) Por prefijo del nombre
+     * 5) Por Tamaño exacto (ordenado por más reciente)
      */
     private Uri findMediaStoreUri(ContentResolver resolver, Uri[] baseUris, String filename, long size, long lastModified) {
         for (Uri baseUri : baseUris) {
@@ -320,11 +359,11 @@ public class VaultMediaPlugin extends Plugin {
                 MediaStore.MediaColumns.DATE_MODIFIED
             };
 
-            // 1. Intento por Nombre y Tamaño
+            // 1. Intento por Nombre y Tamaño exactos
             if (size > 0 && filename != null && !filename.isEmpty()) {
                 String selection = MediaStore.MediaColumns.DISPLAY_NAME + " = ? AND " + MediaStore.MediaColumns.SIZE + " = ?";
                 String[] selectionArgs = new String[]{filename, String.valueOf(size)};
-                try (Cursor cursor = resolver.query(baseUri, projection, selection, selectionArgs, null)) {
+                try (Cursor cursor = resolver.query(baseUri, projection, selection, selectionArgs, MediaStore.MediaColumns._ID + " DESC")) {
                     if (cursor != null && cursor.moveToFirst()) {
                         long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID));
                         return ContentUris.withAppendedId(baseUri, id);
@@ -332,11 +371,11 @@ public class VaultMediaPlugin extends Plugin {
                 } catch (Exception ignored) {}
             }
 
-            // 2. Intento por Nombre exacto
+            // 2. Intento por Nombre exacto (sin importar mayúsculas/minúsculas)
             if (filename != null && !filename.isEmpty()) {
-                String selectionName = MediaStore.MediaColumns.DISPLAY_NAME + " = ?";
-                String[] selectionArgsName = new String[]{filename};
-                try (Cursor cursor = resolver.query(baseUri, projection, selectionName, selectionArgsName, null)) {
+                String selectionName = MediaStore.MediaColumns.DISPLAY_NAME + " = ? OR LOWER(" + MediaStore.MediaColumns.DISPLAY_NAME + ") = LOWER(?)";
+                String[] selectionArgsName = new String[]{filename, filename};
+                try (Cursor cursor = resolver.query(baseUri, projection, selectionName, selectionArgsName, MediaStore.MediaColumns._ID + " DESC")) {
                     if (cursor != null && cursor.moveToFirst()) {
                         long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID));
                         return ContentUris.withAppendedId(baseUri, id);
@@ -344,13 +383,29 @@ public class VaultMediaPlugin extends Plugin {
                 } catch (Exception ignored) {}
             }
 
-            // 3. Intento sin extensión si fue cambiado (ej: "IMG_20261009_072505")
+            // 3. Intento por ID numérico si el selector de fotos de Android devolvió "image:12345" o similar
+            if (filename != null && filename.matches(".*\\d{3,}.*")) {
+                try {
+                    java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\d{3,}").matcher(filename);
+                    if (matcher.find()) {
+                        long numericId = Long.parseLong(matcher.group());
+                        Uri candidate = ContentUris.withAppendedId(baseUri, numericId);
+                        try (Cursor cursor = resolver.query(candidate, new String[]{MediaStore.MediaColumns._ID}, null, null, null)) {
+                            if (cursor != null && cursor.moveToFirst()) {
+                                return candidate;
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // 4. Intento sin extensión si fue cambiado por el selector (ej: "IMG_20261009_072505")
             if (filename != null && filename.contains(".")) {
                 String baseName = filename.substring(0, filename.lastIndexOf('.'));
-                if (baseName.length() >= 5) {
+                if (baseName.length() >= 4) {
                     String selectionLike = MediaStore.MediaColumns.DISPLAY_NAME + " LIKE ?";
                     String[] selectionArgsLike = new String[]{baseName + "%"};
-                    try (Cursor cursor = resolver.query(baseUri, projection, selectionLike, selectionArgsLike, null)) {
+                    try (Cursor cursor = resolver.query(baseUri, projection, selectionLike, selectionArgsLike, MediaStore.MediaColumns._ID + " DESC")) {
                         if (cursor != null && cursor.moveToFirst()) {
                             long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID));
                             return ContentUris.withAppendedId(baseUri, id);
@@ -359,12 +414,12 @@ public class VaultMediaPlugin extends Plugin {
                 }
             }
 
-            // 4. Intento por tamaño exacto (si el tamaño es > 10KB para evitar colisiones pequeñas)
+            // 5. Intento por tamaño exacto (si el tamaño es > 10KB), tomando el archivo más reciente
             if (size > 10240) {
                 String selectionSize = MediaStore.MediaColumns.SIZE + " = ?";
                 String[] selectionArgsSize = new String[]{String.valueOf(size)};
-                try (Cursor cursor = resolver.query(baseUri, projection, selectionSize, selectionArgsSize, null)) {
-                    if (cursor != null && cursor.getCount() == 1 && cursor.moveToFirst()) {
+                try (Cursor cursor = resolver.query(baseUri, projection, selectionSize, selectionArgsSize, MediaStore.MediaColumns._ID + " DESC")) {
+                    if (cursor != null && cursor.moveToFirst()) {
                         long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID));
                         return ContentUris.withAppendedId(baseUri, id);
                     }

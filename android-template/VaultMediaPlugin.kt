@@ -48,41 +48,99 @@ class VaultMediaPlugin : Plugin() {
 
     @PluginMethod
     fun deleteFromGallery(call: PluginCall) {
-        val uriString = call.getString("uri")
-        val filename = call.getString("filename")
+        deleteBatchFromGallery(call)
+    }
 
-        val targetUri: Uri? = if (!uriString.isNullOrEmpty()) {
-            Uri.parse(uriString)
-        } else if (!filename.isNullOrEmpty()) {
-            findMediaStoreUriByFilename(filename)
+    @PluginMethod
+    fun deleteBatchFromGallery(call: PluginCall) {
+        val itemsArray = call.getArray("items")
+        val urisToDelete = mutableListOf<Uri>()
+        val resolver = context.contentResolver
+
+        if (itemsArray != null && itemsArray.length() > 0) {
+            for (i in 0 until itemsArray.length()) {
+                val item = itemsArray.getJSONObject(i)
+                val uriStr = item.optString("uri", null)
+                val filename = item.optString("filename", item.optString("name", null))
+                val size = item.optLong("size", -1L)
+
+                if (!uriStr.isNullOrEmpty() && uriStr.startsWith("content://")) {
+                    val parsed = Uri.parse(uriStr)
+                    if (!urisToDelete.contains(parsed)) urisToDelete.add(parsed)
+                    continue
+                }
+
+                if (!filename.isNullOrEmpty()) {
+                    val found = findMediaStoreUriByFilename(filename, size)
+                    if (found != null && !urisToDelete.contains(found)) {
+                        urisToDelete.add(found)
+                    }
+                }
+            }
         } else {
-            call.reject("Debe proporcionar un uri o filename")
-            return
+            val uriString = call.getString("uri")
+            val filename = call.getString("filename")
+            val size = call.getData().optLong("size", -1L)
+
+            val targetUri: Uri? = if (!uriString.isNullOrEmpty()) {
+                Uri.parse(uriString)
+            } else if (!filename.isNullOrEmpty()) {
+                findMediaStoreUriByFilename(filename, size)
+            } else null
+
+            if (targetUri != null) urisToDelete.add(targetUri)
         }
 
-        if (targetUri == null) {
+        if (urisToDelete.isEmpty()) {
             val ret = JSObject()
             ret.put("success", false)
-            ret.put("message", "No se encontró el archivo en MediaStore")
+            ret.put("requested", false)
+            ret.put("message", "No se encontraron los archivos en MediaStore")
             call.resolve(ret)
             return
         }
 
         pendingCall = call
-        val resolver = context.contentResolver
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // Android 11+ (API 30+): Diálogo nativo obligatorio del sistema
-                val urisToDelete = listOf(targetUri)
-                val pendingIntent: PendingIntent = MediaStore.createDeleteRequest(resolver, urisToDelete)
-                val request = IntentSenderRequest.Builder(pendingIntent.intentSender).build()
-                deleteRequestLauncher.launch(request)
+                // Android 11+ (API 30+): Diálogo nativo obligatorio del sistema por lotes
+                var pendingIntent: PendingIntent? = null
+                try {
+                    pendingIntent = MediaStore.createDeleteRequest(resolver, urisToDelete)
+                } catch (exBatch: Exception) {
+                    val imagesOnly = urisToDelete.filter { it.toString().contains("images") }
+                    if (imagesOnly.isNotEmpty()) {
+                        try {
+                            pendingIntent = MediaStore.createDeleteRequest(resolver, imagesOnly)
+                        } catch (_: Exception) {}
+                    }
+                }
+
+                if (pendingIntent != null) {
+                    val request = IntentSenderRequest.Builder(pendingIntent.intentSender).build()
+                    deleteRequestLauncher.launch(request)
+                    val ret = JSObject()
+                    ret.put("success", true)
+                    ret.put("requested", true)
+                    ret.put("urisCount", urisToDelete.size)
+                    call.resolve(ret)
+                } else {
+                    val ret = JSObject()
+                    ret.put("success", false)
+                    ret.put("requested", false)
+                    call.resolve(ret)
+                }
             } else {
-                // Android 10 o inferior
-                val rowsDeleted = resolver.delete(targetUri, null, null)
+                var rowsDeleted = 0
+                for (u in urisToDelete) {
+                    try {
+                        rowsDeleted += resolver.delete(u, null, null)
+                    } catch (_: Exception) {}
+                }
                 val ret = JSObject()
                 ret.put("success", rowsDeleted > 0)
+                ret.put("requested", true)
                 call.resolve(ret)
                 pendingCall = null
             }
@@ -93,16 +151,18 @@ class VaultMediaPlugin : Plugin() {
     }
 
     /**
-     * Busca la URI pública de la foto en MediaStore a partir de su nombre de archivo
+     * Busca la URI pública de la foto en MediaStore a partir de su nombre de archivo o tamaño
      */
-    private fun findMediaStoreUriByFilename(filename: String): Uri? {
+    private fun findMediaStoreUriByFilename(filename: String, size: Long = -1L): Uri? {
         val projection = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME)
-        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
-        val selectionArgs = arrayOf(filename)
+        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ? OR LOWER(${MediaStore.MediaColumns.DISPLAY_NAME}) = LOWER(?)"
+        val selectionArgs = arrayOf(filename, filename)
 
         val collections = listOf(
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            MediaStore.Files.getContentUri("external")
         )
 
         for (collection in collections) {
@@ -111,13 +171,50 @@ class VaultMediaPlugin : Plugin() {
                 projection,
                 selection,
                 selectionArgs,
-                null
+                "${MediaStore.MediaColumns._ID} DESC"
             )?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val idColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
                     val id = cursor.getLong(idColumn)
                     return ContentUris.withAppendedId(collection, id)
                 }
+            }
+
+            // Búsqueda por ID numérico en nombre de archivo (Photo Picker)
+            if (filename.matches(Regex(".*\\d{3,}.*"))) {
+                val match = Regex("\\d{3,}").find(filename)
+                if (match != null) {
+                    val numId = match.value.toLongOrNull()
+                    if (numId != null) {
+                        val candidate = ContentUris.withAppendedId(collection, numId)
+                        try {
+                            context.contentResolver.query(candidate, arrayOf(MediaStore.MediaColumns._ID), null, null, null)?.use { c ->
+                                if (c.moveToFirst()) return candidate
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
+
+            // Búsqueda por tamaño si es mayor a 10KB
+            if (size > 10240L) {
+                val sizeSelection = "${MediaStore.MediaColumns.SIZE} = ?"
+                val sizeArgs = arrayOf(size.toString())
+                try {
+                    context.contentResolver.query(
+                        collection,
+                        projection,
+                        sizeSelection,
+                        sizeArgs,
+                        "${MediaStore.MediaColumns._ID} DESC"
+                    )?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                            val id = cursor.getLong(idColumn)
+                            return ContentUris.withAppendedId(collection, id)
+                        }
+                    }
+                } catch (_: Exception) {}
             }
         }
         return null
