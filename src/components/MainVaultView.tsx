@@ -2151,7 +2151,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
       {/* Barra de Acciones Inferior para Modo Selección - Estilo BarraAccionesInferior (Outline fino, distribución equilibrada, tema oscuro premium) */}
       {isSelectMode || selectedIds.size > 0 ? (
-        <footer className="fixed bottom-0 left-0 right-0 z-50 w-full bg-zinc-950/95 backdrop-blur-md px-3 sm:px-8 py-2.5 pb-[max(calc(env(safe-area-inset-bottom,0px)+0.75rem),1rem)] flex items-center justify-around border-t border-zinc-900 shadow-2xl select-none animate-in slide-in-from-bottom duration-200">
+        <footer className="fixed bottom-0 left-0 right-0 z-50 w-full bg-zinc-950/95 backdrop-blur-md px-3 sm:px-8 py-2 pb-[max(calc(env(safe-area-inset-bottom,0px)+0.35rem),0.625rem)] flex items-center justify-around border-t border-zinc-900 shadow-2xl select-none animate-in slide-in-from-bottom duration-200">
           {/* 1. Mover seleccionados a otra carpeta */}
           {activeTab !== 'all' && activeTab !== 'favorites' && (
             <button
