@@ -1586,70 +1586,108 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         <div className="max-w-4xl w-full mx-auto p-4 pb-28 sm:pb-32 flex-1 flex flex-col animate-in fade-in duration-200">
           {/* Sticky Header & Filter Controls Container */}
           <header className="sticky top-0 z-30 bg-zinc-950/85 backdrop-blur-md border-b border-zinc-900 px-3 safe-top-sticky pb-2 mb-3 shadow-lg -mx-4 sm:mx-0 sm:px-3">
-            <div className="flex items-center justify-between gap-3 mb-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  if (carpetaActiva !== 'todas') {
-                    setCarpetaActiva('todas');
-                  } else {
-                    setActiveCategory(null);
-                  }
-                }}
-                className="p-1 -ml-1 rounded-xl text-zinc-400 hover:text-zinc-100 transition-colors flex items-center gap-2.5 active:scale-95 cursor-pointer"
-              >
-                <ArrowLeft className="w-5 h-5 text-zinc-400" strokeWidth={1.5} />
-                <div className="text-left">
-                  <div className="flex items-center gap-2">
-                    <h1 className="font-bold text-lg sm:text-xl text-zinc-100 tracking-tight">
-                      {activeCategory === 'photo'
-                        ? 'Fotos'
-                        : activeCategory === 'video'
-                        ? 'Videos'
-                        : activeCategory === 'audio'
-                        ? 'Audio'
-                        : 'Apps'}
-                      {carpetaActiva !== 'todas' && (
-                        <span className="text-zinc-400 font-semibold ml-1.5">
-                          / {carpetaActiva}
-                        </span>
-                      )}
-                    </h1>
-                    <span className="text-sm font-normal text-zinc-500">
-                      (
-                      {carpetaActiva !== 'todas'
-                        ? filteredItems.length
-                        : activeCategory === 'photo'
-                        ? counts.photos
-                        : activeCategory === 'video'
-                        ? counts.videos
-                        : activeCategory === 'audio'
-                        ? counts.audios
-                        : counts.apps}
-                      )
-                    </span>
-                  </div>
-                  <p className="text-xs text-zinc-500">
-                    {carpetaActiva !== 'todas' ? 'Volver a Carpetas' : 'Volver a Bóveda'}
-                  </p>
-                </div>
-              </button>
-
-              <div className="flex items-center gap-1.5">
-                {/* Botón estilizado para Volver a Carpetas cuando está dentro de un álbum */}
-                {carpetaActiva !== 'todas' && (
+            {isSelectMode || selectedIds.size > 0 ? (
+              /* Encabezado durante el modo de selección (Limpio y enfocado) */
+              <div className="flex items-center justify-between gap-3 mb-2.5">
+                <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => setCarpetaActiva('todas')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-medium border border-zinc-800 transition-all active:scale-95 cursor-pointer shadow-sm"
-                    title="Volver a la vista de carpetas"
+                    onClick={() => {
+                      setIsSelectMode(false);
+                      setSelectedIds(new Set());
+                    }}
+                    className="p-1.5 -ml-1 text-zinc-400 hover:text-zinc-100 transition-colors rounded-xl active:scale-95 cursor-pointer"
+                    aria-label="Cancelar selección"
                   >
-                    <Folder size={14} strokeWidth={1.5} className="text-amber-400" />
-                    <span>Volver a Carpetas</span>
+                    <X className="w-5 h-5 text-zinc-300" strokeWidth={1.5} />
                   </button>
-                )}
+                  <div>
+                    <h1 className="font-bold text-lg sm:text-xl text-zinc-100 tracking-tight flex items-center gap-2">
+                      <span>{selectedIds.size}</span>
+                      <span className="text-sm font-normal text-zinc-400">
+                        {selectedIds.size === 1 ? 'seleccionado' : 'seleccionados'}
+                      </span>
+                    </h1>
+                    <p className="text-xs text-zinc-500">Toca elementos para añadir o quitar</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSelectAll}
+                    className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-medium border border-zinc-800 transition-all active:scale-95 cursor-pointer"
+                  >
+                    {selectedIds.size === filteredItems.length ? 'Deseleccionar' : 'Todos'}
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center justify-between gap-3 mb-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (carpetaActiva !== 'todas') {
+                      setCarpetaActiva('todas');
+                    } else {
+                      setActiveCategory(null);
+                    }
+                  }}
+                  className="p-1 -ml-1 rounded-xl text-zinc-400 hover:text-zinc-100 transition-colors flex items-center gap-2.5 active:scale-95 cursor-pointer"
+                >
+                  <ArrowLeft className="w-5 h-5 text-zinc-400" strokeWidth={1.5} />
+                  <div className="text-left">
+                    <div className="flex items-center gap-2">
+                      <h1 className="font-bold text-lg sm:text-xl text-zinc-100 tracking-tight">
+                        {activeCategory === 'photo'
+                          ? 'Fotos'
+                          : activeCategory === 'video'
+                          ? 'Videos'
+                          : activeCategory === 'audio'
+                          ? 'Audio'
+                          : 'Apps'}
+                        {carpetaActiva !== 'todas' && (
+                          <span className="text-zinc-400 font-semibold ml-1.5">
+                            / {carpetaActiva}
+                          </span>
+                        )}
+                      </h1>
+                      <span className="text-sm font-normal text-zinc-500">
+                        (
+                        {carpetaActiva !== 'todas'
+                          ? filteredItems.length
+                          : activeCategory === 'photo'
+                          ? counts.photos
+                          : activeCategory === 'video'
+                          ? counts.videos
+                          : activeCategory === 'audio'
+                          ? counts.audios
+                          : counts.apps}
+                        )
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-500">
+                      {carpetaActiva !== 'todas' ? 'Volver a Carpetas' : 'Volver a Bóveda'}
+                    </p>
+                  </div>
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  {/* Botón estilizado para Volver a Carpetas cuando está dentro de un álbum */}
+                  {carpetaActiva !== 'todas' && (
+                    <button
+                      type="button"
+                      onClick={() => setCarpetaActiva('todas')}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-medium border border-zinc-800 transition-all active:scale-95 cursor-pointer shadow-sm"
+                      title="Volver a la vista de carpetas"
+                    >
+                      <Folder size={14} strokeWidth={1.5} className="text-amber-400" />
+                      <span>Volver a Carpetas</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Search & Layout Bar */}
             <div className="flex items-center gap-2.5 mb-2.5">
@@ -1975,10 +2013,10 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                       setActiveViewerItem(item);
                     }
                   }}
-                  className={`group relative aspect-square rounded-2xl overflow-hidden bg-slate-900 border cursor-pointer transition-all duration-200 select-none ${
+                  className={`group relative aspect-square rounded-2xl overflow-hidden bg-zinc-900 border cursor-pointer transition-all duration-200 select-none ${
                     isSelected
-                      ? 'border-blue-500 ring-2 ring-blue-500/50 scale-[0.98]'
-                      : 'border-slate-800/80 hover:border-slate-700 active:scale-95'
+                      ? 'border-zinc-300 ring-2 ring-white/30 scale-[0.98]'
+                      : 'border-zinc-800/80 hover:border-zinc-700 active:scale-95'
                   }`}
                 >
                   {/* Photo Display */}
@@ -2077,13 +2115,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                     </div>
                   )}
 
-                  {/* Selection indicator - circular cyan checkmark */}
+                  {/* Selection indicator - circular checkmark */}
                   {isSelectMode && (
                     <div className="absolute top-2 left-2 z-20 pointer-events-none">
                       <div
                         className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                           isSelected
-                            ? 'bg-[#00e5ff] text-black shadow-md border-2 border-white'
+                            ? 'bg-zinc-100 text-zinc-950 shadow-md border-2 border-zinc-900 font-bold'
                             : 'bg-black/60 border border-white/60 text-transparent'
                         }`}
                       >
@@ -2111,73 +2149,89 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       </div>
     )}
 
-      {/* Floating Bottom Navigation Bar for Selection Mode */}
+      {/* Barra de Acciones Inferior para Modo Selección - Estilo BarraAccionesInferior (Outline fino, distribución equilibrada, tema oscuro premium) */}
       {isSelectMode || selectedIds.size > 0 ? (
-        <div className="fixed bottom-3 sm:bottom-4 left-0 right-0 z-50 px-2 sm:px-4 flex justify-center pointer-events-none">
-          <nav className="pointer-events-auto w-full max-w-lg bg-[#0a121d]/95 backdrop-blur-2xl border border-slate-700/80 rounded-2xl sm:rounded-full p-1.5 sm:p-2 flex items-center justify-between shadow-2xl shadow-black/80 gap-1 sm:gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden touch-pan-x">
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSelectMode(false);
-                  setSelectedIds(new Set());
-                }}
-                className="px-2.5 py-1.5 rounded-xl bg-[#162032] border border-slate-700 text-slate-100 hover:bg-slate-700 text-xs font-semibold flex items-center gap-1 transition-all active:scale-95 cursor-pointer shrink-0"
-                title="Listo / Salir de selección"
-              >
-                <X className="w-3.5 h-3.5 text-slate-300" />
-                <span>Listo</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleSelectAll}
-                className="px-1.5 py-1 text-xs text-[#00e5ff] hover:underline font-bold transition-all cursor-pointer shrink-0"
-              >
-                {selectedIds.size === filteredItems.length ? 'Ninguno' : 'Todos'}
-              </button>
-            </div>
+        <footer className="fixed bottom-0 left-0 right-0 z-50 w-full bg-zinc-950/95 backdrop-blur-md px-3 sm:px-8 py-2.5 pb-[max(calc(env(safe-area-inset-bottom,0px)+0.75rem),1rem)] flex items-center justify-around border-t border-zinc-900 shadow-2xl select-none animate-in slide-in-from-bottom duration-200">
+          {/* 1. Mover seleccionados a otra carpeta */}
+          {activeTab !== 'all' && activeTab !== 'favorites' && (
+            <button
+              type="button"
+              onClick={() => setIsMoveModalOpen(true)}
+              disabled={selectedIds.size === 0}
+              className="flex flex-col items-center gap-1 py-1 px-2.5 text-zinc-300 hover:text-amber-400 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-200 active:scale-95 cursor-pointer group"
+              title="Mover seleccionados a otra carpeta"
+              aria-label="Mover"
+            >
+              <Folder size={22} strokeWidth={1.5} className="text-zinc-300 group-hover:text-amber-400 transition-colors" />
+              <span className="text-[11px] font-medium tracking-tight">Mover</span>
+            </button>
+          )}
 
-            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              {activeTab !== 'all' && activeTab !== 'favorites' && (
-                <button
-                  type="button"
-                  onClick={() => setIsMoveModalOpen(true)}
-                  disabled={selectedIds.size === 0}
-                  className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#1e293b] border border-slate-700 hover:bg-slate-700 disabled:opacity-40 disabled:pointer-events-none text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0"
-                  title="Mover seleccionados a otra carpeta"
-                >
-                  <Folder className="w-3.5 h-3.5 text-[#00e5ff]" />
-                  <span>Mover a...</span>
-                  <span className="text-[11px] font-mono font-bold text-cyan-300">({selectedIds.size})</span>
-                </button>
-              )}
+          {/* 2. Sacar de la Bóveda (Exportar/Restaurar a galería del celular) */}
+          <button
+            type="button"
+            onClick={handleBatchExport}
+            disabled={selectedIds.size === 0 || isExportingBatch}
+            className="flex flex-col items-center gap-1 py-1 px-2.5 text-zinc-300 hover:text-emerald-400 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-200 active:scale-95 cursor-pointer group"
+            title="Sacar de la bóveda a tu galería libre"
+            aria-label="Sacar de la bóveda"
+          >
+            <Download
+              size={22}
+              strokeWidth={1.5}
+              className={isExportingBatch ? 'animate-bounce text-emerald-400' : 'text-zinc-300 group-hover:text-emerald-400 transition-colors'}
+            />
+            <span className="text-[11px] font-medium tracking-tight">
+              Sacar {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
+            </span>
+          </button>
 
-              <button
-                type="button"
-                onClick={handleBatchExport}
-                disabled={selectedIds.size === 0}
-                className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#00e5ff] hover:bg-[#00cce6] disabled:opacity-40 disabled:pointer-events-none text-black text-xs font-bold shadow-md shadow-cyan-500/30 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shrink-0"
-                title="Sacar de la bóveda y restaurar a tu celular"
-              >
-                <Download className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Sacar ({selectedIds.size})</span>
-              </button>
+          {/* 3. Eliminar de la Bóveda */}
+          <button
+            type="button"
+            onClick={handleBatchDelete}
+            disabled={selectedIds.size === 0 || isDeletingBatch}
+            className="flex flex-col items-center gap-1 py-1 px-2.5 text-zinc-300 hover:text-red-400 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-200 active:scale-95 cursor-pointer group"
+            title="Eliminar permanentemente de la bóveda"
+            aria-label="Eliminar"
+          >
+            <Trash2 size={22} strokeWidth={1.5} className="text-red-400/90 group-hover:text-red-400 transition-colors" />
+            <span className="text-[11px] font-medium text-red-400/90 group-hover:text-red-400 tracking-tight">
+              Eliminar {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
+            </span>
+          </button>
 
-              <button
-                type="button"
-                onClick={handleBatchDelete}
-                disabled={selectedIds.size === 0}
-                className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white disabled:bg-rose-950/60 disabled:border disabled:border-rose-800/40 disabled:text-rose-400/50 disabled:opacity-40 disabled:pointer-events-none text-xs font-bold shadow-md shadow-rose-600/30 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shrink-0"
-                title="Eliminar de la bóveda"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Eliminar ({selectedIds.size})</span>
-              </button>
-            </div>
-          </nav>
-        </div>
+          {/* 4. Seleccionar Todos / Ninguno */}
+          <button
+            type="button"
+            onClick={handleSelectAll}
+            className="flex flex-col items-center gap-1 py-1 px-2.5 text-zinc-400 hover:text-zinc-100 transition-colors duration-200 active:scale-95 cursor-pointer group"
+            title={selectedIds.size === filteredItems.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
+            aria-label="Seleccionar todos"
+          >
+            <CheckSquare size={22} strokeWidth={1.5} className="group-hover:text-zinc-100 transition-colors" />
+            <span className="text-[11px] font-medium tracking-tight">
+              {selectedIds.size === filteredItems.length ? 'Ninguno' : 'Todos'}
+            </span>
+          </button>
+
+          {/* 5. Listo / Cancelar selección */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsSelectMode(false);
+              setSelectedIds(new Set());
+            }}
+            className="flex flex-col items-center gap-1 py-1 px-2.5 text-zinc-400 hover:text-zinc-100 transition-colors duration-200 active:scale-95 cursor-pointer group"
+            title="Listo / Salir de selección"
+            aria-label="Listo"
+          >
+            <X size={22} strokeWidth={1.5} className="group-hover:text-zinc-100 transition-colors" />
+            <span className="text-[11px] font-medium tracking-tight">Listo</span>
+          </button>
+        </footer>
       ) : (
-        <nav className="fixed safe-bottom-nav left-4 right-4 z-40 max-w-[320px] mx-auto bg-[#0a121d]/90 backdrop-blur-2xl border border-slate-800/90 rounded-full py-2 px-6 flex items-center justify-between shadow-2xl shadow-black/80 select-none">
+        <nav className="fixed safe-bottom-nav left-4 right-4 z-40 max-w-[320px] mx-auto bg-zinc-900/90 backdrop-blur-2xl border border-zinc-800/90 rounded-full py-2 px-6 flex items-center justify-between shadow-2xl shadow-black/80 select-none">
           <button
             type="button"
             onClick={() => {
@@ -2185,10 +2239,10 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               navigateToTab('vault');
             }}
             className={`flex flex-col items-center gap-1 transition-all cursor-pointer ${
-              activeNavTab === 'vault' ? 'text-[#00e5ff]' : 'text-slate-400 hover:text-slate-200'
+              activeNavTab === 'vault' ? 'text-zinc-100 font-semibold' : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
-            <Home className="w-5 h-5" />
+            <Home className="w-5 h-5" strokeWidth={1.5} />
             <span className="text-[10px] sm:text-[11px] font-medium">Mi Bóveda</span>
           </button>
 
@@ -2199,10 +2253,10 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               navigateToTab('security');
             }}
             className={`flex flex-col items-center gap-1 transition-all cursor-pointer ${
-              activeNavTab === 'security' ? 'text-[#00e5ff]' : 'text-slate-400 hover:text-slate-200'
+              activeNavTab === 'security' ? 'text-zinc-100 font-semibold' : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
-            <Shield className="w-5 h-5" />
+            <Shield className="w-5 h-5" strokeWidth={1.5} />
             <span className="text-[10px] sm:text-[11px] font-medium">Seguridad</span>
           </button>
 
@@ -2213,10 +2267,10 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               navigateToTab('settings');
             }}
             className={`flex flex-col items-center gap-1 transition-all cursor-pointer ${
-              activeNavTab === 'settings' ? 'text-[#00e5ff]' : 'text-slate-400 hover:text-slate-200'
+              activeNavTab === 'settings' ? 'text-zinc-100 font-semibold' : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-5 h-5" strokeWidth={1.5} />
             <span className="text-[10px] sm:text-[11px] font-medium">Configuración</span>
           </button>
         </nav>
@@ -2531,24 +2585,24 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       {/* Batch Export / Sacar Confirmation & Progress Modal */}
       {showBatchExportModal && (
         <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-          <div className="w-full max-w-sm bg-[#131c2e] border border-cyan-500/30 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
+          <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
             {isExportingBatch ? (
               <div className="space-y-4 py-1">
-                <div className="w-14 h-14 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl flex items-center justify-center mx-auto text-[#00e5ff] relative">
+                <div className="w-14 h-14 bg-zinc-800 border border-zinc-700 rounded-2xl flex items-center justify-center mx-auto text-zinc-100 relative">
                   {isExportComplete ? (
                     <CheckCircle2 className="w-7 h-7 text-emerald-400 animate-in zoom-in-75 duration-200" />
                   ) : (
-                    <Download className="w-7 h-7 animate-bounce text-[#00e5ff]" />
+                    <Download className="w-7 h-7 animate-bounce text-zinc-100" />
                   )}
                 </div>
 
                 <div>
-                  <h4 className="text-base font-bold text-white mb-1">
+                  <h4 className="text-base font-bold text-zinc-100 mb-1">
                     {isExportComplete
                       ? '¡Fotos sacadas con éxito!'
                       : `Sacando a tu galería (${exportCurrentIndex}/${exportTotalCount})`}
                   </h4>
-                  <p className="text-xs text-slate-400 truncate max-w-[260px] mx-auto">
+                  <p className="text-xs text-zinc-400 truncate max-w-[260px] mx-auto">
                     {isExportComplete
                       ? 'Los archivos se restauraron en tu celular'
                       : exportCurrentFileName || 'Procesando archivo...'}
@@ -2558,36 +2612,36 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 {/* Barra de progreso interactiva y dinámica */}
                 <div className="space-y-2 pt-1 text-left">
                   <div className="flex items-center justify-between text-xs font-semibold px-1">
-                    <span className="text-cyan-300 font-mono">
+                    <span className="text-zinc-400 font-mono">
                       {exportCurrentIndex} de {exportTotalCount}
                     </span>
-                    <span className="text-[#00e5ff] font-mono font-bold">
+                    <span className="text-zinc-100 font-mono font-bold">
                       {Math.round(exportProgress)}%
                     </span>
                   </div>
 
-                  <div className="w-full bg-slate-900/90 rounded-full h-3.5 overflow-hidden border border-slate-700/60 p-0.5 shadow-inner">
+                  <div className="w-full bg-zinc-950 rounded-full h-3 overflow-hidden border border-zinc-800 p-0.5">
                     <div
-                      className="h-full bg-gradient-to-r from-cyan-500 via-[#00e5ff] to-emerald-400 rounded-full transition-all duration-300 ease-out shadow-[0_0_12px_rgba(0,229,255,0.7)]"
+                      className="h-full bg-gradient-to-r from-zinc-400 via-zinc-200 to-emerald-400 rounded-full transition-all duration-300 ease-out"
                       style={{ width: `${Math.min(100, Math.max(exportProgress, 5))}%` }}
                     />
                   </div>
 
-                  <p className="text-[11px] text-slate-400 italic text-center">
+                  <p className="text-[11px] text-zinc-500 italic text-center">
                     Guardando en la galería y retirando de la bóveda...
                   </p>
                 </div>
               </div>
             ) : (
               <>
-                <div className="w-12 h-12 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl flex items-center justify-center mx-auto text-[#00e5ff]">
-                  <Download className="w-6 h-6 stroke-[2.5]" />
+                <div className="w-12 h-12 bg-zinc-800 border border-zinc-700 rounded-2xl flex items-center justify-center mx-auto text-zinc-100">
+                  <Download className="w-6 h-6 stroke-[2]" />
                 </div>
                 <div>
-                  <h4 className="text-base font-bold text-white mb-1">
+                  <h4 className="text-base font-bold text-zinc-100 mb-1">
                     ¿Sacar {selectedIds.size} elemento{selectedIds.size > 1 ? 's' : ''} a tu galería?
                   </h4>
-                  <p className="text-xs text-slate-400 leading-relaxed">
+                  <p className="text-xs text-zinc-400 leading-relaxed">
                     Los archivos se restaurarán a la galería y almacenamiento de tu teléfono, y se retirarán de la bóveda privada.
                   </p>
                 </div>
@@ -2595,16 +2649,16 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowBatchExportModal(false)}
-                    className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                    className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="button"
                     onClick={confirmBatchExport}
-                    className="flex-1 py-2.5 bg-[#00e5ff] hover:bg-[#00cce6] text-black text-xs font-bold rounded-xl shadow-lg shadow-cyan-500/30 transition-colors flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+                    className="flex-1 py-2.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-bold rounded-xl shadow-lg transition-colors flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
                   >
-                    <Download className="w-4 h-4 stroke-[2.5]" />
+                    <Download className="w-4 h-4 stroke-[2]" />
                     <span>Sacar ({selectedIds.size})</span>
                   </button>
                 </div>
@@ -2617,15 +2671,15 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       {/* Batch Delete Confirmation Modal */}
       {showBatchDeleteModal && (
         <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-          <div className="w-full max-w-xs bg-[#131c2e] border border-rose-500/30 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
-            <div className="w-12 h-12 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-center justify-center mx-auto text-rose-400">
+          <div className="w-full max-w-xs bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto text-red-400">
               <Trash2 className="w-6 h-6" />
             </div>
             <div>
-              <h4 className="text-base font-bold text-white mb-1">
+              <h4 className="text-base font-bold text-zinc-100 mb-1">
                 ¿Eliminar {selectedIds.size} elemento{selectedIds.size > 1 ? 's' : ''}?
               </h4>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-zinc-400 leading-relaxed">
                 Esta acción es irreversible y eliminará permanentemente los archivos seleccionados de tu bóveda cifrada.
               </p>
             </div>
@@ -2634,7 +2688,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 type="button"
                 onClick={() => setShowBatchDeleteModal(false)}
                 disabled={isDeletingBatch}
-                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors"
+                className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold rounded-xl transition-colors"
               >
                 Cancelar
               </button>
@@ -2642,7 +2696,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 type="button"
                 onClick={confirmBatchDelete}
                 disabled={isDeletingBatch}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-rose-600/30 transition-colors flex items-center justify-center gap-1.5 active:scale-95"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-red-600/30 transition-colors flex items-center justify-center gap-1.5 active:scale-95"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>{isDeletingBatch ? 'Eliminando...' : `Eliminar (${selectedIds.size})`}</span>

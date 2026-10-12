@@ -50,21 +50,21 @@ export function CreateFolderModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-      <div className="w-full max-w-sm bg-[#131c2e] border border-indigo-500/30 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+      <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
               <FolderPlus className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">Nueva Carpeta</h3>
-              <p className="text-[11px] text-slate-400">En la sección {categoryLabel}</p>
+              <h3 className="text-sm font-bold text-zinc-100">Nueva Carpeta</h3>
+              <p className="text-[11px] text-zinc-400">En la sección {categoryLabel}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -72,7 +72,7 @@ export function CreateFolderModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
               Nombre de la carpeta
             </label>
             <input
@@ -85,7 +85,7 @@ export function CreateFolderModal({
               }}
               placeholder="Ej: Personal, Viajes, Trabajo..."
               maxLength={40}
-              className="w-full bg-[#0a0f1d] border border-slate-700 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full bg-zinc-950 border border-zinc-850 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors"
             />
             {error && <p className="text-[11px] text-rose-400 mt-1">{error}</p>}
           </div>
@@ -94,16 +94,16 @@ export function CreateFolderModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={!folderName.trim()}
-              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition-all flex items-center gap-1.5"
+              className="px-5 py-2 rounded-xl bg-zinc-100 hover:bg-white disabled:opacity-40 text-zinc-950 text-xs font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <Check className="w-3.5 h-3.5" />
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Crear</span>
             </button>
           </div>
@@ -170,21 +170,21 @@ export function RenameFolderModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-      <div className="w-full max-w-sm bg-[#131c2e] border border-indigo-500/30 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+      <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
               <Edit2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">Renombrar Carpeta</h3>
-              <p className="text-[11px] text-slate-400">En la sección {categoryLabel}</p>
+              <h3 className="text-sm font-bold text-zinc-100">Renombrar Carpeta</h3>
+              <p className="text-[11px] text-zinc-400">En la sección {categoryLabel}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -192,7 +192,7 @@ export function RenameFolderModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
               Nuevo nombre
             </label>
             <input
@@ -204,7 +204,7 @@ export function RenameFolderModal({
                 setError('');
               }}
               maxLength={40}
-              className="w-full bg-[#0a0f1d] border border-slate-700 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full bg-zinc-950 border border-zinc-850 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors"
             />
             {error && <p className="text-[11px] text-rose-400 mt-1">{error}</p>}
           </div>
@@ -213,16 +213,16 @@ export function RenameFolderModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={!folderName.trim() || folderName.trim() === currentFolderName}
-              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition-all flex items-center gap-1.5"
+              className="px-5 py-2 rounded-xl bg-zinc-100 hover:bg-white disabled:opacity-40 text-zinc-950 text-xs font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <Check className="w-3.5 h-3.5" />
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Guardar</span>
             </button>
           </div>
@@ -266,15 +266,15 @@ export function MoveToFolderModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-      <div className="w-full max-w-sm bg-[#131c2e] border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+      <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
               <Folder className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">Mover a Carpeta</h3>
-              <p className="text-[11px] text-slate-400">
+              <h3 className="text-sm font-bold text-zinc-100">Mover a Carpeta</h3>
+              <p className="text-[11px] text-zinc-400">
                 {selectedCount} {categoryLabel} seleccionada(s)
               </p>
             </div>
@@ -282,7 +282,7 @@ export function MoveToFolderModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -300,22 +300,22 @@ export function MoveToFolderModal({
                   onMove(folder);
                   onClose();
                 }}
-                className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all text-left ${
+                className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all text-left cursor-pointer ${
                   isCurrent
-                    ? 'bg-indigo-600/15 border-indigo-500/40 text-indigo-200'
-                    : 'bg-[#0a0f1d] hover:bg-[#101728] border-slate-800 text-slate-200 hover:border-slate-700'
+                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100 font-semibold'
+                    : 'bg-zinc-950/60 hover:bg-zinc-800/60 border-zinc-850 text-zinc-300 hover:text-zinc-100 hover:border-zinc-750'
                 }`}
               >
                 <div className="flex items-center gap-2.5 truncate">
-                  <Folder className={`w-4 h-4 shrink-0 ${isCurrent ? 'text-indigo-400' : 'text-slate-400'}`} />
-                  <span className="text-xs font-semibold truncate">{folder}</span>
+                  <Folder className={`w-4 h-4 shrink-0 ${isCurrent ? 'text-amber-400' : 'text-zinc-500'}`} />
+                  <span className="text-xs truncate">{folder}</span>
                 </div>
                 {isCurrent ? (
-                  <span className="text-[10px] text-indigo-400 font-mono bg-indigo-500/20 px-1.5 py-0.5 rounded shrink-0">
+                  <span className="text-[10px] text-amber-400 font-mono bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 shrink-0">
                     Actual
                   </span>
                 ) : (
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <ArrowRight className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
                 )}
               </button>
             );
@@ -323,14 +323,14 @@ export function MoveToFolderModal({
         </div>
 
         {/* Action to create new folder directly */}
-        <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+        <div className="pt-2 border-t border-zinc-800 flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => {
               onClose();
               onOpenCreateFolder();
             }}
-            className="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1.5 transition-colors p-1"
+            className="text-xs text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1.5 transition-colors p-1 cursor-pointer"
           >
             <FolderPlus className="w-4 h-4" />
             <span>+ Crear nueva carpeta</span>
@@ -338,7 +338,7 @@ export function MoveToFolderModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition-colors"
+            className="px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
           >
             Cerrar
           </button>
