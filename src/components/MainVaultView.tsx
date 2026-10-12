@@ -1584,9 +1584,10 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         </div>
       ) : (
         /* Detailed Category View */
-        <div className="max-w-4xl w-full mx-auto p-4 pb-28 sm:pb-32 flex-1 flex flex-col animate-in fade-in duration-200">
-          {/* Header & Filter Controls Container - Compacto para que al deslizar hacia arriba no tape las fotos */}
-          <header className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-900/80 px-3 pt-2.5 pb-2 mb-3 -mx-4 sm:mx-0 sm:px-3 shadow-md">
+        <div className="max-w-4xl w-full mx-auto p-4 pb-28 sm:pb-32 flex-1 flex flex-col">
+          {/* Fixed Pinned Header for Folders & Subfolders */}
+          <header className="fixed top-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-xl border-b border-zinc-900 safe-top-sticky pb-2.5 shadow-lg shadow-black/50 transition-all">
+            <div className="max-w-4xl mx-auto w-full px-3 sm:px-4">
             {isSelectMode || selectedIds.size > 0 ? (
               /* Encabezado durante el modo de selección (Limpio y enfocado) */
               <div className="flex items-center justify-between gap-3 min-h-[42px]">
@@ -1638,16 +1639,19 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   <ArrowLeft className="w-5 h-5 text-zinc-400 shrink-0" strokeWidth={1.5} />
                   <div className="text-left min-w-0">
                     <div className="flex items-center gap-2">
+                      <Folder size={18} strokeWidth={1.5} className="text-amber-400 shrink-0" />
                       <h1 className="font-bold text-base sm:text-lg text-zinc-100 tracking-tight truncate">
                         {carpetaActiva !== 'todas'
                           ? carpetaActiva
-                          : activeCategory === 'photo'
-                          ? 'Fotos'
-                          : activeCategory === 'video'
-                          ? 'Videos'
-                          : activeCategory === 'audio'
-                          ? 'Audio'
-                          : 'Apps'}
+                          : `Carpetas de ${
+                              activeCategory === 'photo'
+                                ? 'Fotos'
+                                : activeCategory === 'video'
+                                ? 'Videos'
+                                : activeCategory === 'audio'
+                                ? 'Audio'
+                                : 'Apps'
+                            }`}
                       </h1>
                       <span className="text-xs font-normal text-zinc-500 font-mono shrink-0">
                         (
@@ -1832,7 +1836,21 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </button>
               </div>
             )}
+            </div>
           </header>
+
+          {/* Dynamic Spacer so content starts right below fixed header */}
+          <div
+            className={`shrink-0 w-full transition-all ${
+              carpetaActiva === 'todas' && !isSelectMode
+                ? isSearchOpen || searchQuery
+                  ? 'h-[10.5rem] sm:h-[11.5rem]'
+                  : 'h-[7.5rem] sm:h-[8.5rem]'
+                : isSearchOpen || searchQuery
+                ? 'h-[7.5rem] sm:h-[8.5rem]'
+                : 'h-[4.75rem] sm:h-[5.5rem]'
+            }`}
+          />
 
         {/* Items Grid & Carpetas View */}
         {isLoading ? (

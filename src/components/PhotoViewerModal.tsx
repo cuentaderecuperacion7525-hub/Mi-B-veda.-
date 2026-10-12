@@ -134,7 +134,10 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     }
   }, [currentIndex, allItems.length]);
 
-  // Gestos táctiles: Pellizco (Pinch-to-zoom) y arrastre libre por la pantalla (Pan)
+  // Gestos táctiles: Pellizco (Pinch-to-zoom) y arrastre acotado a los bordes de la imagen
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+
   const isPinchingRef = useRef<boolean>(false);
   const pinchStartDistRef = useRef<number>(0);
   const pinchStartScaleRef = useRef<number>(1);
@@ -149,6 +152,65 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   scaleRef.current = scale;
   const positionRef = useRef(position);
   positionRef.current = position;
+
+  // Calcula los límites máximos permitidos en X e Y para que los bordes de la imagen nunca dejen ver pantalla negra vacía
+  const getBounds = useCallback((curScale: number) => {
+    const container = containerRef.current;
+    const img = imageRef.current;
+    if (!container || !img) {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const maxX = Math.max(0, (vw * curScale - vw) / 2);
+      const maxY = Math.max(0, (vh * curScale - vh) / 2);
+      return { maxX, maxY };
+    }
+
+    const vw = container.clientWidth;
+    const vh = container.clientHeight;
+
+    // Dimensiones de la imagen renderizada sin escalar
+    const w0 = img.clientWidth || img.offsetWidth || img.naturalWidth || vw;
+    const h0 = img.clientHeight || img.offsetHeight || img.naturalHeight || vh;
+
+    const isRotated90 = Math.abs(rotation % 180) !== 0;
+    const baseW = isRotated90 ? h0 : w0;
+    const baseH = isRotated90 ? w0 : h0;
+
+    const displayW = baseW * curScale;
+    const displayH = baseH * curScale;
+
+    // El desplazamiento máximo en X e Y para mantener la imagen llenando la vista sin mostrar vacío negro
+    const maxX = Math.max(0, (displayW - vw) / 2);
+    const maxY = Math.max(0, (displayH - vh) / 2);
+
+    return { maxX, maxY };
+  }, [rotation]);
+
+  // Resistencia elástica ligera al arrastrar mientras el dedo está en pantalla
+  const clampWithDamping = (val: number, max: number) => {
+    if (max <= 0) {
+      return val * 0.15;
+    }
+    if (val > max) {
+      return max + (val - max) * 0.2;
+    }
+    if (val < -max) {
+      return -max + (val + max) * 0.2;
+    }
+    return val;
+  };
+
+  // Ajuste estricto dentro de los bordes de la imagen al soltar el dedo
+  const clampPosition = useCallback((pos: { x: number; y: number }, curScale: number) => {
+    if (curScale <= 1.05) {
+      return { x: 0, y: 0 };
+    }
+    const { maxX, maxY } = getBounds(curScale);
+    return {
+      x: maxX > 0 ? Math.min(Math.max(pos.x, -maxX), maxX) : 0,
+      y: maxY > 0 ? Math.min(Math.max(pos.y, -maxY), maxY) : 0,
+    };
+  }, [getBounds]);
 
   // Deslizamiento lateral a 1x para cambiar de elemento
   const touchStartXRef = useRef<number | null>(null);
@@ -181,7 +243,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       return;
     }
 
-    // 1 dedo: Si tiene zoom (> 1.05), arrastra/mueve libremente a cualquier punto de la pantalla
+    // 1 dedo: Si tiene zoom (> 1.05), arrastra dentro de los límites de la imagen
     if (e.touches.length === 1) {
       isPinchingRef.current = false;
       const t = e.touches[0];
@@ -220,15 +282,19 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         };
         const dx = curCenter.x - pinchStartCenterRef.current.x;
         const dy = curCenter.y - pinchStartCenterRef.current.y;
+        const rawX = pinchStartPosRef.current.x + dx;
+        const rawY = pinchStartPosRef.current.y + dy;
+
+        const { maxX, maxY } = getBounds(targetScale);
         setPosition({
-          x: pinchStartPosRef.current.x + dx,
-          y: pinchStartPosRef.current.y + dy,
+          x: clampWithDamping(rawX, maxX),
+          y: clampWithDamping(rawY, maxY),
         });
       }
       return;
     }
 
-    // Arrastre libre fluido con 1 dedo por cualquier parte de la pantalla con zoom
+    // Arrastre con 1 dedo acotado a los límites reales de la foto
     if (e.touches.length === 1 && scaleRef.current > 1.05 && panStartRef.current) {
       const t = e.touches[0];
       const dx = t.clientX - panStartRef.current.x;
@@ -238,9 +304,13 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         hasMovedRef.current = true;
       }
 
+      const { maxX, maxY } = getBounds(scaleRef.current);
+      const rawX = posStartRef.current.x + dx;
+      const rawY = posStartRef.current.y + dy;
+
       setPosition({
-        x: posStartRef.current.x + dx,
-        y: posStartRef.current.y + dy,
+        x: clampWithDamping(rawX, maxX),
+        y: clampWithDamping(rawY, maxY),
       });
     }
   };
@@ -261,6 +331,8 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       if (scaleRef.current <= 1.05) {
         setScale(1);
         setPosition({ x: 0, y: 0 });
+      } else {
+        setPosition(clampPosition(positionRef.current, scaleRef.current));
       }
       return;
     }
@@ -270,6 +342,8 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       if (scaleRef.current <= 1.05) {
         setScale(1);
         setPosition({ x: 0, y: 0 });
+      } else {
+        setPosition(clampPosition(positionRef.current, scaleRef.current));
       }
       return;
     }
@@ -303,6 +377,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         setPosition({ x: 0, y: 0 });
         return 1;
       }
+      setPosition((curPos) => clampPosition(curPos, next));
       return next;
     });
   };
@@ -318,13 +393,16 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDraggingMouseRef.current && mouseStartRef.current && scale > 1.05) {
+    if (isDraggingMouseRef.current && mouseStartRef.current && scaleRef.current > 1.05) {
       hasMovedRef.current = true;
       const dx = e.clientX - mouseStartRef.current.x;
       const dy = e.clientY - mouseStartRef.current.y;
+      const { maxX, maxY } = getBounds(scaleRef.current);
+      const rawX = posStartRef.current.x + dx;
+      const rawY = posStartRef.current.y + dy;
       setPosition({
-        x: posStartRef.current.x + dx,
-        y: posStartRef.current.y + dy,
+        x: clampWithDamping(rawX, maxX),
+        y: clampWithDamping(rawY, maxY),
       });
     }
   };
@@ -334,6 +412,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       isDraggingMouseRef.current = false;
       setIsInteracting(false);
       mouseStartRef.current = null;
+      setPosition(clampPosition(positionRef.current, scaleRef.current));
     }
   };
 
@@ -590,6 +669,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
       {/* Main Content Stage */}
       <div 
+        ref={containerRef}
         onClick={handlePhotoTap}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -658,6 +738,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         {isPhoto && (
           <div className="w-full h-full max-w-full max-h-full flex items-center justify-center">
             <img
+              ref={imageRef}
               src={activeItem.blobUrl}
               alt={activeItem.record.name}
               onClick={handlePhotoTap}
