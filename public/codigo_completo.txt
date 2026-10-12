@@ -2707,9 +2707,6 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                       )
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400">
-                    {activeSubfolder !== null ? 'Volver a Carpetas' : 'Volver a Bóveda'}
-                  </p>
                 </div>
               </button>
 
@@ -2969,14 +2966,6 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               <div className="space-y-3">
                 {activeSubfolder !== null && !searchQuery && (
                   <div className="flex items-center justify-between px-1 mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveSubfolder(null)}
-                      className="text-xs font-bold text-[#00e5ff] hover:underline flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Volver a las Carpetas</span>
-                    </button>
                     <span className="text-xs text-slate-400 font-mono">
                       {filteredItems.length} {filteredItems.length === 1 ? 'archivo' : 'archivos'}
                     </span>

@@ -224,6 +224,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
   // Estado para la carpeta activa ('todas' por defecto para mostrar el menú de carpetas)
   const [carpetaActiva, setCarpetaActiva] = useState<string>('todas');
+  const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const activeSubfolder = carpetaActiva === 'todas' ? null : carpetaActiva;
   const setActiveSubfolder = (folder: string | null) => {
     setCarpetaActiva(folder === null ? 'todas' : folder);
@@ -1584,11 +1585,11 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       ) : (
         /* Detailed Category View */
         <div className="max-w-4xl w-full mx-auto p-4 pb-28 sm:pb-32 flex-1 flex flex-col animate-in fade-in duration-200">
-          {/* Sticky Header & Filter Controls Container */}
-          <header className="sticky top-0 z-30 bg-zinc-950/85 backdrop-blur-md border-b border-zinc-900 px-3 safe-top-sticky pb-2 mb-3 shadow-lg -mx-4 sm:mx-0 sm:px-3">
+          {/* Header & Filter Controls Container - Compacto para que al deslizar hacia arriba no tape las fotos */}
+          <header className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-900/80 px-3 pt-2.5 pb-2 mb-3 -mx-4 sm:mx-0 sm:px-3 shadow-md">
             {isSelectMode || selectedIds.size > 0 ? (
               /* Encabezado durante el modo de selección (Limpio y enfocado) */
-              <div className="flex items-center justify-between gap-3 mb-2.5">
+              <div className="flex items-center justify-between gap-3 min-h-[42px]">
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
@@ -1602,13 +1603,12 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                     <X className="w-5 h-5 text-zinc-300" strokeWidth={1.5} />
                   </button>
                   <div>
-                    <h1 className="font-bold text-lg sm:text-xl text-zinc-100 tracking-tight flex items-center gap-2">
+                    <h1 className="font-bold text-base sm:text-lg text-zinc-100 tracking-tight flex items-center gap-2">
                       <span>{selectedIds.size}</span>
-                      <span className="text-sm font-normal text-zinc-400">
+                      <span className="text-xs font-normal text-zinc-400">
                         {selectedIds.size === 1 ? 'seleccionado' : 'seleccionados'}
                       </span>
                     </h1>
-                    <p className="text-xs text-zinc-500">Toca elementos para añadir o quitar</p>
                   </div>
                 </div>
 
@@ -1623,7 +1623,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between gap-3 mb-2.5">
+              <div className="flex items-center justify-between gap-2 min-h-[42px]">
                 <button
                   type="button"
                   onClick={() => {
@@ -1633,26 +1633,23 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                       setActiveCategory(null);
                     }
                   }}
-                  className="p-1 -ml-1 rounded-xl text-zinc-400 hover:text-zinc-100 transition-colors flex items-center gap-2.5 active:scale-95 cursor-pointer"
+                  className="p-1 -ml-1 rounded-xl text-zinc-400 hover:text-zinc-100 transition-colors flex items-center gap-2 active:scale-95 cursor-pointer min-w-0"
                 >
-                  <ArrowLeft className="w-5 h-5 text-zinc-400" strokeWidth={1.5} />
-                  <div className="text-left">
+                  <ArrowLeft className="w-5 h-5 text-zinc-400 shrink-0" strokeWidth={1.5} />
+                  <div className="text-left min-w-0">
                     <div className="flex items-center gap-2">
-                      <h1 className="font-bold text-lg sm:text-xl text-zinc-100 tracking-tight">
-                        {activeCategory === 'photo'
+                      <h1 className="font-bold text-base sm:text-lg text-zinc-100 tracking-tight truncate">
+                        {carpetaActiva !== 'todas'
+                          ? carpetaActiva
+                          : activeCategory === 'photo'
                           ? 'Fotos'
                           : activeCategory === 'video'
                           ? 'Videos'
                           : activeCategory === 'audio'
                           ? 'Audio'
                           : 'Apps'}
-                        {carpetaActiva !== 'todas' && (
-                          <span className="text-zinc-400 font-semibold ml-1.5">
-                            / {carpetaActiva}
-                          </span>
-                        )}
                       </h1>
-                      <span className="text-sm font-normal text-zinc-500">
+                      <span className="text-xs font-normal text-zinc-500 font-mono shrink-0">
                         (
                         {carpetaActiva !== 'todas'
                           ? filteredItems.length
@@ -1666,166 +1663,175 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                         )
                       </span>
                     </div>
-                    <p className="text-xs text-zinc-500">
-                      {carpetaActiva !== 'todas' ? 'Volver a Carpetas' : 'Volver a Bóveda'}
-                    </p>
                   </div>
                 </button>
 
-                <div className="flex items-center gap-1.5">
-                  {/* Botón estilizado para Volver a Carpetas cuando está dentro de un álbum */}
-                  {carpetaActiva !== 'todas' && (
+                {/* Controles de vista y búsqueda compactos a la derecha */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsSearchOpen((prev) => !prev)}
+                    className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                      isSearchOpen || searchQuery
+                        ? 'bg-zinc-800 text-zinc-100 border-zinc-700'
+                        : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 border-zinc-800'
+                    }`}
+                    title="Buscar"
+                  >
+                    <Search size={15} strokeWidth={1.5} />
+                  </button>
+
+                  <div className="flex items-center bg-zinc-900/60 border border-zinc-800 rounded-xl p-0.5 gap-0.5">
                     <button
                       type="button"
-                      onClick={() => setCarpetaActiva('todas')}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-medium border border-zinc-800 transition-all active:scale-95 cursor-pointer shadow-sm"
-                      title="Volver a la vista de carpetas"
+                      onClick={toggleAspectMode}
+                      className={`p-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer text-[10px] font-semibold ${
+                        aspectMode === 'real'
+                          ? 'bg-zinc-800 text-zinc-200 shadow-sm'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                      title={aspectMode === 'real' ? 'Proporción real' : 'Cuadrícula 1:1'}
                     >
-                      <Folder size={14} strokeWidth={1.5} className="text-amber-400" />
-                      <span>Volver a Carpetas</span>
+                      <Maximize2 className="w-3.5 h-3.5" strokeWidth={1.5} />
                     </button>
-                  )}
+                    <div className="w-[1px] h-3.5 bg-zinc-800 mx-0.5" />
+                    <button
+                      onClick={() => setGridColumns(2)}
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                        gridColumns === 2 ? 'bg-zinc-800 text-zinc-200 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                      title="2 Columnas"
+                      aria-label="Vista 2 columnas"
+                    >
+                      <LayoutGrid size={15} strokeWidth={1.5} />
+                    </button>
+                    <button
+                      onClick={() => setGridColumns(3)}
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                        gridColumns === 3 ? 'bg-zinc-800 text-zinc-200 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                      title="3 Columnas"
+                      aria-label="Vista 3 columnas"
+                    >
+                      <Grid3X3 size={15} strokeWidth={1.5} />
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Search & Layout Bar */}
-            <div className="flex items-center gap-2.5 mb-2.5">
-              <div className="relative flex-1">
-                <Search size={18} strokeWidth={1.5} className="text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            {/* Barra de búsqueda desplegable compacta */}
+            {(isSearchOpen || searchQuery) && (
+              <div className="relative mt-2 mb-1 animate-in fade-in duration-150">
+                <Search size={15} strokeWidth={1.5} className="text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar archivos..."
-                  className="w-full bg-zinc-900/60 border border-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors"
+                  placeholder="Buscar en esta carpeta..."
+                  autoFocus
+                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl pl-9 pr-8 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 p-1"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
               </div>
+            )}
 
-              <div className="flex items-center bg-zinc-900/60 border border-zinc-800 rounded-xl p-1 gap-0.5">
+            {/* Content Type Filter Tabs - Solo visible cuando está en la vista general de carpetas */}
+            {carpetaActiva === 'todas' && (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 mb-1.5 no-scrollbar text-xs w-full max-w-full">
                 <button
                   type="button"
-                  onClick={toggleAspectMode}
-                  className={`px-2 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer text-[10px] font-semibold ${
-                    aspectMode === 'real'
-                      ? 'bg-zinc-800 text-zinc-200 shadow-sm'
-                      : 'text-zinc-500 hover:text-zinc-300'
+                  onClick={() => {
+                    setActiveCategory('photo');
+                    setActiveTab('photo');
+                    setActiveSubfolder(null);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    (activeCategory === 'photo' || activeTab === 'photo') && activeTab !== 'favorites'
+                      ? 'bg-zinc-100 text-zinc-950 font-semibold shadow-sm'
+                      : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80'
                   }`}
-                  title={aspectMode === 'real' ? 'Proporción y tamaño real (sin recorte)' : 'Cuadrícula cuadrada 1:1 (recortada)'}
                 >
-                  <Maximize2 className="w-3.5 h-3.5" strokeWidth={1.5} />
-                  <span className="hidden sm:inline">{aspectMode === 'real' ? 'Tamaño real' : '1:1'}</span>
+                  <ImageIcon size={15} strokeWidth={1.5} />
+                  <span>Fotos ({counts.photos})</span>
                 </button>
-                <div className="w-[1px] h-3.5 bg-zinc-800 mx-0.5" />
+
                 <button
-                  onClick={() => setGridColumns(2)}
-                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                    gridColumns === 2 ? 'bg-zinc-800 text-zinc-200 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                  type="button"
+                  onClick={() => {
+                    setActiveCategory('video');
+                    setActiveTab('video');
+                    setActiveSubfolder(null);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    activeCategory === 'video' || activeTab === 'video'
+                      ? 'bg-zinc-100 text-zinc-950 font-semibold shadow-sm'
+                      : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80'
                   }`}
-                  title="2 Columnas"
-                  aria-label="Vista cuadrícula 2 columnas"
                 >
-                  <LayoutGrid size={16} strokeWidth={1.5} />
+                  <Film size={15} strokeWidth={1.5} />
+                  <span>Videos ({counts.videos})</span>
                 </button>
+
                 <button
-                  onClick={() => setGridColumns(3)}
-                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                    gridColumns === 3 ? 'bg-zinc-800 text-zinc-200 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                  type="button"
+                  onClick={() => {
+                    setActiveCategory('audio');
+                    setActiveTab('audio');
+                    setActiveSubfolder(null);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    activeCategory === 'audio' || activeTab === 'audio'
+                      ? 'bg-zinc-100 text-zinc-950 font-semibold shadow-sm'
+                      : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80'
                   }`}
-                  title="3 Columnas"
-                  aria-label="Vista cuadrícula 3 columnas"
                 >
-                  <Grid3X3 size={16} strokeWidth={1.5} />
+                  <Music size={15} strokeWidth={1.5} />
+                  <span>Audio ({counts.audios})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveCategory('app');
+                    setActiveTab('app');
+                    setActiveSubfolder(null);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    activeCategory === 'app' || activeTab === 'app'
+                      ? 'bg-zinc-100 text-zinc-950 font-semibold shadow-sm'
+                      : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80'
+                  }`}
+                >
+                  <Folder size={15} strokeWidth={1.5} />
+                  <span>Apps ({counts.apps})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('favorites');
+                    setActiveSubfolder(null);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    activeTab === 'favorites'
+                      ? 'bg-red-500/15 border border-red-500/30 text-red-400 font-semibold shadow-sm'
+                      : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80'
+                  }`}
+                >
+                  <Heart size={15} strokeWidth={1.5} className={activeTab === 'favorites' ? 'fill-red-500 text-red-500' : ''} />
+                  <span>Favoritos ({counts.favs})</span>
                 </button>
               </div>
-            </div>
-
-            {/* Content Type Filter Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 mb-1.5 no-scrollbar text-xs w-full max-w-full">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCategory('photo');
-                  setActiveTab('photo');
-                  setActiveSubfolder(null);
-                }}
-                className={`px-3.5 py-2 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  (activeCategory === 'photo' || activeTab === 'photo') && activeTab !== 'favorites'
-                    ? 'bg-zinc-100 text-zinc-950 font-semibold shadow-sm'
-                    : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80'
-                }`}
-              >
-                <ImageIcon size={15} strokeWidth={1.5} />
-                <span>Fotos ({counts.photos})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCategory('video');
-                  setActiveTab('video');
-                  setActiveSubfolder(null);
-                }}
-                className={`px-3.5 py-2 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  activeCategory === 'video' || activeTab === 'video'
-                    ? 'bg-zinc-100 text-zinc-950 font-semibold shadow-sm'
-                    : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80'
-                }`}
-              >
-                <Film size={15} strokeWidth={1.5} />
-                <span>Videos ({counts.videos})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCategory('audio');
-                  setActiveTab('audio');
-                  setActiveSubfolder(null);
-                }}
-                className={`px-3.5 py-2 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  activeCategory === 'audio' || activeTab === 'audio'
-                    ? 'bg-zinc-100 text-zinc-950 font-semibold shadow-sm'
-                    : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80'
-                }`}
-              >
-                <Music size={15} strokeWidth={1.5} />
-                <span>Audio ({counts.audios})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCategory('app');
-                  setActiveTab('app');
-                  setActiveSubfolder(null);
-                }}
-                className={`px-3.5 py-2 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  activeCategory === 'app' || activeTab === 'app'
-                    ? 'bg-zinc-100 text-zinc-950 font-semibold shadow-sm'
-                    : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80'
-                }`}
-              >
-                <Folder size={15} strokeWidth={1.5} />
-                <span>Apps ({counts.apps})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('favorites');
-                  setActiveSubfolder(null);
-                }}
-                className={`px-3.5 py-2 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  activeTab === 'favorites'
-                    ? 'bg-red-500/15 border border-red-500/30 text-red-400 font-semibold shadow-sm'
-                    : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80'
-                }`}
-              >
-                <Heart size={15} strokeWidth={1.5} className={activeTab === 'favorites' ? 'fill-red-500 text-red-500' : ''} />
-                <span>Favoritos ({counts.favs})</span>
-              </button>
-            </div>
+            )}
           </header>
 
         {/* Items Grid & Carpetas View */}
@@ -1841,16 +1847,14 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 OCULTAR la cuadrícula de fotos y mostrar ÚNICAMENTE bloques grandes o tarjetas de subcarpetas */}
             {carpetaActiva === 'todas' && !searchQuery ? (
               <div className="space-y-4 animate-in fade-in duration-200">
-                <div className="px-1">
-                  <h2 className="text-sm font-semibold text-zinc-100 flex items-center gap-2">
-                    <Folder size={18} strokeWidth={1.5} className="text-amber-400" />
-                    <span>
-                      Carpetas de {activeCategory === 'photo' ? 'Fotos' : activeCategory === 'video' ? 'Videos' : activeCategory === 'audio' ? 'Audio' : activeCategory === 'app' ? 'Apps' : 'Favoritos'}
-                    </span>
+                <div className="flex items-center justify-between px-1">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+                    <Folder size={15} strokeWidth={1.5} className="text-amber-400" />
+                    <span>Álbumes de {activeCategory === 'photo' ? 'Fotos' : activeCategory === 'video' ? 'Videos' : activeCategory === 'audio' ? 'Audio' : activeCategory === 'app' ? 'Apps' : 'Favoritos'}</span>
                   </h2>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    Selecciona una carpeta para ver sus archivos cifrados
-                  </p>
+                  <span className="text-xs text-zinc-500 font-mono">
+                    {listaCarpetas.length} {listaCarpetas.length === 1 ? 'carpeta' : 'carpetas'}
+                  </span>
                 </div>
 
                 {/* Lista Vertical de Subcarpetas */}
@@ -1924,26 +1928,6 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
             ) : (
               /* VISTA DE CONTENIDO DENTRO DE LA CARPETA ESPECÍFICA (O RESULTADOS DE BÚSQUEDA) */
               <div className="space-y-3 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between px-1 mb-1">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCarpetaActiva('todas')}
-                      className="text-xs font-medium text-zinc-400 hover:text-zinc-200 flex items-center gap-1 cursor-pointer transition-colors"
-                    >
-                      <ArrowLeft size={14} strokeWidth={1.5} />
-                      <span>Carpetas</span>
-                    </button>
-                    <span className="text-zinc-600">/</span>
-                    <span className="text-xs font-semibold text-zinc-200">
-                      {carpetaActiva !== 'todas' ? carpetaActiva : 'Resultados de búsqueda'}
-                    </span>
-                  </div>
-                  <span className="text-xs text-zinc-500 font-mono">
-                    {filteredItems.length} {filteredItems.length === 1 ? 'archivo' : 'archivos'}
-                  </span>
-                </div>
-
                 {filteredItems.length === 0 ? (
                   <div className="text-center py-20 px-4 bg-zinc-900/30 border border-dashed border-zinc-800 rounded-3xl">
                     <div className="w-16 h-16 bg-zinc-900/70 border border-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-3 text-amber-400/80">

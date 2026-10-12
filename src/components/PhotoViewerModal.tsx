@@ -61,6 +61,8 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [scale, setScale] = useState<number>(1);
+  const [position, setPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isInteracting, setIsInteracting] = useState<boolean>(false);
   const [rotation, setRotation] = useState<number>(0);
   const [showDetails, setShowDetails] = useState<boolean>(false);
   const [isImmersive, setIsImmersive] = useState<boolean>(false);
@@ -83,6 +85,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       return registerBackHandler('viewer_immersive', () => {
         setIsImmersive(false);
         setScale(1);
+        setPosition({ x: 0, y: 0 });
         return true;
       }, 96);
     }
@@ -100,6 +103,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     }
     setCurrentIndex(idx);
     setScale(1);
+    setPosition({ x: 0, y: 0 });
     setRotation(0);
     setIsPlaying(false);
     setVideoProgress(0);
@@ -112,6 +116,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     if (currentIndex > 0) {
       setCurrentIndex((prev) => prev - 1);
       setScale(1);
+      setPosition({ x: 0, y: 0 });
       setRotation(0);
       setIsPlaying(false);
       setIsImmersive(false);
@@ -122,44 +127,218 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     if (currentIndex < allItems.length - 1) {
       setCurrentIndex((prev) => prev + 1);
       setScale(1);
+      setPosition({ x: 0, y: 0 });
       setRotation(0);
       setIsPlaying(false);
       setIsImmersive(false);
     }
   }, [currentIndex, allItems.length]);
 
-  // Swipe to change photo or video when not zoomed in
+  // Gestos táctiles: Pellizco (Pinch-to-zoom) y arrastre libre por la pantalla (Pan)
+  const isPinchingRef = useRef<boolean>(false);
+  const pinchStartDistRef = useRef<number>(0);
+  const pinchStartScaleRef = useRef<number>(1);
+  const pinchStartCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const pinchStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const panStartRef = useRef<{ x: number; y: number } | null>(null);
+  const posStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const hasMovedRef = useRef<boolean>(false);
+
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
+  const positionRef = useRef(position);
+  positionRef.current = position;
+
+  // Deslizamiento lateral a 1x para cambiar de elemento
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
 
+  // Soporte de ratón para escritorio
+  const isDraggingMouseRef = useRef<boolean>(false);
+  const mouseStartRef = useRef<{ x: number; y: number } | null>(null);
+
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (scale !== 1 || isImmersive) return;
-    if (e.touches && e.touches.length > 0) {
-      touchStartXRef.current = e.touches[0].clientX;
-      touchStartYRef.current = e.touches[0].clientY;
+    hasMovedRef.current = false;
+
+    // Pellizco con 2 dedos (Zoom simultáneo y arrastre con pellizco)
+    if (e.touches.length === 2) {
+      isPinchingRef.current = true;
+      setIsInteracting(true);
+      hasMovedRef.current = true;
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      pinchStartDistRef.current = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      pinchStartScaleRef.current = scaleRef.current;
+      pinchStartCenterRef.current = {
+        x: (t1.clientX + t2.clientX) / 2,
+        y: (t1.clientY + t2.clientY) / 2,
+      };
+      pinchStartPosRef.current = { ...positionRef.current };
+      panStartRef.current = null;
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+      return;
     }
-  };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
-    if (!e.changedTouches || e.changedTouches.length === 0) return;
-    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
-    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
-    touchStartXRef.current = null;
-    touchStartYRef.current = null;
+    // 1 dedo: Si tiene zoom (> 1.05), arrastra/mueve libremente a cualquier punto de la pantalla
+    if (e.touches.length === 1) {
+      isPinchingRef.current = false;
+      const t = e.touches[0];
 
-    // Umbral de deslizamiento horizontal (75px)
-    if (!isImmersive && scale === 1 && Math.abs(deltaX) > 75 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
-      if (deltaX < 0) {
-        handleNext();
+      if (scaleRef.current > 1.05) {
+        setIsInteracting(true);
+        panStartRef.current = { x: t.clientX, y: t.clientY };
+        posStartRef.current = { ...positionRef.current };
+        touchStartXRef.current = null;
+        touchStartYRef.current = null;
       } else {
-        handlePrev();
+        panStartRef.current = null;
+        touchStartXRef.current = t.clientX;
+        touchStartYRef.current = t.clientY;
       }
     }
   };
 
-  // Doble toque (Double Tap) estilo galería: alterna entre 1x y 2.5x
-  // Toque simple: alterna el modo inmersivo (ocultar/mostrar barras)
+  const handleTouchMove = (e: React.TouchEvent) => {
+    // Zoom y desplazamiento simultáneo mediante pellizco con 2 dedos
+    if (e.touches.length === 2 && isPinchingRef.current) {
+      hasMovedRef.current = true;
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+
+      if (pinchStartDistRef.current > 0) {
+        const factor = dist / pinchStartDistRef.current;
+        const targetScale = Math.min(Math.max(pinchStartScaleRef.current * factor, 0.75), 8);
+        setScale(targetScale);
+
+        // Mueve la imagen siguiendo el desplazamiento del centro de ambos dedos
+        const curCenter = {
+          x: (t1.clientX + t2.clientX) / 2,
+          y: (t1.clientY + t2.clientY) / 2,
+        };
+        const dx = curCenter.x - pinchStartCenterRef.current.x;
+        const dy = curCenter.y - pinchStartCenterRef.current.y;
+        setPosition({
+          x: pinchStartPosRef.current.x + dx,
+          y: pinchStartPosRef.current.y + dy,
+        });
+      }
+      return;
+    }
+
+    // Arrastre libre fluido con 1 dedo por cualquier parte de la pantalla con zoom
+    if (e.touches.length === 1 && scaleRef.current > 1.05 && panStartRef.current) {
+      const t = e.touches[0];
+      const dx = t.clientX - panStartRef.current.x;
+      const dy = t.clientY - panStartRef.current.y;
+
+      if (Math.hypot(dx, dy) > 3) {
+        hasMovedRef.current = true;
+      }
+
+      setPosition({
+        x: posStartRef.current.x + dx,
+        y: posStartRef.current.y + dy,
+      });
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    setIsInteracting(false);
+
+    // Si estaba pellizcando y ahora queda 1 dedo en pantalla con zoom, transicionar a arrastre sin saltos
+    if (isPinchingRef.current) {
+      if (e.touches && e.touches.length === 1 && scaleRef.current > 1.05) {
+        isPinchingRef.current = false;
+        const t = e.touches[0];
+        panStartRef.current = { x: t.clientX, y: t.clientY };
+        posStartRef.current = { ...positionRef.current };
+        return;
+      }
+      isPinchingRef.current = false;
+      if (scaleRef.current <= 1.05) {
+        setScale(1);
+        setPosition({ x: 0, y: 0 });
+      }
+      return;
+    }
+
+    if (panStartRef.current) {
+      panStartRef.current = null;
+      if (scaleRef.current <= 1.05) {
+        setScale(1);
+        setPosition({ x: 0, y: 0 });
+      }
+      return;
+    }
+
+    // Deslizar para cambiar de foto (solo cuando no hay zoom)
+    if (touchStartXRef.current !== null && touchStartYRef.current !== null && e.changedTouches && e.changedTouches.length > 0) {
+      const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+      const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+
+      if (!isImmersive && scaleRef.current <= 1.05 && Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
+        hasMovedRef.current = true;
+        if (deltaX < 0) {
+          handleNext();
+        } else {
+          handlePrev();
+        }
+      }
+    }
+  };
+
+  // Zoom con rueda de ratón (escritorio)
+  const handleWheel = (e: React.WheelEvent) => {
+    if (!activeItem || activeItem.record.category !== 'photo') return;
+    e.preventDefault();
+    const delta = e.deltaY * -0.002;
+    setScale((prev) => {
+      const next = Math.min(Math.max(prev + delta, 1), 6);
+      if (next <= 1.02) {
+        setPosition({ x: 0, y: 0 });
+        return 1;
+      }
+      return next;
+    });
+  };
+
+  // Arrastre con ratón en escritorio con zoom
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (scale > 1.05) {
+      isDraggingMouseRef.current = true;
+      setIsInteracting(true);
+      mouseStartRef.current = { x: e.clientX, y: e.clientY };
+      posStartRef.current = { ...position };
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDraggingMouseRef.current && mouseStartRef.current && scale > 1.05) {
+      hasMovedRef.current = true;
+      const dx = e.clientX - mouseStartRef.current.x;
+      const dy = e.clientY - mouseStartRef.current.y;
+      setPosition({
+        x: posStartRef.current.x + dx,
+        y: posStartRef.current.y + dy,
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (isDraggingMouseRef.current) {
+      isDraggingMouseRef.current = false;
+      setIsInteracting(false);
+      mouseStartRef.current = null;
+    }
+  };
+
+  // Doble toque: alterna entre 1x y 2.5x
+  // Toque simple: alterna modo inmersivo
   const singleTapTimeoutRef = useRef<any>(null);
   const lastTapRef = useRef<number>(0);
 
@@ -167,19 +346,28 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     if (e) {
       e.stopPropagation();
     }
+    if (hasMovedRef.current) {
+      hasMovedRef.current = false;
+      return;
+    }
+
     const ahora = Date.now();
     const DOUBLE_TAP_DELAY = 300;
 
     if (ahora - lastTapRef.current < DOUBLE_TAP_DELAY) {
-      // Es un doble toque: cancela el toque simple pendiente
       if (singleTapTimeoutRef.current) {
         clearTimeout(singleTapTimeoutRef.current);
         singleTapTimeoutRef.current = null;
       }
-      // Alterna instantáneamente el zoom (si está ampliado vuelve a 1x, si no pasa a 2.5x)
-      setScale((prev) => (prev > 1 ? 1 : 2.5));
+      // Alterna instantáneamente el zoom
+      if (scale > 1.05) {
+        setScale(1);
+        setPosition({ x: 0, y: 0 });
+      } else {
+        setScale(2.5);
+        setPosition({ x: 0, y: 0 });
+      }
     } else {
-      // Toque simple: pequeña espera para descartar que sea doble toque
       if (singleTapTimeoutRef.current) {
         clearTimeout(singleTapTimeoutRef.current);
       }
@@ -404,11 +592,36 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       <div 
         onClick={handlePhotoTap}
         onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className={`relative flex-1 w-full h-full flex items-center justify-center overflow-hidden cursor-pointer transition-all duration-300 ${
+        onTouchCancel={handleTouchEnd}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        style={{ touchAction: scale > 1.05 ? 'none' : 'pan-y' }}
+        className={`relative flex-1 w-full h-full flex items-center justify-center overflow-hidden cursor-pointer select-none ${
           isImmersive ? 'p-0' : 'p-2 sm:p-6'
         }`}
       >
+        {/* Floating Zoom Indicator & Reset when zoomed in */}
+        {scale > 1.05 && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setScale(1);
+              setPosition({ x: 0, y: 0 });
+            }}
+            className="absolute top-20 right-4 z-30 px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/20 text-xs font-mono text-zinc-200 hover:text-white transition-all shadow-xl active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            title="Toca para volver a tamaño normal (1x)"
+          >
+            <span>{scale.toFixed(1)}x</span>
+            <span className="text-[10px] text-zinc-400">· 1x</span>
+          </button>
+        )}
+
         {/* Previous Button */}
         {currentIndex > 0 && (
           <button
@@ -417,7 +630,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               handlePrev();
             }}
             className={`absolute left-3 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white backdrop-blur-md transition-all duration-300 active:scale-95 ${
-              isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              isImmersive || scale > 1.05 ? 'opacity-0 pointer-events-none' : 'opacity-100'
             }`}
             title="Elemento anterior"
           >
@@ -433,7 +646,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               handleNext();
             }}
             className={`absolute right-3 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white backdrop-blur-md transition-all duration-300 active:scale-95 ${
-              isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              isImmersive || scale > 1.05 ? 'opacity-0 pointer-events-none' : 'opacity-100'
             }`}
             title="Siguiente elemento"
           >
@@ -443,20 +656,23 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
         {/* PHOTO VIEW */}
         {isPhoto && (
-          <div className="w-full h-full max-w-full max-h-full flex items-center justify-center transition-all duration-300">
+          <div className="w-full h-full max-w-full max-h-full flex items-center justify-center">
             <img
               src={activeItem.blobUrl}
               alt={activeItem.record.name}
               onClick={handlePhotoTap}
               style={{
-                transform: `scale(${scale}) rotate(${rotation}deg)`,
+                transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale}) rotate(${rotation}deg)`,
+                transition: isInteracting ? 'none' : 'transform 0.25s cubic-bezier(0.2, 0, 0, 1)',
                 maxHeight: isImmersive ? '100vh' : 'calc(100vh - 160px)',
                 maxWidth: isImmersive ? '100vw' : '100%',
                 imageRendering: 'auto',
+                touchAction: 'none',
+                willChange: 'transform',
               }}
-              className="object-contain rounded-xl shadow-2xl transition-all duration-300 select-none pointer-events-auto cursor-pointer"
+              className="object-contain rounded-xl shadow-2xl select-none pointer-events-auto cursor-grab active:cursor-grabbing"
               draggable={false}
-              title="Toca para modo inmersivo (doble toque para zoom 2.5x)"
+              title="Pellizca con 2 dedos para zoom y arrastra por la pantalla"
             />
           </div>
         )}
