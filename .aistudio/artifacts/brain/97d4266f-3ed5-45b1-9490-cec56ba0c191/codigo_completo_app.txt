@@ -9710,26 +9710,12 @@ import {
   RefreshCw,
   Download,
   Sparkles,
-  CheckCircle2,
-  FileText,
-  Check,
-  ExternalLink,
-  ShieldCheck,
-  AlertCircle
+  CheckCircle2
 } from 'lucide-react';
 import { getSafeAppVersionCode, downloadAndInstallApk } from '../services/nativeUpdaterBridge';
 import { updateService } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER, CURRENT_RELEASE_DATE } from '../version';
 
-interface VersionResponseData {
-  version_code?: number;
-  buildNumber?: number;
-  version_name?: string;
-  version?: string;
-  download_url?: string;
-  changelog?: string[];
-  releaseDate?: string;
-}
 
 interface BovedaUpdaterProps {
   onOpenChangelog?: () => void;
@@ -9754,75 +9740,42 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
   // Lógica unificada de verificación (automática al inicio y manual mediante el botón)
   const verificarActualizaciones = useCallback(async (esManual: boolean = false) => {
     setLoading(true);
-    if (esManual) setStatus('Comprobando actualizaciones en GitHub...');
+    if (esManual) setStatus('Buscando actualizaciones en GitHub Releases...');
 
     try {
-      // 1. Obtener la versión de compilación nativa instalada en el dispositivo
+      // 1. Obtener la versión instalada en el dispositivo
       let versionActual = CURRENT_BUILD_NUMBER;
+      let nombreActual = CURRENT_APP_VERSION;
       try {
-        versionActual = await getSafeAppVersionCode();
+        const info = await getSafeAppVersionCode();
+        versionActual = info.versionCode;
+        nombreActual = info.versionName;
         setCurrentInstalledCode(versionActual);
       } catch {
-        versionActual = CURRENT_BUILD_NUMBER;
+        setCurrentInstalledCode(CURRENT_BUILD_NUMBER);
       }
 
-      // 2. Consultar el archivo version.json
-      const repo = updateService.getGitHubRepo() || 'cuentadecuperacion7525-hub/Mi-B-veda.-';
-      const cacheBuster = `_t=${Date.now()}`;
-      // Comprobar tanto la rama 'principal' (rama por defecto en tu repo) como 'main'
-      const urlGitHubPrincipal = `https://raw.githubusercontent.com/${repo}/principal/public/version.json?${cacheBuster}`;
-      const urlGitHubMain = `https://raw.githubusercontent.com/${repo}/main/public/version.json?${cacheBuster}`;
+      // 2. Comprobar actualizaciones a través de updateService
+      const res = await updateService.checkForUpdates(true);
 
-      let datos: VersionResponseData | null = null;
-
-      // Intentar primero desde GitHub público en la rama 'principal'
-      try {
-        let respuesta = await fetch(urlGitHubPrincipal, { cache: 'no-store' });
-        if (!respuesta.ok) {
-          respuesta = await fetch(urlGitHubMain, { cache: 'no-store' });
-        }
-        if (respuesta.ok) {
-          datos = await respuesta.json();
-        }
-      } catch (ghErr) {
-        console.warn('[BovedaUpdater] No se pudo conectar directo a raw GitHub, probando origen local:', ghErr);
-      }
-
-      // Fallback a version.json del origen local
-      if (!datos) {
-        const respuestaLocal = await fetch(`/version.json?${cacheBuster}`, { cache: 'no-store' });
-        if (respuestaLocal.ok) {
-          datos = await respuestaLocal.json();
-        }
-      }
-
-      if (!datos) {
-        throw new Error('No se pudo verificar con el servidor. Revisa tu conexión a internet.');
-      }
-
-      // Soportar tanto version_code/version_name como buildNumber/version
-      const codigoRemoto = datos.version_code ?? datos.buildNumber ?? 0;
-      const nombreRemoto = datos.version_name ?? datos.version ?? CURRENT_APP_VERSION;
-      const urlDescarga = datos.download_url || `https://github.com/${repo}/releases/latest`;
-
-      setServerVersionCode(codigoRemoto);
-      setServerVersionName(nombreRemoto);
+      setServerVersionName(res.latestVersion);
       setHasCheckedOnce(true);
 
-      // Comprobar si hay versión superior
-      if (codigoRemoto > versionActual) {
+      if (res.hasUpdate) {
         setUpdateAvailable(true);
-        setDownloadUrl(urlDescarga);
-        setStatus(`¡Nueva versión v${nombreRemoto} disponible! Lista para instalar.`);
+        setDownloadUrl(res.downloadUrl || '');
+        setStatus(`¡Nueva versión v${res.latestVersion} lista para instalar! Presiona el botón verde.`);
       } else {
         setUpdateAvailable(false);
         if (esManual) {
-          setStatus(`Tu bóveda está en la versión más reciente (v${CURRENT_APP_VERSION}).`);
+          setStatus(`Tu aplicación está al día en la versión más reciente (v${nombreActual}, Build ${versionActual}).`);
         }
       }
     } catch (error: any) {
+      setUpdateAvailable(false);
+      setHasCheckedOnce(true);
       if (esManual) {
-        setStatus(error?.message || 'Error de conexión. Inténtalo más tarde.');
+        setStatus(error?.message || 'No se pudo conectar a GitHub. Revisa tu conexión o permisos del repositorio.');
       }
     } finally {
       setLoading(false);
@@ -9838,10 +9791,10 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
   const ejecutarActualizacion = async () => {
     if (!downloadUrl) return;
     setIsInstalling(true);
-    setStatus('Descargando e iniciando instalación de la actualización...');
+    setStatus('Descargando actualización e iniciando el instalador de Android...');
     try {
-      await downloadAndInstallApk(downloadUrl);
-      setStatus('Proceso de instalación enviado al sistema Android.');
+      const res = await downloadAndInstallApk(downloadUrl);
+      setStatus(res.message || 'Instalador de Android abierto en pantalla. Confirma la instalación.');
     } catch (err: any) {
       setStatus(err.message || 'No se pudo completar la instalación automática.');
     } finally {
@@ -9860,9 +9813,20 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h4 className="text-sm font-bold text-white truncate">Versión del Sistema</h4>
-              <span className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
-                v{CURRENT_APP_VERSION}
-              </span>
+              {onOpenChangelog ? (
+                <button
+                  type="button"
+                  onClick={onOpenChangelog}
+                  title="Ver novedades de la versión"
+                  className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 hover:bg-cyan-500/20 px-2 py-0.5 rounded-full border border-cyan-500/25 cursor-pointer transition-colors"
+                >
+                  v{CURRENT_APP_VERSION}
+                </button>
+              ) : (
+                <span className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
+                  v{CURRENT_APP_VERSION}
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
               Lanzamiento: {CURRENT_RELEASE_DATE}
@@ -9913,7 +9877,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
       {/* ======================================================== */}
       {/* EL BOTÓN PRINCIPAL ÚNICO (EL BUENO)                       */}
       {/* ======================================================== */}
-      <div className="space-y-2.5 pt-1">
+      <div className="pt-1">
         {updateAvailable ? (
           <button
             type="button"
@@ -9937,44 +9901,6 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
             <span>{loading ? 'Buscando actualizaciones...' : 'Buscar Actualizaciones'}</span>
           </button>
         )}
-
-        {/* Botones secundarios complementarios */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {onOpenChangelog && (
-            <button
-              type="button"
-              onClick={onOpenChangelog}
-              className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <FileText className="w-3.5 h-3.5 text-[#00e5ff]" />
-              <span>Novedades de esta Versión</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => window.open('https://github.com/cuentadecuperacion7525-hub/Mi-B-veda.-/actions', '_blank')}
-            className="py-2.5 px-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/30 text-slate-400 hover:text-[#00e5ff] font-medium text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span>Descarga manual (GitHub)</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Información de seguridad y estado de instalación */}
-      <div className="bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80 text-xs text-slate-300 space-y-1.5">
-        <div className="flex justify-between items-center text-[11px]">
-          <span className="text-slate-400">Estado de instalación:</span>
-          <span className="text-emerald-400 font-bold flex items-center gap-1">
-            <Check className="w-3 h-3 stroke-[3]" />
-            Optimizado sin pérdida de datos
-          </span>
-        </div>
-        <div className="flex justify-between items-center text-[11px]">
-          <span className="text-slate-400">Comprobación:</span>
-          <span className="font-mono text-slate-400">En tiempo real vía red</span>
-        </div>
       </div>
     </div>
   );
@@ -24224,30 +24150,104 @@ class UpdateService {
 
       // 2. Determinar la fuente de comprobación (Local / Servidor web o Remoto de GitHub)
       const cacheBuster = `_t=${Date.now()}`;
-      const githubRepo = this.getGitHubRepo();
       let remoteData: VersionInfo | null = null;
-      let downloadUrl = '';
+      let directApkUrl = '';
+      let remoteBuild = 0;
+      let remoteVersionStr = CURRENT_APP_VERSION;
 
-      // Si hay un repositorio de GitHub configurado, consultamos la versión más reciente en GitHub
-      if (githubRepo) {
+      // Obtener versión instalada en el dispositivo (APK nativo o web)
+      let installedBuildNumber = CURRENT_BUILD_NUMBER;
+      try {
+        const { getSafeAppVersionCode } = await import('./nativeUpdaterBridge');
+        const nativeVer = await getSafeAppVersionCode();
+        installedBuildNumber = nativeVer.versionCode;
+      } catch {
+        installedBuildNumber = CURRENT_BUILD_NUMBER;
+      }
+
+      // Si hay candidatos de repositorio en GitHub, consultarlos
+      const reposToTry = this.getCandidateRepos();
+      for (const repo of reposToTry) {
         try {
-          const ghUrlPrincipal = `https://raw.githubusercontent.com/${githubRepo}/principal/public/version.json?${cacheBuster}`;
-          const ghUrlMain = `https://raw.githubusercontent.com/${githubRepo}/main/public/version.json?${cacheBuster}`;
-          let ghRes = await fetch(ghUrlPrincipal, { cache: 'no-store' });
-          if (!ghRes.ok) {
-            ghRes = await fetch(ghUrlMain, { cache: 'no-store' });
+          const ghApiUrl = `https://api.github.com/repos/${repo}/releases/latest`;
+          const ghApiRes = await fetch(ghApiUrl, {
+            headers: { 'Accept': 'application/vnd.github.v3+json' },
+            cache: 'no-store'
+          });
+
+          if (ghApiRes.ok) {
+            const release = await ghApiRes.json();
+            if (release && release.tag_name) {
+              const tag = release.tag_name.replace(/^v/, '');
+              remoteVersionStr = tag;
+
+              // Calcular build number de forma ascendente
+              let parsedBuild = 1000;
+              const parts = tag.split('.');
+              if (parts.length >= 3) {
+                const patch = parseInt(parts[2], 10);
+                if (!isNaN(patch)) {
+                  parsedBuild = patch >= 100 ? patch : 1000 + patch;
+                }
+              }
+              remoteBuild = parsedBuild;
+
+              // Buscar el asset Boveda-Calculadora.apk
+              const apkAsset = release.assets?.find((a: any) =>
+                a.name && a.name.toLowerCase().endsWith('.apk')
+              );
+              directApkUrl = apkAsset?.browser_download_url ||
+                `https://github.com/${repo}/releases/latest/download/Boveda-Calculadora.apk`;
+
+              remoteData = {
+                version: tag,
+                buildNumber: remoteBuild,
+                releaseDate: release.published_at ? new Date(release.published_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : CURRENT_RELEASE_DATE,
+                changelog: release.body ? [release.body] : CURRENT_CHANGELOG,
+                mandatory: false
+              };
+
+              // Guardar repo activo
+              if (!localStorage.getItem('vault_github_repo')) {
+                localStorage.setItem('vault_github_repo', repo);
+              }
+              break;
+            }
           }
-          if (ghRes.ok) {
-            remoteData = await ghRes.json();
-            downloadUrl = `https://github.com/${githubRepo}/actions`;
+        } catch (apiErr) {
+          console.warn(`[UpdateService] Error consultando repo ${repo}:`, apiErr);
+        }
+
+        // Probar raw version.json si la API no respondió
+        if (!remoteData) {
+          try {
+            const ghUrlPrincipal = `https://raw.githubusercontent.com/${repo}/principal/public/version.json?${cacheBuster}`;
+            const ghUrlMain = `https://raw.githubusercontent.com/${repo}/main/public/version.json?${cacheBuster}`;
+            let ghRes = await fetch(ghUrlPrincipal, { cache: 'no-store' });
+            if (!ghRes.ok) {
+              ghRes = await fetch(ghUrlMain, { cache: 'no-store' });
+            }
+            if (ghRes.ok) {
+              const rawData = await ghRes.json();
+              remoteData = rawData;
+              remoteBuild = rawData.version_code ?? rawData.buildNumber ?? 1000;
+              remoteVersionStr = rawData.version_name ?? rawData.version ?? CURRENT_APP_VERSION;
+              directApkUrl = rawData.download_url || `https://github.com/${repo}/releases/latest/download/Boveda-Calculadora.apk`;
+              break;
+            }
+          } catch {
+            // Continúa
           }
-        } catch (ghErr) {
-          console.warn('[UpdateService] No se pudo consultar GitHub remoto, probando ruta local:', ghErr);
         }
       }
 
-      // Si no se obtuvo de GitHub, consultamos la ruta local/web /version.json
-      if (!remoteData) {
+      // 3. Fallback solo en entorno Web: consultar ruta local /version.json
+      const isNativeEnv = typeof window !== 'undefined' && (
+        Boolean((window as any).Capacitor?.isNativePlatform?.()) ||
+        navigator.userAgent.includes('wv')
+      );
+
+      if (!remoteData && !isNativeEnv) {
         const response = await fetch(`/version.json?${cacheBuster}`, {
           cache: 'no-store',
           headers: {
@@ -24257,32 +24257,40 @@ class UpdateService {
         });
 
         if (response.ok) {
-          remoteData = await response.json();
+          const rawData = await response.json();
+          remoteData = rawData;
+          remoteBuild = rawData.version_code ?? rawData.buildNumber ?? 0;
+          remoteVersionStr = rawData.version_name ?? rawData.version ?? CURRENT_APP_VERSION;
+          directApkUrl = rawData.download_url || '/';
         }
       }
 
       if (!remoteData) {
-        throw new Error('No se pudo obtener información de versión del servidor ni de GitHub');
+        if (isNativeEnv) {
+          throw new Error('No se detectó ninguna Release en GitHub. Asegúrate de que el repositorio sea Público (Settings > Danger Zone > Change visibility) y que GitHub Actions haya finalizado la compilación.');
+        } else {
+          throw new Error('No se pudo obtener información de versión del servidor.');
+        }
       }
 
-      const versionDiff = this.compareVersions(remoteData.version, CURRENT_APP_VERSION);
-      const remoteBuild = (remoteData as any).version_code ?? remoteData.buildNumber ?? 0;
-      const buildDiff = remoteBuild > CURRENT_BUILD_NUMBER;
+      const versionDiff = this.compareVersions(remoteVersionStr, CURRENT_APP_VERSION);
+      const buildDiff = remoteBuild > installedBuildNumber;
 
       const hasRemoteUpdate = versionDiff > 0 || buildDiff;
       const hasUpdate = hasRemoteUpdate || swHasUpdate;
 
-      const effectiveDownloadUrl = (remoteData as any).download_url || downloadUrl;
+      const effectiveDownloadUrl = directApkUrl || (remoteData as any).download_url ||
+        `https://github.com/${this.getGitHubRepo()}/releases/latest/download/Boveda-Calculadora.apk`;
 
       const result: UpdateCheckResult = {
         hasUpdate,
         currentVersion: CURRENT_APP_VERSION,
-        latestVersion: hasRemoteUpdate ? remoteData.version : (swHasUpdate ? CURRENT_APP_VERSION : CURRENT_APP_VERSION),
+        latestVersion: hasRemoteUpdate ? remoteVersionStr : CURRENT_APP_VERSION,
         releaseDate: remoteData.releaseDate || CURRENT_RELEASE_DATE,
         changelog: remoteData.changelog || CURRENT_CHANGELOG,
         mandatory: remoteData.mandatory || false,
         isServiceWorkerReady: swHasUpdate,
-        downloadUrl: effectiveDownloadUrl || (githubRepo ? `https://github.com/${githubRepo}/actions` : undefined),
+        downloadUrl: effectiveDownloadUrl,
       };
 
       this.lastCheckResult = result;
@@ -24405,7 +24413,21 @@ class UpdateService {
   }
 
   public getGitHubRepo(): string {
-    return localStorage.getItem('vault_github_repo') || 'cuentadecuperacion7525-hub/Mi-B-veda.-';
+    return localStorage.getItem('vault_github_repo') || 'cuentaderecuperacion7525-hub/Mi-B-veda.-';
+  }
+
+  public getCandidateRepos(): string[] {
+    const custom = localStorage.getItem('vault_github_repo');
+    const candidates = [
+      custom,
+      'cuentaderecuperacion7525-hub/Mi-B-veda.-',
+      'cuentaderecuperacion7525-hub/Mi-Boveda.-',
+      'cuentaderecuperacion7525-hub/Mi-Boveda',
+      'cuentaderecuperacion7525-hub/Mi-B-veda',
+      'cuentadecuperacion7525-hub/Mi-B-veda.-'
+    ].filter((r): r is string => Boolean(r && r.trim()));
+
+    return Array.from(new Set(candidates));
   }
 
   public setGitHubRepo(repo: string): void {

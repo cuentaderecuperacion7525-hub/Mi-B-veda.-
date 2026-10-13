@@ -89,7 +89,6 @@ class UpdateService {
 
       // 2. Determinar la fuente de comprobación (Local / Servidor web o Remoto de GitHub)
       const cacheBuster = `_t=${Date.now()}`;
-      const githubRepo = this.getGitHubRepo();
       let remoteData: VersionInfo | null = null;
       let directApkUrl = '';
       let remoteBuild = 0;
@@ -105,10 +104,11 @@ class UpdateService {
         installedBuildNumber = CURRENT_BUILD_NUMBER;
       }
 
-      // Si hay un repositorio de GitHub configurado, consultar primero la API oficial de Releases de GitHub
-      if (githubRepo) {
+      // Si hay candidatos de repositorio en GitHub, consultarlos
+      const reposToTry = this.getCandidateRepos();
+      for (const repo of reposToTry) {
         try {
-          const ghApiUrl = `https://api.github.com/repos/${githubRepo}/releases/latest`;
+          const ghApiUrl = `https://api.github.com/repos/${repo}/releases/latest`;
           const ghApiRes = await fetch(ghApiUrl, {
             headers: { 'Accept': 'application/vnd.github.v3+json' },
             cache: 'no-store'
@@ -120,20 +120,23 @@ class UpdateService {
               const tag = release.tag_name.replace(/^v/, '');
               remoteVersionStr = tag;
 
-              // Si el tag es v1.0.X, el buildNumber en GitHub Actions es 100 + X
-              const runMatch = tag.match(/1\.0\.(\d+)/);
-              if (runMatch) {
-                remoteBuild = 100 + parseInt(runMatch[1], 10);
-              } else {
-                remoteBuild = 100;
+              // Calcular build number de forma ascendente
+              let parsedBuild = 1000;
+              const parts = tag.split('.');
+              if (parts.length >= 3) {
+                const patch = parseInt(parts[2], 10);
+                if (!isNaN(patch)) {
+                  parsedBuild = patch >= 100 ? patch : 1000 + patch;
+                }
               }
+              remoteBuild = parsedBuild;
 
               // Buscar el asset Boveda-Calculadora.apk
               const apkAsset = release.assets?.find((a: any) =>
                 a.name && a.name.toLowerCase().endsWith('.apk')
               );
               directApkUrl = apkAsset?.browser_download_url ||
-                `https://github.com/${githubRepo}/releases/latest/download/Boveda-Calculadora.apk`;
+                `https://github.com/${repo}/releases/latest/download/Boveda-Calculadora.apk`;
 
               remoteData = {
                 version: tag,
@@ -142,17 +145,23 @@ class UpdateService {
                 changelog: release.body ? [release.body] : CURRENT_CHANGELOG,
                 mandatory: false
               };
+
+              // Guardar repo activo
+              if (!localStorage.getItem('vault_github_repo')) {
+                localStorage.setItem('vault_github_repo', repo);
+              }
+              break;
             }
           }
         } catch (apiErr) {
-          console.warn('[UpdateService] Consulta a GitHub Releases API fallo, probando raw version.json:', apiErr);
+          console.warn(`[UpdateService] Error consultando repo ${repo}:`, apiErr);
         }
 
-        // Si la API no respondió o dio rate-limit, probar version.json raw en las ramas del repo
+        // Probar raw version.json si la API no respondió
         if (!remoteData) {
           try {
-            const ghUrlPrincipal = `https://raw.githubusercontent.com/${githubRepo}/principal/public/version.json?${cacheBuster}`;
-            const ghUrlMain = `https://raw.githubusercontent.com/${githubRepo}/main/public/version.json?${cacheBuster}`;
+            const ghUrlPrincipal = `https://raw.githubusercontent.com/${repo}/principal/public/version.json?${cacheBuster}`;
+            const ghUrlMain = `https://raw.githubusercontent.com/${repo}/main/public/version.json?${cacheBuster}`;
             let ghRes = await fetch(ghUrlPrincipal, { cache: 'no-store' });
             if (!ghRes.ok) {
               ghRes = await fetch(ghUrlMain, { cache: 'no-store' });
@@ -160,18 +169,24 @@ class UpdateService {
             if (ghRes.ok) {
               const rawData = await ghRes.json();
               remoteData = rawData;
-              remoteBuild = rawData.version_code ?? rawData.buildNumber ?? 0;
+              remoteBuild = rawData.version_code ?? rawData.buildNumber ?? 1000;
               remoteVersionStr = rawData.version_name ?? rawData.version ?? CURRENT_APP_VERSION;
-              directApkUrl = rawData.download_url || `https://github.com/${githubRepo}/releases/latest/download/Boveda-Calculadora.apk`;
+              directApkUrl = rawData.download_url || `https://github.com/${repo}/releases/latest/download/Boveda-Calculadora.apk`;
+              break;
             }
-          } catch (ghErr) {
-            console.warn('[UpdateService] No se pudo consultar GitHub remoto, probando ruta local:', ghErr);
+          } catch {
+            // Continúa
           }
         }
       }
 
-      // Si no se obtuvo de GitHub, consultamos la ruta local/web /version.json
-      if (!remoteData) {
+      // 3. Fallback solo en entorno Web: consultar ruta local /version.json
+      const isNativeEnv = typeof window !== 'undefined' && (
+        Boolean((window as any).Capacitor?.isNativePlatform?.()) ||
+        navigator.userAgent.includes('wv')
+      );
+
+      if (!remoteData && !isNativeEnv) {
         const response = await fetch(`/version.json?${cacheBuster}`, {
           cache: 'no-store',
           headers: {
@@ -185,12 +200,16 @@ class UpdateService {
           remoteData = rawData;
           remoteBuild = rawData.version_code ?? rawData.buildNumber ?? 0;
           remoteVersionStr = rawData.version_name ?? rawData.version ?? CURRENT_APP_VERSION;
-          directApkUrl = rawData.download_url || (githubRepo ? `https://github.com/${githubRepo}/releases/latest/download/Boveda-Calculadora.apk` : '/');
+          directApkUrl = rawData.download_url || '/';
         }
       }
 
       if (!remoteData) {
-        throw new Error('No se pudo obtener información de versión del servidor ni de GitHub');
+        if (isNativeEnv) {
+          throw new Error('No se detectó ninguna Release en GitHub. Asegúrate de que el repositorio sea Público (Settings > Danger Zone > Change visibility) y que GitHub Actions haya finalizado la compilación.');
+        } else {
+          throw new Error('No se pudo obtener información de versión del servidor.');
+        }
       }
 
       const versionDiff = this.compareVersions(remoteVersionStr, CURRENT_APP_VERSION);
@@ -200,12 +219,12 @@ class UpdateService {
       const hasUpdate = hasRemoteUpdate || swHasUpdate;
 
       const effectiveDownloadUrl = directApkUrl || (remoteData as any).download_url ||
-        (githubRepo ? `https://github.com/${githubRepo}/releases/latest/download/Boveda-Calculadora.apk` : undefined);
+        `https://github.com/${this.getGitHubRepo()}/releases/latest/download/Boveda-Calculadora.apk`;
 
       const result: UpdateCheckResult = {
         hasUpdate,
         currentVersion: CURRENT_APP_VERSION,
-        latestVersion: hasRemoteUpdate ? remoteVersionStr : (swHasUpdate ? CURRENT_APP_VERSION : CURRENT_APP_VERSION),
+        latestVersion: hasRemoteUpdate ? remoteVersionStr : CURRENT_APP_VERSION,
         releaseDate: remoteData.releaseDate || CURRENT_RELEASE_DATE,
         changelog: remoteData.changelog || CURRENT_CHANGELOG,
         mandatory: remoteData.mandatory || false,
@@ -333,7 +352,21 @@ class UpdateService {
   }
 
   public getGitHubRepo(): string {
-    return localStorage.getItem('vault_github_repo') || 'cuentadecuperacion7525-hub/Mi-B-veda.-';
+    return localStorage.getItem('vault_github_repo') || 'cuentaderecuperacion7525-hub/Mi-B-veda.-';
+  }
+
+  public getCandidateRepos(): string[] {
+    const custom = localStorage.getItem('vault_github_repo');
+    const candidates = [
+      custom,
+      'cuentaderecuperacion7525-hub/Mi-B-veda.-',
+      'cuentaderecuperacion7525-hub/Mi-Boveda.-',
+      'cuentaderecuperacion7525-hub/Mi-Boveda',
+      'cuentaderecuperacion7525-hub/Mi-B-veda',
+      'cuentadecuperacion7525-hub/Mi-B-veda.-'
+    ].filter((r): r is string => Boolean(r && r.trim()));
+
+    return Array.from(new Set(candidates));
   }
 
   public setGitHubRepo(repo: string): void {
