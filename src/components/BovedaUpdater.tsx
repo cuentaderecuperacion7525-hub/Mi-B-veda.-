@@ -63,13 +63,18 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
       // 2. Consultar el archivo version.json
       const repo = updateService.getGitHubRepo() || 'cuentadecuperacion7525-hub/Mi-B-veda.-';
       const cacheBuster = `_t=${Date.now()}`;
-      const urlGitHub = `https://raw.githubusercontent.com/${repo}/main/public/version.json?${cacheBuster}`;
+      // Comprobar tanto la rama 'principal' (rama por defecto en tu repo) como 'main'
+      const urlGitHubPrincipal = `https://raw.githubusercontent.com/${repo}/principal/public/version.json?${cacheBuster}`;
+      const urlGitHubMain = `https://raw.githubusercontent.com/${repo}/main/public/version.json?${cacheBuster}`;
 
       let datos: VersionResponseData | null = null;
 
-      // Intentar primero desde GitHub público
+      // Intentar primero desde GitHub público en la rama 'principal'
       try {
-        const respuesta = await fetch(urlGitHub, { cache: 'no-store' });
+        let respuesta = await fetch(urlGitHubPrincipal, { cache: 'no-store' });
+        if (!respuesta.ok) {
+          respuesta = await fetch(urlGitHubMain, { cache: 'no-store' });
+        }
         if (respuesta.ok) {
           datos = await respuesta.json();
         }

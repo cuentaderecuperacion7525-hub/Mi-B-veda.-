@@ -96,8 +96,12 @@ class UpdateService {
       // Si hay un repositorio de GitHub configurado, consultamos la versión más reciente en GitHub
       if (githubRepo) {
         try {
-          const ghUrl = `https://raw.githubusercontent.com/${githubRepo}/main/public/version.json?${cacheBuster}`;
-          const ghRes = await fetch(ghUrl, { cache: 'no-store' });
+          const ghUrlPrincipal = `https://raw.githubusercontent.com/${githubRepo}/principal/public/version.json?${cacheBuster}`;
+          const ghUrlMain = `https://raw.githubusercontent.com/${githubRepo}/main/public/version.json?${cacheBuster}`;
+          let ghRes = await fetch(ghUrlPrincipal, { cache: 'no-store' });
+          if (!ghRes.ok) {
+            ghRes = await fetch(ghUrlMain, { cache: 'no-store' });
+          }
           if (ghRes.ok) {
             remoteData = await ghRes.json();
             downloadUrl = `https://github.com/${githubRepo}/actions`;
