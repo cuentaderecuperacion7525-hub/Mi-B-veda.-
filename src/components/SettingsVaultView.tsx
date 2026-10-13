@@ -21,7 +21,6 @@ import {
   RefreshCw,
   Sparkles,
   Bell,
-  GitBranch,
 } from 'lucide-react';
 import { updateService, UpdateCheckResult } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
@@ -183,15 +182,6 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     setAutoCheckUpdates(enabled);
     updateService.setAutoCheckEnabled(enabled);
     showToast(enabled ? 'Avisos automáticos de actualización activados' : 'Avisos automáticos desactivados', 'info');
-  };
-
-  // GitHub repository link for APK updates
-  const [githubRepoInput, setGithubRepoInput] = useState<string>(() => updateService.getGitHubRepo());
-
-  const handleSaveGitHubRepo = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateService.setGitHubRepo(githubRepoInput);
-    showToast(githubRepoInput ? 'Repositorio de GitHub configurado correctamente' : 'Configuración de repositorio restablecida', 'success');
   };
 
   // Change PIN state
@@ -1316,87 +1306,6 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 </label>
               </div>
             </div>
-
-            {/* Vinculación con GitHub para APKs de Android */}
-            <div className="bg-[#0a121d] p-4.5 rounded-3xl border border-slate-800 shadow-xl space-y-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
-                  <GitBranch className="w-4 h-4" />
-                </div>
-                <div>
-                  <h5 className="text-xs font-bold text-white">Vincular Repositorio de GitHub</h5>
-                  <p className="text-[11px] text-slate-400">Para detectar nuevas versiones directamente en tu APK</p>
-                </div>
-              </div>
-
-              <p className="text-[11px] text-slate-300 leading-relaxed">
-                Si compilas tu APK desde GitHub Actions, puedes escribir tu usuario y repositorio (ejemplo: <code className="text-[#00e5ff] font-mono">tu-usuario/tu-repo</code>). Al entrar, la aplicación consultará GitHub por internet y te avisará si subiste una nueva versión.
-              </p>
-
-              <form onSubmit={handleSaveGitHubRepo} className="flex gap-2">
-                <input
-                  type="text"
-                  value={githubRepoInput}
-                  onChange={(e) => setGithubRepoInput(e.target.value)}
-                  placeholder="usuario/repositorio"
-                  className="flex-1 bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-[#00e5ff] font-mono"
-                />
-                <button
-                  type="submit"
-                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-xl border border-slate-700 transition-colors shrink-0"
-                >
-                  Guardar
-                </button>
-              </form>
-            </div>
-
-            {/* Solución al error "El paquete no es válido" (Guía APK) */}
-            <div className="bg-[#0a121d] p-4.5 rounded-3xl border border-slate-800 shadow-xl space-y-3">
-              <div className="flex items-center gap-2 text-amber-400">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <h5 className="text-xs font-bold uppercase tracking-wider">
-                  ¿Instalaste la App por APK en Android?
-                </h5>
-              </div>
-
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Si descargas la actualización en Android desde GitHub empaquetada en un archivo <b className="text-amber-300">.zip</b>, recuerda descomprimirlo primero antes de tocar el instalador para evitar el aviso de paquete inválido.
-              </p>
-
-              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2.5 text-xs">
-                <p className="font-bold text-white text-[11px] uppercase tracking-wider">
-                  Pasos para actualizar tu APK en 3 simples pasos:
-                </p>
-
-                <div className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-[#00e5ff] flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 border border-cyan-500/30">
-                    1
-                  </span>
-                  <p className="text-slate-300 leading-snug">
-                    Abre <strong className="text-white">"Archivos"</strong> o <strong className="text-white">"Mis Archivos"</strong> de tu celular y entra a <strong className="text-white">Descargas</strong>.
-                  </p>
-                </div>
-
-                <div className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-[#00e5ff] flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 border border-cyan-500/30">
-                    2
-                  </span>
-                  <p className="text-slate-300 leading-snug">
-                    Toca el archivo <strong className="text-amber-300">.zip</strong> descargado y pulsa <strong className="text-emerald-400">"Extraer"</strong>.
-                  </p>
-                </div>
-
-                <div className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-[#00e5ff] flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 border border-cyan-500/30">
-                    3
-                  </span>
-                  <p className="text-slate-300 leading-snug">
-                    Toca el archivo <strong className="text-[#00e5ff]">.apk</strong> extraído y pulsa <strong className="text-white">"Actualizar"</strong>. Se conservarán todas tus fotos y contraseñas.
-                  </p>
-                </div>
-              </div>
-            </div>
-
             {/* Consejo de seguridad */}
             <div className="bg-emerald-950/20 p-4 rounded-3xl border border-emerald-500/30 text-xs space-y-2">
               <div className="flex items-center gap-2 text-emerald-400 font-bold">
