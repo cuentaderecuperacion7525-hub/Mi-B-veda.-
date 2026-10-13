@@ -4,12 +4,7 @@ import {
   RefreshCw,
   Download,
   Sparkles,
-  CheckCircle2,
-  FileText,
-  Check,
-  ExternalLink,
-  ShieldCheck,
-  AlertCircle
+  CheckCircle2
 } from 'lucide-react';
 import { getSafeAppVersionCode, downloadAndInstallApk } from '../services/nativeUpdaterBridge';
 import { updateService } from '../services/updateService';
@@ -204,9 +199,20 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h4 className="text-sm font-bold text-white truncate">Versión del Sistema</h4>
-              <span className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
-                v{CURRENT_APP_VERSION}
-              </span>
+              {onOpenChangelog ? (
+                <button
+                  type="button"
+                  onClick={onOpenChangelog}
+                  title="Ver novedades de la versión"
+                  className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 hover:bg-cyan-500/20 px-2 py-0.5 rounded-full border border-cyan-500/25 cursor-pointer transition-colors"
+                >
+                  v{CURRENT_APP_VERSION}
+                </button>
+              ) : (
+                <span className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
+                  v{CURRENT_APP_VERSION}
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
               Lanzamiento: {CURRENT_RELEASE_DATE}
@@ -257,7 +263,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
       {/* ======================================================== */}
       {/* EL BOTÓN PRINCIPAL ÚNICO (EL BUENO)                       */}
       {/* ======================================================== */}
-      <div className="space-y-2.5 pt-1">
+      <div className="pt-1">
         {updateAvailable ? (
           <button
             type="button"
@@ -281,44 +287,6 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
             <span>{loading ? 'Buscando actualizaciones...' : 'Buscar Actualizaciones'}</span>
           </button>
         )}
-
-        {/* Botones secundarios complementarios */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {onOpenChangelog && (
-            <button
-              type="button"
-              onClick={onOpenChangelog}
-              className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <FileText className="w-3.5 h-3.5 text-[#00e5ff]" />
-              <span>Novedades de esta Versión</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => window.open('https://github.com/cuentadecuperacion7525-hub/Mi-B-veda.-/actions', '_blank')}
-            className="py-2.5 px-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/30 text-slate-400 hover:text-[#00e5ff] font-medium text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span>Descarga manual (GitHub)</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Información de seguridad y estado de instalación */}
-      <div className="bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80 text-xs text-slate-300 space-y-1.5">
-        <div className="flex justify-between items-center text-[11px]">
-          <span className="text-slate-400">Estado de instalación:</span>
-          <span className="text-emerald-400 font-bold flex items-center gap-1">
-            <Check className="w-3 h-3 stroke-[3]" />
-            Optimizado sin pérdida de datos
-          </span>
-        </div>
-        <div className="flex justify-between items-center text-[11px]">
-          <span className="text-slate-400">Comprobación:</span>
-          <span className="font-mono text-slate-400">En tiempo real vía red</span>
-        </div>
       </div>
     </div>
   );
