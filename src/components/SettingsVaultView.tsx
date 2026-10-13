@@ -19,7 +19,14 @@ import {
   ArrowLeft,
   Code2,
   Smartphone,
+  RefreshCw,
+  Sparkles,
+  Bell,
+  GitBranch,
 } from 'lucide-react';
+import { updateService, UpdateCheckResult } from '../services/updateService';
+import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
+import { UpdateNotificationModal } from './UpdateNotificationModal';
 import {
   exportEncryptedBackupBlob,
   importEncryptedBackupBlobStream,
@@ -142,6 +149,50 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     window.addEventListener('nullvault_switch_settings_backup', handleCheckBackupTab);
     return () => window.removeEventListener('nullvault_switch_settings_backup', handleCheckBackupTab);
   }, []);
+
+  // Estado del sistema de actualizaciones
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateCheckResult, setUpdateCheckResult] = useState<UpdateCheckResult | null>(() => updateService.getLastCheckResult());
+  const [showChangelogModal, setShowChangelogModal] = useState(false);
+  const [autoCheckUpdates, setAutoCheckUpdates] = useState<boolean>(() => updateService.isAutoCheckEnabled());
+
+  useEffect(() => {
+    return updateService.subscribe((result) => {
+      setUpdateCheckResult(result);
+    });
+  }, []);
+
+  const handleCheckForUpdates = async () => {
+    setIsCheckingUpdate(true);
+    try {
+      const res = await updateService.checkForUpdates(true);
+      setUpdateCheckResult(res);
+      if (res.hasUpdate) {
+        showToast(`¡Nueva versión v${res.latestVersion} disponible!`, 'info');
+      } else {
+        showToast('Tu aplicación ya está actualizada con la versión más reciente.', 'success');
+      }
+    } catch {
+      showToast('No se pudo verificar la actualización. Revisa tu conexión.', 'alert');
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  const handleToggleAutoCheck = (enabled: boolean) => {
+    setAutoCheckUpdates(enabled);
+    updateService.setAutoCheckEnabled(enabled);
+    showToast(enabled ? 'Avisos automáticos de actualización activados' : 'Avisos automáticos desactivados', 'info');
+  };
+
+  // GitHub repository link for APK updates
+  const [githubRepoInput, setGithubRepoInput] = useState<string>(() => updateService.getGitHubRepo());
+
+  const handleSaveGitHubRepo = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateService.setGitHubRepo(githubRepoInput);
+    showToast(githubRepoInput ? 'Repositorio de GitHub configurado correctamente' : 'Configuración de repositorio restablecida', 'success');
+  };
 
   // Change PIN state
   const [currentPin, setCurrentPin] = useState('');
@@ -721,7 +772,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     : activeSubMenu === 'backup'
                     ? 'Copia de Seguridad'
                     : activeSubMenu === 'updates'
-                    ? 'Actualizaciones y APK'
+                    ? 'Actualizaciones del Sistema'
                     : 'Restablecer Bóveda'}
                 </h1>
                 <p className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase truncate">
@@ -730,7 +781,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     : activeSubMenu === 'backup'
                     ? 'Respaldo y restauración cifrada'
                     : activeSubMenu === 'updates'
-                    ? 'Instalación y actualización sin errores'
+                    ? 'Búsqueda de novedades y versión actual'
                     : 'Zona de peligro'}
                 </p>
               </div>
@@ -791,21 +842,28 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             </div>
           </div>
 
-          {/* Tarjeta 3: Actualizaciones y APK */}
+          {/* Tarjeta 3: Actualizaciones del Sistema */}
           <div
             onClick={() => setActiveSubMenu('updates')}
             className="bg-[#0a121d] border border-slate-800/90 hover:border-cyan-500/40 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-[#00e5ff] shrink-0 group-hover:scale-105 transition-transform">
-                <Smartphone className="w-4.5 h-4.5" />
+                <RefreshCw className="w-4.5 h-4.5" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-bold text-white group-hover:text-[#00e5ff] transition-colors truncate">
-                  Actualizaciones y APK
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-white group-hover:text-[#00e5ff] transition-colors truncate">
+                    Actualizaciones del Sistema
+                  </h3>
+                  {updateCheckResult?.hasUpdate && (
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/20 text-[#00e5ff] border border-cyan-500/40 animate-pulse">
+                      Nueva versión
+                    </span>
+                  )}
+                </div>
                 <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                  Cómo instalar actualizaciones sin perder fotos ni datos
+                  Buscar actualizaciones, versión v{CURRENT_APP_VERSION} y novedades
                 </p>
               </div>
             </div>
@@ -1254,46 +1312,186 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
 
         {activeSubMenu === 'updates' && (
           <div className="space-y-4 animate-in fade-in duration-200">
-            {/* Tarjeta de estado de versión y firma */}
-            <div className="bg-[#0a121d] p-4.5 rounded-3xl border border-cyan-500/30 shadow-xl space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-[#00e5ff] shrink-0">
-                  <Smartphone className="w-5 h-5" />
+            {/* Tarjeta de estado de versión actual y búsqueda */}
+            <div className="bg-[#0a121d] p-4.5 rounded-3xl border border-cyan-500/30 shadow-xl space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-[#00e5ff] shrink-0 shadow-lg shadow-cyan-500/10">
+                    <RefreshCw className={`w-5 h-5 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-white truncate">Versión del Sistema</h4>
+                      <span className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
+                        v{CURRENT_APP_VERSION}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
+                      Lanzamiento: {CURRENT_RELEASE_DATE}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white">Instalación y Actualizaciones de la App</h4>
-                  <p className="text-[11px] text-cyan-400 font-medium">Firma digital permanente activada</p>
-                </div>
+
+                {/* Badge de estado */}
+                {updateCheckResult?.hasUpdate ? (
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-cyan-500/20 text-[#00e5ff] border border-cyan-500/40 animate-pulse">
+                    Nueva versión
+                  </span>
+                ) : (
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 stroke-[2.5]" />
+                    Al día
+                  </span>
+                )}
               </div>
 
-              <div className="bg-slate-900/80 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-1.5">
+              {/* Si hay actualización disponible: Banner destacado con botón directo */}
+              {updateCheckResult?.hasUpdate && (
+                <div className="bg-gradient-to-r from-cyan-950/40 via-blue-950/40 to-slate-900 border border-cyan-500/40 rounded-2xl p-3.5 space-y-3 animate-in zoom-in-95 duration-200">
+                  <div className="flex items-start gap-2.5">
+                    <Sparkles className="w-4 h-4 text-[#00e5ff] shrink-0 mt-0.5 animate-pulse" />
+                    <div>
+                      <p className="text-xs font-bold text-white">
+                        ¡Nueva versión v{updateCheckResult.latestVersion} disponible!
+                      </p>
+                      <p className="text-[11px] text-slate-300 leading-snug mt-0.5">
+                        Mejoras listas para instalar. Tus fotos y claves permanecen 100% protegidas.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowChangelogModal(true)}
+                      className="flex-1 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <span>Ver Novedades</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateService.applyUpdate()}
+                      className="flex-1 py-2 rounded-xl bg-[#00e5ff] hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-md shadow-cyan-500/30 transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Actualizar Ahora</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Botón principal: Buscar Actualizaciones */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={handleCheckForUpdates}
+                  disabled={isCheckingUpdate}
+                  className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+                  <span>{isCheckingUpdate ? 'Buscando actualizaciones...' : 'Buscar Actualizaciones'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowChangelogModal(true)}
+                  className="py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5 text-[#00e5ff]" />
+                  <span>Novedades de esta Versión</span>
+                </button>
+              </div>
+
+              {/* Información de estado de firmas y caché */}
+              <div className="bg-slate-900/80 p-3 rounded-2xl border border-slate-800/90 text-xs text-slate-300 space-y-1.5">
                 <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-slate-400">Versión actual:</span>
-                  <span className="font-mono font-bold text-[#00e5ff]">v1.0.1</span>
+                  <span className="text-slate-400">Estado de la instalación:</span>
+                  <span className="text-emerald-400 font-bold flex items-center gap-1">
+                    <Check className="w-3 h-3 stroke-[3]" />
+                    Optimizado sin pérdida de datos
+                  </span>
                 </div>
                 <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-slate-400">Firma criptográfica:</span>
-                  <span className="text-emerald-400 font-bold">Unificada y permanente</span>
+                  <span className="text-slate-400">Comprobación:</span>
+                  <span className="font-mono text-slate-400">En tiempo real vía red</span>
                 </div>
               </div>
             </div>
 
-            {/* Solución al error "El paquete no es válido" */}
+            {/* Configuración de Notificaciones Automáticas */}
+            <div className="bg-[#0a121d] p-4.5 rounded-3xl border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-[#00e5ff] shrink-0">
+                    <Bell className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-bold text-white">Aviso automático al entrar</h5>
+                    <p className="text-[11px] text-slate-400">Muestra un mensaje si hay una nueva versión lista</p>
+                  </div>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={autoCheckUpdates}
+                    onChange={(e) => handleToggleAutoCheck(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00e5ff]"></div>
+                </label>
+              </div>
+            </div>
+
+            {/* Vinculación con GitHub para APKs de Android */}
+            <div className="bg-[#0a121d] p-4.5 rounded-3xl border border-slate-800 shadow-xl space-y-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                  <GitBranch className="w-4 h-4" />
+                </div>
+                <div>
+                  <h5 className="text-xs font-bold text-white">Vincular Repositorio de GitHub</h5>
+                  <p className="text-[11px] text-slate-400">Para detectar nuevas versiones directamente en tu APK</p>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Si compilas tu APK desde GitHub Actions, puedes escribir tu usuario y repositorio (ejemplo: <code className="text-[#00e5ff] font-mono">tu-usuario/tu-repo</code>). Al entrar, la aplicación consultará GitHub por internet y te avisará si subiste una nueva versión.
+              </p>
+
+              <form onSubmit={handleSaveGitHubRepo} className="flex gap-2">
+                <input
+                  type="text"
+                  value={githubRepoInput}
+                  onChange={(e) => setGithubRepoInput(e.target.value)}
+                  placeholder="usuario/repositorio"
+                  className="flex-1 bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-[#00e5ff] font-mono"
+                />
+                <button
+                  type="submit"
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-xl border border-slate-700 transition-colors shrink-0"
+                >
+                  Guardar
+                </button>
+              </form>
+            </div>
+
+            {/* Solución al error "El paquete no es válido" (Guía APK) */}
             <div className="bg-[#0a121d] p-4.5 rounded-3xl border border-slate-800 shadow-xl space-y-3">
               <div className="flex items-center gap-2 text-amber-400">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <h5 className="text-xs font-bold uppercase tracking-wider">
-                  ¿Te salió "El paquete no es válido"?
+                  ¿Instalaste la App por APK en Android?
                 </h5>
               </div>
 
               <p className="text-xs text-slate-300 leading-relaxed">
-                Al descargar el archivo desde GitHub Actions, se descarga empaquetado dentro de un archivo comprimido <b className="text-amber-300">.zip</b> (por ejemplo <code className="text-cyan-300">Boveda-Calculadora-...zip</code>). Si intentas abrir ese archivo .zip directamente con el instalador de Android, el celular marcará <b className="text-rose-400">"El paquete no es válido"</b>.
+                Si descargas la actualización en Android desde GitHub empaquetada en un archivo <b className="text-amber-300">.zip</b>, recuerda descomprimirlo primero antes de tocar el instalador para evitar el aviso de paquete inválido.
               </p>
 
               <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2.5 text-xs">
                 <p className="font-bold text-white text-[11px] uppercase tracking-wider">
-                  Pasos para actualizar en 3 simples pasos:
+                  Pasos para actualizar tu APK en 3 simples pasos:
                 </p>
 
                 <div className="flex items-start gap-2.5">
@@ -1301,7 +1499,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     1
                   </span>
                   <p className="text-slate-300 leading-snug">
-                    Abre la aplicación <strong className="text-white">"Archivos"</strong> o <strong className="text-white">"Mis Archivos"</strong> de tu celular y entra a la carpeta <strong className="text-white">Descargas</strong>.
+                    Abre <strong className="text-white">"Archivos"</strong> o <strong className="text-white">"Mis Archivos"</strong> de tu celular y entra a <strong className="text-white">Descargas</strong>.
                   </p>
                 </div>
 
@@ -1310,7 +1508,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     2
                   </span>
                   <p className="text-slate-300 leading-snug">
-                    Toca el archivo <strong className="text-amber-300">.zip</strong> descargado y selecciona <strong className="text-emerald-400">"Extraer"</strong> o <strong className="text-emerald-400">"Descomprimir"</strong>.
+                    Toca el archivo <strong className="text-amber-300">.zip</strong> descargado y pulsa <strong className="text-emerald-400">"Extraer"</strong>.
                   </p>
                 </div>
 
@@ -1319,7 +1517,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     3
                   </span>
                   <p className="text-slate-300 leading-snug">
-                    Toca el archivo <strong className="text-[#00e5ff]">.apk</strong> extraído y pulsa <strong className="text-white">"Actualizar"</strong>. Se instalará limpiamente sin borrar ninguna de tus fotos ni configuración.
+                    Toca el archivo <strong className="text-[#00e5ff]">.apk</strong> extraído y pulsa <strong className="text-white">"Actualizar"</strong>. Se conservarán todas tus fotos y contraseñas.
                   </p>
                 </div>
               </div>
@@ -1329,10 +1527,10 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             <div className="bg-emerald-950/20 p-4 rounded-3xl border border-emerald-500/30 text-xs space-y-2">
               <div className="flex items-center gap-2 text-emerald-400 font-bold">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>Consejo para mayor seguridad</span>
+                <span>Consejo de seguridad permanente</span>
               </div>
               <p className="text-slate-300 leading-relaxed text-[11px]">
-                Antes de instalar cualquier actualización en Android, siempre es buena práctica ir a la pestaña <button type="button" onClick={() => setActiveSubMenu('backup')} className="text-emerald-300 underline font-bold cursor-pointer">Copia de Seguridad</button> y exportar un respaldo cifrado de tus archivos para tener total tranquilidad.
+                Antes de cualquier actualización mayor del sistema operativo de tu teléfono, siempre puedes exportar un respaldo desde la pestaña <button type="button" onClick={() => setActiveSubMenu('backup')} className="text-emerald-300 underline font-bold cursor-pointer">Copia de Seguridad</button>.
               </p>
             </div>
           </div>
@@ -1586,6 +1784,14 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal de Novedades y Actualizaciones */}
+      <UpdateNotificationModal
+        isOpen={showChangelogModal}
+        onClose={() => setShowChangelogModal(false)}
+        updateInfo={updateCheckResult}
+        viewNotesOnly={!updateCheckResult?.hasUpdate}
+      />
     </div>
   );
 };

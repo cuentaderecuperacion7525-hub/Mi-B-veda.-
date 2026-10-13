@@ -70,6 +70,7 @@ import { ImportVaultView } from './ImportVaultView';
 import { SecurityVaultView } from './SecurityVaultView';
 import { SettingsVaultView } from './SettingsVaultView';
 import { registerBackHandler, triggerBackAction } from '../services/backButtonService';
+import { updateService } from '../services/updateService';
 
 export interface Carpeta {
   id: string;
@@ -96,6 +97,7 @@ interface MainVaultViewProps {
   onLockOnTabSwitchChange?: (enabled: boolean) => void;
   onMasterKeyUpdated?: (newKey: CryptoKey) => void;
   onResetVault?: () => void;
+  hasUpdatePending?: boolean;
 }
 
 export const MainVaultView: React.FC<MainVaultViewProps> = ({
@@ -111,7 +113,18 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   onLockOnTabSwitchChange,
   onMasterKeyUpdated,
   onResetVault,
+  hasUpdatePending = false,
 }) => {
+  const [liveUpdateAvailable, setLiveUpdateAvailable] = useState<boolean>(() => {
+    return updateService.getLastCheckResult()?.hasUpdate || false;
+  });
+
+  useEffect(() => {
+    return updateService.subscribe((res) => {
+      setLiveUpdateAvailable(res.hasUpdate);
+    });
+  }, []);
+
   const [items, setItems] = useState<DecryptedVaultItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -2272,7 +2285,12 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               activeNavTab === 'settings' ? 'text-zinc-100 font-semibold' : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
-            <Settings className="w-5 h-5" strokeWidth={1.5} />
+            <div className="relative">
+              <Settings className="w-5 h-5" strokeWidth={1.5} />
+              {(hasUpdatePending || liveUpdateAvailable) && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00e5ff] shadow-[0_0_8px_#00e5ff] animate-pulse" />
+              )}
+            </div>
             <span className="text-[10px] sm:text-[11px] font-medium">Configuración</span>
           </button>
         </nav>

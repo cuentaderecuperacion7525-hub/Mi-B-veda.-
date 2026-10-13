@@ -12,9 +12,11 @@ import { MainVaultView } from './components/MainVaultView';
 import { SettingsModal } from './components/SettingsModal';
 import { ToastContainer, ToastData } from './components/Toast';
 import { openVaultDatabase, clearVaultDatabase } from './db/vaultDb';
-import { deriveKeyFromPin, verifyKey, hexToBuf } from './crypto/vaultCrypto';
 import { initScreenshotBlocker, setScreenshotBlockToastCallback } from './services/screenshotBlockService';
 import { initBackButtonListener } from './services/backButtonService';
+import { updateService, UpdateCheckResult } from './services/updateService';
+import { UpdateNotificationBanner, UpdateNotificationModal } from './components/UpdateNotificationModal';
+import { CURRENT_APP_VERSION } from './version';
 
 export default function App() {
   const [vaultStatus, setVaultStatus] = useState<'checking' | 'setup' | 'locked' | 'unlocked'>('checking');
@@ -37,6 +39,11 @@ export default function App() {
   });
 
   const [vaultRefreshTrigger, setVaultRefreshTrigger] = useState<number>(0);
+
+  // Sistema de Actualizaciones
+  const [pendingUpdateInfo, setPendingUpdateInfo] = useState<UpdateCheckResult | null>(null);
+  const [showUpdateBanner, setShowUpdateBanner] = useState<boolean>(false);
+  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
 
   const inactivityTimerRef = useRef<number | null>(null);
 
@@ -151,6 +158,48 @@ export default function App() {
       window.removeEventListener('vault_root_exit_allowed', handleRootExit);
     };
   }, [showToast]);
+
+  // Detección automática de actualizaciones al entrar a la aplicación
+  useEffect(() => {
+    // Si la app acaba de actualizarse, mostrar saludo de confirmación
+    if (sessionStorage.getItem('vault_just_updated') === 'true') {
+      sessionStorage.removeItem('vault_just_updated');
+      setTimeout(() => {
+        showToast(`¡Bóveda actualizada con éxito a la versión v${CURRENT_APP_VERSION}!`, 'success');
+      }, 700);
+    }
+
+    if (!updateService.isAutoCheckEnabled()) return;
+
+    // Comprobar actualizaciones tras 1.5s para no competir con el arranque inicial
+    const timer = setTimeout(async () => {
+      try {
+        const res = await updateService.checkForUpdates();
+        if (res.hasUpdate) {
+          setPendingUpdateInfo(res);
+          if (!updateService.isUpdateDismissed(res.latestVersion)) {
+            setShowUpdateBanner(true);
+          }
+        }
+      } catch (e) {
+        console.warn('Error al verificar actualizaciones al entrar:', e);
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [showToast]);
+
+  // Suscribirse a eventos de actualización
+  useEffect(() => {
+    return updateService.subscribe((res) => {
+      if (res.hasUpdate) {
+        setPendingUpdateInfo(res);
+        if (!updateService.isUpdateDismissed(res.latestVersion)) {
+          setShowUpdateBanner(true);
+        }
+      }
+    });
+  }, []);
 
   // App privacy blur shield and immediate locking when minimizing or switching apps
   useEffect(() => {
@@ -430,6 +479,7 @@ export default function App() {
               setVaultRefreshTrigger((prev) => prev + 1);
             }}
             onResetVault={handleResetVault}
+            hasUpdatePending={!!pendingUpdateInfo?.hasUpdate}
           />
 
           <SettingsModal
@@ -453,6 +503,32 @@ export default function App() {
           />
         </>
       )}
+
+      {/* Aviso flotante de Actualización Disponible al entrar */}
+      {showUpdateBanner && pendingUpdateInfo && (
+        <UpdateNotificationBanner
+          updateInfo={pendingUpdateInfo}
+          onOpenDetails={() => {
+            setShowUpdateBanner(false);
+            setShowUpdateModal(true);
+          }}
+          onApplyUpdate={() => updateService.applyUpdate()}
+          onDismiss={() => {
+            setShowUpdateBanner(false);
+            if (pendingUpdateInfo.latestVersion) {
+              updateService.dismissUpdate(pendingUpdateInfo.latestVersion);
+            }
+          }}
+        />
+      )}
+
+      {/* Modal interactivo con Novedades de la Versión */}
+      <UpdateNotificationModal
+        isOpen={showUpdateModal}
+        onClose={() => setShowUpdateModal(false)}
+        updateInfo={pendingUpdateInfo}
+        viewNotesOnly={false}
+      />
 
       {/* Privacy Blur Shield when minimizing app or switching tasks */}
       {isPrivacyBlurActive && (

@@ -1,0 +1,14 @@
+{
+  "version": "1.2.0",
+  "buildNumber": 120,
+  "releaseDate": "12 de Octubre, 2026",
+  "changelog": [
+    "Encabezados de carpetas y subcarpetas fijos: al deslizar hacia arriba, el título y controles permanecen siempre visibles sin tapar tus fotos.",
+    "Zoom táctil interactivo: haz zoom con pellizco de dos dedos y desplaza la imagen libremente por cualquier parte de la pantalla.",
+    "Límite de desplazamiento perfeccionado: se eliminaron los márgenes negros excesivos al mover imágenes aumentadas.",
+    "Navegación simplificada: eliminación de botones redundantes, ahora vuelves atrás de forma limpia con la flecha o deslizamiento.",
+    "Detección inteligente de actualizaciones: aviso automático al entrar si hay mejoras disponibles y botón para actualizar en 1 toque.",
+    "Verificador manual de versiones y novedades integrado en Configuración."
+  ],
+  "mandatory": false
+}

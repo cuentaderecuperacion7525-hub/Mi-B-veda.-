@@ -22,9 +22,13 @@ import {
   Copy,
   Layers,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { registerBackHandler } from '../services/backButtonService';
+import { updateService, UpdateCheckResult } from '../services/updateService';
+import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
+import { UpdateNotificationModal } from './UpdateNotificationModal';
 
 const formatFileSize = (bytes: number): string => {
   if (!bytes || bytes <= 0) return '0 B';
@@ -127,6 +131,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   // Reset confirmation
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // Updates state
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateCheckResult, setUpdateCheckResult] = useState<UpdateCheckResult | null>(() => updateService.getLastCheckResult());
+  const [showChangelogModal, setShowChangelogModal] = useState(false);
+  const [autoCheckUpdates, setAutoCheckUpdates] = useState<boolean>(() => updateService.isAutoCheckEnabled());
+
+  useEffect(() => {
+    return updateService.subscribe((result) => {
+      setUpdateCheckResult(result);
+    });
+  }, []);
+
+  const handleCheckForUpdates = async () => {
+    setIsCheckingUpdate(true);
+    try {
+      const res = await updateService.checkForUpdates(true);
+      setUpdateCheckResult(res);
+      if (res.hasUpdate) {
+        showToast('¡Nueva actualización disponible!', 'info');
+      } else {
+        showToast('Tu aplicación ya está actualizada a la última versión.', 'success');
+      }
+    } catch {
+      showToast('No se pudo verificar la actualización.', 'alert');
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  const handleToggleAutoCheck = (enabled: boolean) => {
+    setAutoCheckUpdates(enabled);
+    updateService.setAutoCheckEnabled(enabled);
+    showToast(enabled ? 'Avisos automáticos de actualización activados' : 'Avisos automáticos desactivados', 'info');
+  };
 
   // Back button handler for Settings Modal (only when modal)
   useEffect(() => {
@@ -715,13 +754,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('install')}
-            className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-all ${
+            className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-all flex items-center gap-1.5 ${
               activeTab === 'install'
                 ? 'border-indigo-500 text-indigo-400 font-semibold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            Instalar / APK
+            <span>Actualizaciones / APK</span>
+            {updateCheckResult?.hasUpdate && (
+              <span className="w-2 h-2 rounded-full bg-[#00e5ff] animate-pulse" />
+            )}
           </button>
           <button
             onClick={() => setActiveTab('danger')}
@@ -1080,6 +1122,75 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {activeTab === 'install' && (
             <div className="space-y-5">
+              {/* Tarjeta de Actualizaciones del Sistema */}
+              <div className="bg-slate-900/80 p-4 rounded-2xl border border-cyan-500/30 space-y-3.5 shadow-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-cyan-500/10 text-[#00e5ff] border border-cyan-500/20 flex items-center justify-center">
+                      <RefreshCw className={`w-4.5 h-4.5 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="text-xs font-bold text-slate-100">Actualizaciones del Sistema</h5>
+                        <span className="font-mono text-[11px] font-bold text-[#00e5ff] bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                          v{CURRENT_APP_VERSION}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">Lanzamiento: {CURRENT_RELEASE_DATE}</p>
+                    </div>
+                  </div>
+
+                  {updateCheckResult?.hasUpdate ? (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/20 text-[#00e5ff] border border-cyan-500/30 animate-pulse">
+                      Nueva versión
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 stroke-[2.5]" />
+                      Al día
+                    </span>
+                  )}
+                </div>
+
+                {updateCheckResult?.hasUpdate && (
+                  <div className="p-3 bg-gradient-to-r from-cyan-950/40 via-blue-950/40 to-slate-900 border border-cyan-500/40 rounded-xl space-y-2">
+                    <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#00e5ff]" />
+                      <span>¡Nueva versión v{updateCheckResult.latestVersion} disponible!</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => updateService.applyUpdate()}
+                      className="w-full py-2 bg-[#00e5ff] hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-lg shadow-md transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Actualizar Ahora</span>
+                    </button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCheckForUpdates}
+                    disabled={isCheckingUpdate}
+                    className="py-2 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+                    <span>{isCheckingUpdate ? 'Buscando...' : 'Buscar Actualización'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowChangelogModal(true)}
+                    className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-[#00e5ff]" />
+                    <span>Ver Novedades</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Option 1: Direct PWA / WebAPK Installation */}
               <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80 space-y-3">
                 <div className="flex items-center gap-2.5">
@@ -1331,6 +1442,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal de Novedades y Actualizaciones */}
+      <UpdateNotificationModal
+        isOpen={showChangelogModal}
+        onClose={() => setShowChangelogModal(false)}
+        updateInfo={updateCheckResult}
+        viewNotesOnly={!updateCheckResult?.hasUpdate}
+      />
     </div>
   );
 };

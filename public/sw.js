@@ -37,8 +37,20 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
+  // Never cache version.json to ensure accurate real-time update detection
+  if (event.request.url.includes('version.json')) {
+    event.respondWith(fetch(event.request, { cache: 'no-store' }));
+    return;
+  }
 
   // Let browser handle cross-origin or chrome extensions
   if (!event.request.url.startsWith(self.location.origin)) return;
