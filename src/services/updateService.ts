@@ -263,7 +263,7 @@ class UpdateService {
   }
 
   public getGitHubRepo(): string {
-    return localStorage.getItem('vault_github_repo') || '';
+    return localStorage.getItem('vault_github_repo') || 'cuentadecuperacion7525-hub/Mi-B-veda.-';
   }
 
   public setGitHubRepo(repo: string): void {
