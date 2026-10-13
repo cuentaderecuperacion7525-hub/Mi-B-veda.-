@@ -127,10 +127,13 @@ class UpdateService {
       }
 
       const versionDiff = this.compareVersions(remoteData.version, CURRENT_APP_VERSION);
-      const buildDiff = (remoteData.buildNumber || 0) > CURRENT_BUILD_NUMBER;
+      const remoteBuild = (remoteData as any).version_code ?? remoteData.buildNumber ?? 0;
+      const buildDiff = remoteBuild > CURRENT_BUILD_NUMBER;
 
       const hasRemoteUpdate = versionDiff > 0 || buildDiff;
       const hasUpdate = hasRemoteUpdate || swHasUpdate;
+
+      const effectiveDownloadUrl = (remoteData as any).download_url || downloadUrl;
 
       const result: UpdateCheckResult = {
         hasUpdate,
@@ -140,7 +143,7 @@ class UpdateService {
         changelog: remoteData.changelog || CURRENT_CHANGELOG,
         mandatory: remoteData.mandatory || false,
         isServiceWorkerReady: swHasUpdate,
-        downloadUrl: downloadUrl || (githubRepo ? `https://github.com/${githubRepo}/actions` : undefined),
+        downloadUrl: effectiveDownloadUrl || (githubRepo ? `https://github.com/${githubRepo}/actions` : undefined),
       };
 
       this.lastCheckResult = result;

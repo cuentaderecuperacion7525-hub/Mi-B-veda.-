@@ -11,6 +11,7 @@ import {
   Layers
 } from 'lucide-react';
 import { updateService, UpdateCheckResult } from '../services/updateService';
+import { downloadAndInstallApk } from '../services/nativeUpdaterBridge';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE, CURRENT_CHANGELOG } from '../version';
 
 interface UpdateNotificationModalProps {
@@ -47,7 +48,7 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
     setIsApplying(true);
     try {
       if (updateInfo?.downloadUrl) {
-        window.open(updateInfo.downloadUrl, '_blank');
+        await downloadAndInstallApk(updateInfo.downloadUrl);
         setIsApplying(false);
         onClose();
         return;
@@ -213,7 +214,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
     setIsApplying(true);
     try {
       if (updateInfo.downloadUrl) {
-        window.open(updateInfo.downloadUrl, '_blank');
+        await downloadAndInstallApk(updateInfo.downloadUrl);
         setIsApplying(false);
         onDismiss();
         return;

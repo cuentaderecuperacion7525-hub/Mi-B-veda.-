@@ -27,6 +27,7 @@ import {
 import { updateService, UpdateCheckResult } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
 import { UpdateNotificationModal } from './UpdateNotificationModal';
+import { BovedaUpdater } from './BovedaUpdater';
 import {
   exportEncryptedBackupBlob,
   importEncryptedBackupBlobStream,
@@ -872,7 +873,36 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             </div>
           </div>
 
-          {/* Tarjeta 4: Restablecer Bóveda (Zona de Peligro) */}
+          {/* Tarjeta 4: Código Fuente Completo */}
+          <div
+            onClick={() => {
+              const a = document.createElement('a');
+              a.href = '/codigo_completo_boveda.txt';
+              a.download = 'codigo_completo_boveda.txt';
+              a.click();
+              showToast('Descargando código completo de la bóveda...', 'info');
+            }}
+            className="bg-[#0a121d] border border-cyan-950/60 hover:border-cyan-500/50 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-[#00e5ff] shrink-0 group-hover:scale-105 transition-transform">
+                <Code2 className="w-4.5 h-4.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-white group-hover:text-[#00e5ff] transition-colors truncate">
+                  Descargar Código Fuente
+                </h3>
+                <p className="text-[11px] text-cyan-300/80 truncate mt-0.5">
+                  Archivo .txt con los 36 archivos completos para analizar
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-slate-900 border border-slate-800 text-slate-500 group-hover:text-[#00e5ff] group-hover:border-cyan-500/40 transition-colors">
+              <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+            </div>
+          </div>
+
+          {/* Tarjeta 5: Restablecer Bóveda (Zona de Peligro) */}
           <div
             onClick={() => setActiveSubMenu('danger')}
             className="bg-[#0a121d] border border-rose-950/60 hover:border-rose-500/50 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
@@ -1400,6 +1430,21 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   <FileText className="w-3.5 h-3.5 text-[#00e5ff]" />
                   <span>Novedades de esta Versión</span>
                 </button>
+              </div>
+
+              {/* Botón directo para descargar APK compilado en GitHub */}
+              <button
+                type="button"
+                onClick={() => window.open('https://github.com/cuentadecuperacion7525-hub/Mi-B-veda.-/actions', '_blank')}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 hover:border-cyan-500/60 text-[#00e5ff] font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Descargar APK más reciente (GitHub Actions)</span>
+              </button>
+
+              {/* Módulo de Actualizador Nativo Capacitor / Web */}
+              <div className="pt-2">
+                <BovedaUpdater />
               </div>
 
               {/* Información de estado de firmas y caché */}
