@@ -403,16 +403,6 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
               PROTECCIÓN ACTIVA Y REGISTRO DE ACCESOS
             </p>
           </div>
-          {onLock && (
-            <button
-              type="button"
-              onClick={onLock}
-              className="px-3.5 py-1.5 rounded-2xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0 ml-1"
-            >
-              <Lock className="w-3.5 h-3.5 text-rose-400" />
-              <span>Bloquear</span>
-            </button>
-          )}
         </div>
       </header>
 
