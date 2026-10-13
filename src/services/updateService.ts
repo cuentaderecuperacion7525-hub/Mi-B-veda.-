@@ -91,23 +91,82 @@ class UpdateService {
       const cacheBuster = `_t=${Date.now()}`;
       const githubRepo = this.getGitHubRepo();
       let remoteData: VersionInfo | null = null;
-      let downloadUrl = '';
+      let directApkUrl = '';
+      let remoteBuild = 0;
+      let remoteVersionStr = CURRENT_APP_VERSION;
 
-      // Si hay un repositorio de GitHub configurado, consultamos la versión más reciente en GitHub
+      // Obtener versión instalada en el dispositivo (APK nativo o web)
+      let installedBuildNumber = CURRENT_BUILD_NUMBER;
+      try {
+        const { getSafeAppVersionCode } = await import('./nativeUpdaterBridge');
+        const nativeVer = await getSafeAppVersionCode();
+        installedBuildNumber = nativeVer.versionCode;
+      } catch {
+        installedBuildNumber = CURRENT_BUILD_NUMBER;
+      }
+
+      // Si hay un repositorio de GitHub configurado, consultar primero la API oficial de Releases de GitHub
       if (githubRepo) {
         try {
-          const ghUrlPrincipal = `https://raw.githubusercontent.com/${githubRepo}/principal/public/version.json?${cacheBuster}`;
-          const ghUrlMain = `https://raw.githubusercontent.com/${githubRepo}/main/public/version.json?${cacheBuster}`;
-          let ghRes = await fetch(ghUrlPrincipal, { cache: 'no-store' });
-          if (!ghRes.ok) {
-            ghRes = await fetch(ghUrlMain, { cache: 'no-store' });
+          const ghApiUrl = `https://api.github.com/repos/${githubRepo}/releases/latest`;
+          const ghApiRes = await fetch(ghApiUrl, {
+            headers: { 'Accept': 'application/vnd.github.v3+json' },
+            cache: 'no-store'
+          });
+
+          if (ghApiRes.ok) {
+            const release = await ghApiRes.json();
+            if (release && release.tag_name) {
+              const tag = release.tag_name.replace(/^v/, '');
+              remoteVersionStr = tag;
+
+              // Si el tag es v1.0.X, el buildNumber en GitHub Actions es 100 + X
+              const runMatch = tag.match(/1\.0\.(\d+)/);
+              if (runMatch) {
+                remoteBuild = 100 + parseInt(runMatch[1], 10);
+              } else {
+                remoteBuild = 100;
+              }
+
+              // Buscar el asset Boveda-Calculadora.apk
+              const apkAsset = release.assets?.find((a: any) =>
+                a.name && a.name.toLowerCase().endsWith('.apk')
+              );
+              directApkUrl = apkAsset?.browser_download_url ||
+                `https://github.com/${githubRepo}/releases/latest/download/Boveda-Calculadora.apk`;
+
+              remoteData = {
+                version: tag,
+                buildNumber: remoteBuild,
+                releaseDate: release.published_at ? new Date(release.published_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : CURRENT_RELEASE_DATE,
+                changelog: release.body ? [release.body] : CURRENT_CHANGELOG,
+                mandatory: false
+              };
+            }
           }
-          if (ghRes.ok) {
-            remoteData = await ghRes.json();
-            downloadUrl = `https://github.com/${githubRepo}/actions`;
+        } catch (apiErr) {
+          console.warn('[UpdateService] Consulta a GitHub Releases API fallo, probando raw version.json:', apiErr);
+        }
+
+        // Si la API no respondió o dio rate-limit, probar version.json raw en las ramas del repo
+        if (!remoteData) {
+          try {
+            const ghUrlPrincipal = `https://raw.githubusercontent.com/${githubRepo}/principal/public/version.json?${cacheBuster}`;
+            const ghUrlMain = `https://raw.githubusercontent.com/${githubRepo}/main/public/version.json?${cacheBuster}`;
+            let ghRes = await fetch(ghUrlPrincipal, { cache: 'no-store' });
+            if (!ghRes.ok) {
+              ghRes = await fetch(ghUrlMain, { cache: 'no-store' });
+            }
+            if (ghRes.ok) {
+              const rawData = await ghRes.json();
+              remoteData = rawData;
+              remoteBuild = rawData.version_code ?? rawData.buildNumber ?? 0;
+              remoteVersionStr = rawData.version_name ?? rawData.version ?? CURRENT_APP_VERSION;
+              directApkUrl = rawData.download_url || `https://github.com/${githubRepo}/releases/latest/download/Boveda-Calculadora.apk`;
+            }
+          } catch (ghErr) {
+            console.warn('[UpdateService] No se pudo consultar GitHub remoto, probando ruta local:', ghErr);
           }
-        } catch (ghErr) {
-          console.warn('[UpdateService] No se pudo consultar GitHub remoto, probando ruta local:', ghErr);
         }
       }
 
@@ -122,7 +181,11 @@ class UpdateService {
         });
 
         if (response.ok) {
-          remoteData = await response.json();
+          const rawData = await response.json();
+          remoteData = rawData;
+          remoteBuild = rawData.version_code ?? rawData.buildNumber ?? 0;
+          remoteVersionStr = rawData.version_name ?? rawData.version ?? CURRENT_APP_VERSION;
+          directApkUrl = rawData.download_url || (githubRepo ? `https://github.com/${githubRepo}/releases/latest/download/Boveda-Calculadora.apk` : '/');
         }
       }
 
@@ -130,24 +193,24 @@ class UpdateService {
         throw new Error('No se pudo obtener información de versión del servidor ni de GitHub');
       }
 
-      const versionDiff = this.compareVersions(remoteData.version, CURRENT_APP_VERSION);
-      const remoteBuild = (remoteData as any).version_code ?? remoteData.buildNumber ?? 0;
-      const buildDiff = remoteBuild > CURRENT_BUILD_NUMBER;
+      const versionDiff = this.compareVersions(remoteVersionStr, CURRENT_APP_VERSION);
+      const buildDiff = remoteBuild > installedBuildNumber;
 
       const hasRemoteUpdate = versionDiff > 0 || buildDiff;
       const hasUpdate = hasRemoteUpdate || swHasUpdate;
 
-      const effectiveDownloadUrl = (remoteData as any).download_url || downloadUrl;
+      const effectiveDownloadUrl = directApkUrl || (remoteData as any).download_url ||
+        (githubRepo ? `https://github.com/${githubRepo}/releases/latest/download/Boveda-Calculadora.apk` : undefined);
 
       const result: UpdateCheckResult = {
         hasUpdate,
         currentVersion: CURRENT_APP_VERSION,
-        latestVersion: hasRemoteUpdate ? remoteData.version : (swHasUpdate ? CURRENT_APP_VERSION : CURRENT_APP_VERSION),
+        latestVersion: hasRemoteUpdate ? remoteVersionStr : (swHasUpdate ? CURRENT_APP_VERSION : CURRENT_APP_VERSION),
         releaseDate: remoteData.releaseDate || CURRENT_RELEASE_DATE,
         changelog: remoteData.changelog || CURRENT_CHANGELOG,
         mandatory: remoteData.mandatory || false,
         isServiceWorkerReady: swHasUpdate,
-        downloadUrl: effectiveDownloadUrl || (githubRepo ? `https://github.com/${githubRepo}/actions` : undefined),
+        downloadUrl: effectiveDownloadUrl,
       };
 
       this.lastCheckResult = result;

@@ -17,7 +17,6 @@ import {
   X,
   ChevronRight,
   ArrowLeft,
-  Code2,
   Smartphone,
   RefreshCw,
   Sparkles,
@@ -873,36 +872,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             </div>
           </div>
 
-          {/* Tarjeta 4: Código Fuente Completo */}
-          <div
-            onClick={() => {
-              const a = document.createElement('a');
-              a.href = '/codigo_completo_boveda.txt';
-              a.download = 'codigo_completo_boveda.txt';
-              a.click();
-              showToast('Descargando código completo de la bóveda...', 'info');
-            }}
-            className="bg-[#0a121d] border border-cyan-950/60 hover:border-cyan-500/50 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-[#00e5ff] shrink-0 group-hover:scale-105 transition-transform">
-                <Code2 className="w-4.5 h-4.5" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm font-bold text-white group-hover:text-[#00e5ff] transition-colors truncate">
-                  Descargar Código Fuente
-                </h3>
-                <p className="text-[11px] text-cyan-300/80 truncate mt-0.5">
-                  Archivo .txt con los 36 archivos completos para analizar
-                </p>
-              </div>
-            </div>
-            <div className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-slate-900 border border-slate-800 text-slate-500 group-hover:text-[#00e5ff] group-hover:border-cyan-500/40 transition-colors">
-              <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
-            </div>
-          </div>
-
-          {/* Tarjeta 5: Restablecer Bóveda (Zona de Peligro) */}
+          {/* Tarjeta 4: Restablecer Bóveda (Zona de Peligro) */}
           <div
             onClick={() => setActiveSubMenu('danger')}
             className="bg-[#0a121d] border border-rose-950/60 hover:border-rose-500/50 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
@@ -1293,30 +1263,6 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Tarjeta de Descarga del Código Fuente (.txt) */}
-            <div className="bg-[#0a121d] p-4 rounded-3xl border border-slate-800/90 shadow-xl space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-cyan-500/10 text-[#00e5ff] rounded-2xl border border-cyan-500/20">
-                  <Code2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h5 className="text-xs font-semibold text-white">Código Fuente Completo (.txt)</h5>
-                  <p className="text-[11px] text-slate-400">
-                    Descarga todo el código fuente de la aplicación en un solo archivo de texto para analizarlo o corregirlo.
-                  </p>
-                </div>
-              </div>
-
-              <a
-                href="/codigo_completo.txt"
-                download="codigo_completo_boveda.txt"
-                className="w-full py-2.5 bg-slate-800/90 hover:bg-slate-700 active:scale-98 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border border-slate-700/80 cursor-pointer"
-              >
-                <Download className="w-4 h-4 text-[#00e5ff]" />
-                <span>Descargar Código Fuente (.txt)</span>
-              </a>
             </div>
           </div>
         )}

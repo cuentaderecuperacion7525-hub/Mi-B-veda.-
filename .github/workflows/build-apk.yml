@@ -40,6 +40,33 @@ jobs:
       - name: Instalar dependencias
         run: npm install --legacy-peer-deps
 
+      - name: Actualizar metadatos de version.json antes de compilar
+        run: |
+          BUILD_NUM=${{ github.run_number }}
+          NEW_VERSION_CODE=$((100 + BUILD_NUM))
+          echo "Generando public/version.json con build $BUILD_NUM (version_code $NEW_VERSION_CODE)..."
+          node -e "
+            const fs = require('fs');
+            const data = {
+              version: '1.0.' + process.env.BUILD_NUM,
+              version_name: '1.0.' + process.env.BUILD_NUM,
+              buildNumber: parseInt(process.env.NEW_VERSION_CODE, 10),
+              version_code: parseInt(process.env.NEW_VERSION_CODE, 10),
+              download_url: 'https://github.com/' + process.env.GITHUB_REPOSITORY + '/releases/latest/download/Boveda-Calculadora.apk',
+              releaseDate: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }),
+              changelog: [
+                'Compilación automática #' + process.env.BUILD_NUM + ' generada en GitHub.',
+                'Actualización del sistema sin pérdida de fotos, videos ni notas.'
+              ],
+              mandatory: false
+            };
+            fs.writeFileSync('public/version.json', JSON.stringify(data, null, 2));
+          "
+        env:
+          BUILD_NUM: ${{ github.run_number }}
+          NEW_VERSION_CODE: ${{ github.run_number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
       - name: Compilar aplicacion web
         run: npm run build
 
@@ -94,5 +121,6 @@ jobs:
           files: |
             apk-output/Boveda-Calculadora-v1.0.${{ github.run_number }}.apk
             apk-output/Boveda-Calculadora.apk
+            public/version.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

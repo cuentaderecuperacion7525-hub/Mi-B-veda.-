@@ -2,8 +2,8 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { CURRENT_BUILD_NUMBER, CURRENT_APP_VERSION } from '../version';
 
 export interface UpdaterPluginInterface {
-  getAppVersionCode(): Promise<{ versionCode: number }>;
-  downloadAndInstall(options: { url: string }): Promise<void>;
+  getAppVersionCode(): Promise<{ versionCode: number; versionName?: string }>;
+  downloadAndInstall(options: { url: string }): Promise<{ success: boolean; message?: string }>;
 }
 
 // Registro del plugin nativo Capacitor con nombre 'UpdaterPlugin'
@@ -12,20 +12,23 @@ export const UpdaterPlugin = registerPlugin<UpdaterPluginInterface>('UpdaterPlug
 /**
  * Obtiene de forma segura el código de versión del APK o el build actual si corre en web
  */
-export async function getSafeAppVersionCode(): Promise<number> {
+export async function getSafeAppVersionCode(): Promise<{ versionCode: number; versionName: string }> {
   if (!Capacitor.isNativePlatform()) {
-    return CURRENT_BUILD_NUMBER;
+    return { versionCode: CURRENT_BUILD_NUMBER, versionName: CURRENT_APP_VERSION };
   }
 
   try {
     const res = await UpdaterPlugin.getAppVersionCode();
     if (res && typeof res.versionCode === 'number') {
-      return res.versionCode;
+      return {
+        versionCode: res.versionCode,
+        versionName: res.versionName || CURRENT_APP_VERSION
+      };
     }
-    return CURRENT_BUILD_NUMBER;
+    return { versionCode: CURRENT_BUILD_NUMBER, versionName: CURRENT_APP_VERSION };
   } catch (err) {
     console.warn('[NativeUpdater] UpdaterPlugin no disponible en este entorno nativo, usando buildNumber:', err);
-    return CURRENT_BUILD_NUMBER;
+    return { versionCode: CURRENT_BUILD_NUMBER, versionName: CURRENT_APP_VERSION };
   }
 }
 
