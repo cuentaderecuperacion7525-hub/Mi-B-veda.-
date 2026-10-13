@@ -96,12 +96,19 @@ class UpdateService {
 
       // Obtener versión instalada en el dispositivo (APK nativo o web)
       let installedBuildNumber = CURRENT_BUILD_NUMBER;
+      let installedVersionName = CURRENT_APP_VERSION;
       try {
         const { getSafeAppVersionCode } = await import('./nativeUpdaterBridge');
         const nativeVer = await getSafeAppVersionCode();
-        installedBuildNumber = nativeVer.versionCode;
+        if (nativeVer && typeof nativeVer.versionCode === 'number') {
+          installedBuildNumber = nativeVer.versionCode;
+        }
+        if (nativeVer && nativeVer.versionName) {
+          installedVersionName = nativeVer.versionName;
+        }
       } catch {
         installedBuildNumber = CURRENT_BUILD_NUMBER;
+        installedVersionName = CURRENT_APP_VERSION;
       }
 
       // Si hay candidatos de repositorio en GitHub, consultarlos
@@ -212,10 +219,15 @@ class UpdateService {
         }
       }
 
-      const versionDiff = this.compareVersions(remoteVersionStr, CURRENT_APP_VERSION);
-      const buildDiff = remoteBuild > installedBuildNumber;
+      // En APK Android (o si el build instalado es >= 100), la regla definitiva es remoteBuild > installedBuildNumber
+      let hasRemoteUpdate = false;
+      if (isNativeEnv || installedBuildNumber >= 100) {
+        hasRemoteUpdate = remoteBuild > installedBuildNumber;
+      } else {
+        const versionDiff = this.compareVersions(remoteVersionStr, installedVersionName);
+        hasRemoteUpdate = versionDiff > 0 || remoteBuild > installedBuildNumber;
+      }
 
-      const hasRemoteUpdate = versionDiff > 0 || buildDiff;
       const hasUpdate = hasRemoteUpdate || swHasUpdate;
 
       const effectiveDownloadUrl = directApkUrl || (remoteData as any).download_url ||
@@ -223,8 +235,8 @@ class UpdateService {
 
       const result: UpdateCheckResult = {
         hasUpdate,
-        currentVersion: CURRENT_APP_VERSION,
-        latestVersion: hasRemoteUpdate ? remoteVersionStr : CURRENT_APP_VERSION,
+        currentVersion: installedVersionName,
+        latestVersion: hasRemoteUpdate ? remoteVersionStr : installedVersionName,
         releaseDate: remoteData.releaseDate || CURRENT_RELEASE_DATE,
         changelog: remoteData.changelog || CURRENT_CHANGELOG,
         mandatory: remoteData.mandatory || false,

@@ -414,8 +414,8 @@ android {
         applicationId "com.calculadora.boveda.privada"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.0.1"
+        versionCode 1032
+        versionName "1.2.32"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -9041,12 +9041,12 @@ export default config;
 
 === ARCHIVO: public/version.json ===
 {
-  "version": "1.2.0",
-  "version_name": "1.2.0",
-  "buildNumber": 120,
-  "version_code": 120,
-  "download_url": "https://github.com/cuentadecuperacion7525-hub/Mi-B-veda.-/releases/latest",
-  "releaseDate": "12 de Octubre, 2026",
+  "version": "1.2.32",
+  "version_name": "1.2.32",
+  "buildNumber": 1032,
+  "version_code": 1032,
+  "download_url": "https://github.com/cuentadecuperacion7525-hub/Mi-B-veda.-/releases/latest/download/Boveda-Calculadora.apk",
+  "releaseDate": "13 de Octubre, 2026",
   "changelog": [
     "Encabezados de carpetas y subcarpetas fijos: al deslizar hacia arriba, el título y controles permanecen siempre visibles sin tapar tus fotos.",
     "Zoom táctil interactivo: haz zoom con pellizco de dos dedos y desplaza la imagen libremente por cualquier parte de la pantalla.",
@@ -9727,6 +9727,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
   const [serverVersionName, setServerVersionName] = useState<string>('');
   const [serverVersionCode, setServerVersionCode] = useState<number>(0);
   const [currentInstalledCode, setCurrentInstalledCode] = useState<number>(CURRENT_BUILD_NUMBER);
+  const [installedVersionName, setInstalledVersionName] = useState<string>(CURRENT_APP_VERSION);
   const [loading, setLoading] = useState<boolean>(false);
   const [isInstalling, setIsInstalling] = useState<boolean>(false);
   const [status, setStatus] = useState<string>('');
@@ -9748,9 +9749,14 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
       let nombreActual = CURRENT_APP_VERSION;
       try {
         const info = await getSafeAppVersionCode();
-        versionActual = info.versionCode;
-        nombreActual = info.versionName;
-        setCurrentInstalledCode(versionActual);
+        if (info.versionCode) {
+          versionActual = info.versionCode;
+          setCurrentInstalledCode(versionActual);
+        }
+        if (info.versionName) {
+          nombreActual = info.versionName;
+          setInstalledVersionName(nombreActual);
+        }
       } catch {
         setCurrentInstalledCode(CURRENT_BUILD_NUMBER);
       }
@@ -9820,11 +9826,11 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
                   title="Ver novedades de la versión"
                   className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 hover:bg-cyan-500/20 px-2 py-0.5 rounded-full border border-cyan-500/25 cursor-pointer transition-colors"
                 >
-                  v{CURRENT_APP_VERSION}
+                  v{installedVersionName}
                 </button>
               ) : (
                 <span className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
-                  v{CURRENT_APP_VERSION}
+                  v{installedVersionName}
                 </span>
               )}
             </div>
@@ -24157,12 +24163,19 @@ class UpdateService {
 
       // Obtener versión instalada en el dispositivo (APK nativo o web)
       let installedBuildNumber = CURRENT_BUILD_NUMBER;
+      let installedVersionName = CURRENT_APP_VERSION;
       try {
         const { getSafeAppVersionCode } = await import('./nativeUpdaterBridge');
         const nativeVer = await getSafeAppVersionCode();
-        installedBuildNumber = nativeVer.versionCode;
+        if (nativeVer && typeof nativeVer.versionCode === 'number') {
+          installedBuildNumber = nativeVer.versionCode;
+        }
+        if (nativeVer && nativeVer.versionName) {
+          installedVersionName = nativeVer.versionName;
+        }
       } catch {
         installedBuildNumber = CURRENT_BUILD_NUMBER;
+        installedVersionName = CURRENT_APP_VERSION;
       }
 
       // Si hay candidatos de repositorio en GitHub, consultarlos
@@ -24273,10 +24286,15 @@ class UpdateService {
         }
       }
 
-      const versionDiff = this.compareVersions(remoteVersionStr, CURRENT_APP_VERSION);
-      const buildDiff = remoteBuild > installedBuildNumber;
+      // En APK Android (o si el build instalado es >= 100), la regla definitiva es remoteBuild > installedBuildNumber
+      let hasRemoteUpdate = false;
+      if (isNativeEnv || installedBuildNumber >= 100) {
+        hasRemoteUpdate = remoteBuild > installedBuildNumber;
+      } else {
+        const versionDiff = this.compareVersions(remoteVersionStr, installedVersionName);
+        hasRemoteUpdate = versionDiff > 0 || remoteBuild > installedBuildNumber;
+      }
 
-      const hasRemoteUpdate = versionDiff > 0 || buildDiff;
       const hasUpdate = hasRemoteUpdate || swHasUpdate;
 
       const effectiveDownloadUrl = directApkUrl || (remoteData as any).download_url ||
@@ -24284,8 +24302,8 @@ class UpdateService {
 
       const result: UpdateCheckResult = {
         hasUpdate,
-        currentVersion: CURRENT_APP_VERSION,
-        latestVersion: hasRemoteUpdate ? remoteVersionStr : CURRENT_APP_VERSION,
+        currentVersion: installedVersionName,
+        latestVersion: hasRemoteUpdate ? remoteVersionStr : installedVersionName,
         releaseDate: remoteData.releaseDate || CURRENT_RELEASE_DATE,
         changelog: remoteData.changelog || CURRENT_CHANGELOG,
         mandatory: remoteData.mandatory || false,
@@ -24456,9 +24474,9 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const CURRENT_APP_VERSION = '1.2.0';
-export const CURRENT_BUILD_NUMBER = 120;
-export const CURRENT_RELEASE_DATE = '12 de Octubre, 2026';
+export const CURRENT_APP_VERSION = '1.2.32';
+export const CURRENT_BUILD_NUMBER = 1032;
+export const CURRENT_RELEASE_DATE = '13 de Octubre, 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
   'Encabezados de carpetas y subcarpetas fijos: al deslizar hacia arriba, el título y controles permanecen siempre visibles sin tapar tus fotos.',

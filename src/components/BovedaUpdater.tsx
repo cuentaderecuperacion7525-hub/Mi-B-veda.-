@@ -21,6 +21,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
   const [serverVersionName, setServerVersionName] = useState<string>('');
   const [serverVersionCode, setServerVersionCode] = useState<number>(0);
   const [currentInstalledCode, setCurrentInstalledCode] = useState<number>(CURRENT_BUILD_NUMBER);
+  const [installedVersionName, setInstalledVersionName] = useState<string>(CURRENT_APP_VERSION);
   const [loading, setLoading] = useState<boolean>(false);
   const [isInstalling, setIsInstalling] = useState<boolean>(false);
   const [status, setStatus] = useState<string>('');
@@ -42,9 +43,14 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
       let nombreActual = CURRENT_APP_VERSION;
       try {
         const info = await getSafeAppVersionCode();
-        versionActual = info.versionCode;
-        nombreActual = info.versionName;
-        setCurrentInstalledCode(versionActual);
+        if (info.versionCode) {
+          versionActual = info.versionCode;
+          setCurrentInstalledCode(versionActual);
+        }
+        if (info.versionName) {
+          nombreActual = info.versionName;
+          setInstalledVersionName(nombreActual);
+        }
       } catch {
         setCurrentInstalledCode(CURRENT_BUILD_NUMBER);
       }
@@ -114,11 +120,11 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
                   title="Ver novedades de la versión"
                   className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 hover:bg-cyan-500/20 px-2 py-0.5 rounded-full border border-cyan-500/25 cursor-pointer transition-colors"
                 >
-                  v{CURRENT_APP_VERSION}
+                  v{installedVersionName}
                 </button>
               ) : (
                 <span className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
-                  v{CURRENT_APP_VERSION}
+                  v{installedVersionName}
                 </span>
               )}
             </div>

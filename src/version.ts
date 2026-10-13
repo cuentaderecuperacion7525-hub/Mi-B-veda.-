@@ -10,9 +10,9 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const CURRENT_APP_VERSION = '1.2.0';
-export const CURRENT_BUILD_NUMBER = 120;
-export const CURRENT_RELEASE_DATE = '12 de Octubre, 2026';
+export const CURRENT_APP_VERSION = '1.2.32';
+export const CURRENT_BUILD_NUMBER = 1032;
+export const CURRENT_RELEASE_DATE = '13 de Octubre, 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
   'Encabezados de carpetas y subcarpetas fijos: al deslizar hacia arriba, el título y controles permanecen siempre visibles sin tapar tus fotos.',
