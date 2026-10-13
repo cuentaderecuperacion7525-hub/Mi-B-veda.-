@@ -1,53 +1,8 @@
-================================================================================
-CÓDIGO FUENTE COMPLETO DE LA APLICACIÓN (Bóveda Segura)
-Archivos incluidos: 36
-================================================================================
+// =====================================================================
+// CODIGO FUENTE COMPLETO DE MI BOVEDA PRIVADA
+// =====================================================================
 
-ÍNDICE DE ARCHIVOS:
-1. package.json
-2. vite.config.ts
-3. tsconfig.json
-4. index.html
-5. capacitor.config.ts
-6. src/App.tsx
-7. src/index.css
-8. src/main.tsx
-9. src/version.ts
-10. src/vite-env.d.ts
-11. src/hooks/usePWAInstall.ts
-12. src/services/backButtonService.ts
-13. src/services/biometricService.ts
-14. src/services/intruderService.ts
-15. src/services/nativeVaultBridge.ts
-16. src/services/recoveryKeyService.ts
-17. src/services/screenshotBlockService.ts
-18. src/services/updateService.ts
-19. src/components/BarraAccionesInferior.tsx
-20. src/components/CameraCaptureModal.tsx
-21. src/components/DeleteGalleryReminderModal.tsx
-22. src/components/FolderModals.tsx
-23. src/components/ImportVaultView.tsx
-24. src/components/LockVaultView.tsx
-25. src/components/MainVaultView.tsx
-26. src/components/ModalEliminar.tsx
-27. src/components/PhotoViewerModal.tsx
-28. src/components/PinKeypad.tsx
-29. src/components/SecurityVaultView.tsx
-30. src/components/SettingsModal.tsx
-31. src/components/SettingsVaultView.tsx
-32. src/components/SetupVaultView.tsx
-33. src/components/Toast.tsx
-34. src/components/UpdateNotificationModal.tsx
-35. src/db/vaultDb.ts
-36. src/crypto/vaultCrypto.ts
-
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: package.json
-================================================================================
-
+// --- ARCHIVO: package.json ---
 {
   "name": "react-example",
   "private": true,
@@ -94,15 +49,7 @@ INICIO DE ARCHIVO: package.json
 }
 
 
-================================================================================
-FIN DE ARCHIVO: package.json
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: vite.config.ts
-================================================================================
-
+// --- ARCHIVO: vite.config.ts ---
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -176,15 +123,7 @@ export default defineConfig(() => {
 });
 
 
-================================================================================
-FIN DE ARCHIVO: vite.config.ts
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: tsconfig.json
-================================================================================
-
+// --- ARCHIVO: tsconfig.json ---
 {
   "compilerOptions": {
     "target": "ES2022",
@@ -214,15 +153,7 @@ INICIO DE ARCHIVO: tsconfig.json
 }
 
 
-================================================================================
-FIN DE ARCHIVO: tsconfig.json
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: index.html
-================================================================================
-
+// --- ARCHIVO: index.html ---
 <!doctype html>
 <html lang="es" class="dark">
   <head>
@@ -257,15 +188,7 @@ INICIO DE ARCHIVO: index.html
 
 
 
-================================================================================
-FIN DE ARCHIVO: index.html
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: capacitor.config.ts
-================================================================================
-
+// --- ARCHIVO: capacitor.config.ts ---
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
@@ -284,15 +207,7 @@ const config: CapacitorConfig = {
 export default config;
 
 
-================================================================================
-FIN DE ARCHIVO: capacitor.config.ts
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/App.tsx
-================================================================================
-
+// --- ARCHIVO: src/App.tsx ---
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -844,15 +759,7 @@ export default function App() {
 }
 
 
-================================================================================
-FIN DE ARCHIVO: src/App.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/index.css
-================================================================================
-
+// --- ARCHIVO: src/index.css ---
 @import "tailwindcss";
 
 @layer base {
@@ -939,15 +846,7 @@ INICIO DE ARCHIVO: src/index.css
 }
 
 
-================================================================================
-FIN DE ARCHIVO: src/index.css
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/main.tsx
-================================================================================
-
+// --- ARCHIVO: src/main.tsx ---
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
@@ -964,15 +863,7 @@ registerSW({
 createRoot(document.getElementById('root')!).render(<App />);
 
 
-================================================================================
-FIN DE ARCHIVO: src/main.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/version.ts
-================================================================================
-
+// --- ARCHIVO: src/version.ts ---
 /**
  * Información de versión y registro de cambios (Changelog) de la aplicación.
  */
@@ -1007,28 +898,12 @@ export const APP_VERSION_METADATA: VersionInfo = {
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/version.ts
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/vite-env.d.ts
-================================================================================
-
+// --- ARCHIVO: src/vite-env.d.ts ---
 /// <reference types="vite/client" />
 /// <reference types="vite-plugin-pwa/client" />
 
 
-================================================================================
-FIN DE ARCHIVO: src/vite-env.d.ts
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/hooks/usePWAInstall.ts
-================================================================================
-
+// --- ARCHIVO: src/hooks/usePWAInstall.ts ---
 import { useEffect, useState } from 'react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -1093,15 +968,7 @@ export function usePWAInstall() {
 }
 
 
-================================================================================
-FIN DE ARCHIVO: src/hooks/usePWAInstall.ts
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/services/backButtonService.ts
-================================================================================
-
+// --- ARCHIVO: src/services/backButtonService.ts ---
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 
@@ -1237,15 +1104,7 @@ export function triggerBackAction(): boolean {
 
 
 
-================================================================================
-FIN DE ARCHIVO: src/services/backButtonService.ts
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/services/biometricService.ts
-================================================================================
-
+// --- ARCHIVO: src/services/biometricService.ts ---
 /**
  * Biometric authentication service for Android (Native BiometricPrompt / Capacitor & WebAuthn / Passkeys).
  * Integrates directly with the device's native fingerprint scanner.
@@ -1685,15 +1544,7 @@ export function disableBiometrics(): void {
 }
 
 
-================================================================================
-FIN DE ARCHIVO: src/services/biometricService.ts
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/services/intruderService.ts
-================================================================================
-
+// --- ARCHIVO: src/services/intruderService.ts ---
 /**
  * Servicio de Intrusos (Simplificado - Fotos deshabilitadas)
  */
@@ -1743,15 +1594,72 @@ export function clearIntruderAlert() {
 }
 
 
-================================================================================
-FIN DE ARCHIVO: src/services/intruderService.ts
-================================================================================
+// --- ARCHIVO: src/services/nativeUpdaterBridge.ts ---
+import { Capacitor, registerPlugin } from '@capacitor/core';
+import { CURRENT_BUILD_NUMBER, CURRENT_APP_VERSION } from '../version';
+
+export interface UpdaterPluginInterface {
+  getAppVersionCode(): Promise<{ versionCode: number }>;
+  downloadAndInstall(options: { url: string }): Promise<void>;
+}
+
+// Registro del plugin nativo Capacitor con nombre 'UpdaterPlugin'
+export const UpdaterPlugin = registerPlugin<UpdaterPluginInterface>('UpdaterPlugin');
+
+/**
+ * Obtiene de forma segura el código de versión del APK o el build actual si corre en web
+ */
+export async function getSafeAppVersionCode(): Promise<number> {
+  if (!Capacitor.isNativePlatform()) {
+    return CURRENT_BUILD_NUMBER;
+  }
+
+  try {
+    const res = await UpdaterPlugin.getAppVersionCode();
+    if (res && typeof res.versionCode === 'number') {
+      return res.versionCode;
+    }
+    return CURRENT_BUILD_NUMBER;
+  } catch (err) {
+    console.warn('[NativeUpdater] UpdaterPlugin no disponible en este entorno nativo, usando buildNumber:', err);
+    return CURRENT_BUILD_NUMBER;
+  }
+}
+
+/**
+ * Descarga e instala la APK usando el instalador nativo si está disponible,
+ * o redirige al enlace de descarga si está en el navegador
+ */
+export async function downloadAndInstallApk(apkUrl: string): Promise<{ success: boolean; message?: string }> {
+  if (!apkUrl) {
+    throw new Error('No se especificó la URL de descarga del APK');
+  }
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await UpdaterPlugin.downloadAndInstall({ url: apkUrl });
+      return { success: true, message: 'Descarga iniciada en el sistema nativo' };
+    } catch (nativeErr: any) {
+      console.warn('[NativeUpdater] Error en UpdaterPlugin nativo, recurriendo a apertura de URL:', nativeErr);
+      // Fallback nativo: intentar abrir el enlace directamente con el navegador del teléfono
+      window.open(apkUrl, '_system');
+      return { success: true, message: 'Abriendo enlace de descarga en el navegador' };
+    }
+  } else {
+    // Entorno Web: abrir en nueva pestaña o iniciar descarga
+    const a = document.createElement('a');
+    a.href = apkUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return { success: true, message: 'Descarga iniciada en el navegador' };
+  }
+}
 
 
-================================================================================
-INICIO DE ARCHIVO: src/services/nativeVaultBridge.ts
-================================================================================
-
+// --- ARCHIVO: src/services/nativeVaultBridge.ts ---
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
 export interface NativeMediaItemIdentifier {
@@ -2002,15 +1910,7 @@ export const exportVaultItemToDevice = async (item: {
 
 
 
-================================================================================
-FIN DE ARCHIVO: src/services/nativeVaultBridge.ts
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/services/recoveryKeyService.ts
-================================================================================
-
+// --- ARCHIVO: src/services/recoveryKeyService.ts ---
 import {
   bufToHex,
   hexToBuf,
@@ -2371,15 +2271,7 @@ INSTRUCCIONES IMPORTANTES:
 }
 
 
-================================================================================
-FIN DE ARCHIVO: src/services/recoveryKeyService.ts
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/services/screenshotBlockService.ts
-================================================================================
-
+// --- ARCHIVO: src/services/screenshotBlockService.ts ---
 import { registerPlugin } from '@capacitor/core';
 import { isNativeApp } from './nativeVaultBridge';
 
@@ -2581,15 +2473,7 @@ export const setScreenshotBlockEnabled = (enabled: boolean) => {
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/services/screenshotBlockService.ts
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/services/updateService.ts
-================================================================================
-
+// --- ARCHIVO: src/services/updateService.ts ---
 /**
  * Servicio de detección, notificación y aplicación de actualizaciones para la aplicación.
  */
@@ -2719,10 +2603,13 @@ class UpdateService {
       }
 
       const versionDiff = this.compareVersions(remoteData.version, CURRENT_APP_VERSION);
-      const buildDiff = (remoteData.buildNumber || 0) > CURRENT_BUILD_NUMBER;
+      const remoteBuild = (remoteData as any).version_code ?? remoteData.buildNumber ?? 0;
+      const buildDiff = remoteBuild > CURRENT_BUILD_NUMBER;
 
       const hasRemoteUpdate = versionDiff > 0 || buildDiff;
       const hasUpdate = hasRemoteUpdate || swHasUpdate;
+
+      const effectiveDownloadUrl = (remoteData as any).download_url || downloadUrl;
 
       const result: UpdateCheckResult = {
         hasUpdate,
@@ -2732,7 +2619,7 @@ class UpdateService {
         changelog: remoteData.changelog || CURRENT_CHANGELOG,
         mandatory: remoteData.mandatory || false,
         isServiceWorkerReady: swHasUpdate,
-        downloadUrl: downloadUrl || (githubRepo ? `https://github.com/${githubRepo}/actions` : undefined),
+        downloadUrl: effectiveDownloadUrl || (githubRepo ? `https://github.com/${githubRepo}/actions` : undefined),
       };
 
       this.lastCheckResult = result;
@@ -2871,15 +2758,7 @@ class UpdateService {
 export const updateService = new UpdateService();
 
 
-================================================================================
-FIN DE ARCHIVO: src/services/updateService.ts
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/BarraAccionesInferior.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/BarraAccionesInferior.tsx ---
 import React from 'react';
 // Importamos iconos limpios y estilizados de trazo fino (estilo Outline)
 import { Heart, Copy, Download, Trash2 } from 'lucide-react';
@@ -2970,15 +2849,280 @@ export const BarraAccionesInferior: React.FC<BarraAccionesProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/BarraAccionesInferior.tsx
-================================================================================
+// --- ARCHIVO: src/components/BovedaUpdater.tsx ---
+import React, { useState, useEffect, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
+import {
+  RefreshCw,
+  Download,
+  Sparkles,
+  CheckCircle2,
+  FileText,
+  Check,
+  ExternalLink,
+  ShieldCheck,
+  AlertCircle
+} from 'lucide-react';
+import { getSafeAppVersionCode, downloadAndInstallApk } from '../services/nativeUpdaterBridge';
+import { updateService } from '../services/updateService';
+import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER, CURRENT_RELEASE_DATE } from '../version';
+
+interface VersionResponseData {
+  version_code?: number;
+  buildNumber?: number;
+  version_name?: string;
+  version?: string;
+  download_url?: string;
+  changelog?: string[];
+  releaseDate?: string;
+}
+
+interface BovedaUpdaterProps {
+  onOpenChangelog?: () => void;
+}
+
+export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog }) => {
+  const [updateAvailable, setUpdateAvailable] = useState<boolean>(false);
+  const [downloadUrl, setDownloadUrl] = useState<string>('');
+  const [serverVersionName, setServerVersionName] = useState<string>('');
+  const [serverVersionCode, setServerVersionCode] = useState<number>(0);
+  const [currentInstalledCode, setCurrentInstalledCode] = useState<number>(CURRENT_BUILD_NUMBER);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [isInstalling, setIsInstalling] = useState<boolean>(false);
+  const [status, setStatus] = useState<string>('');
+  const [isNative, setIsNative] = useState<boolean>(false);
+  const [hasCheckedOnce, setHasCheckedOnce] = useState<boolean>(false);
+
+  useEffect(() => {
+    setIsNative(Capacitor.isNativePlatform());
+  }, []);
+
+  // Lógica unificada de verificación (automática al inicio y manual mediante el botón)
+  const verificarActualizaciones = useCallback(async (esManual: boolean = false) => {
+    setLoading(true);
+    if (esManual) setStatus('Comprobando actualizaciones en GitHub...');
+
+    try {
+      // 1. Obtener la versión de compilación nativa instalada en el dispositivo
+      let versionActual = CURRENT_BUILD_NUMBER;
+      try {
+        versionActual = await getSafeAppVersionCode();
+        setCurrentInstalledCode(versionActual);
+      } catch {
+        versionActual = CURRENT_BUILD_NUMBER;
+      }
+
+      // 2. Consultar el archivo version.json
+      const repo = updateService.getGitHubRepo() || 'cuentadecuperacion7525-hub/Mi-B-veda.-';
+      const cacheBuster = `_t=${Date.now()}`;
+      const urlGitHub = `https://raw.githubusercontent.com/${repo}/main/public/version.json?${cacheBuster}`;
+
+      let datos: VersionResponseData | null = null;
+
+      // Intentar primero desde GitHub público
+      try {
+        const respuesta = await fetch(urlGitHub, { cache: 'no-store' });
+        if (respuesta.ok) {
+          datos = await respuesta.json();
+        }
+      } catch (ghErr) {
+        console.warn('[BovedaUpdater] No se pudo conectar directo a raw GitHub, probando origen local:', ghErr);
+      }
+
+      // Fallback a version.json del origen local
+      if (!datos) {
+        const respuestaLocal = await fetch(`/version.json?${cacheBuster}`, { cache: 'no-store' });
+        if (respuestaLocal.ok) {
+          datos = await respuestaLocal.json();
+        }
+      }
+
+      if (!datos) {
+        throw new Error('No se pudo verificar con el servidor. Revisa tu conexión a internet.');
+      }
+
+      // Soportar tanto version_code/version_name como buildNumber/version
+      const codigoRemoto = datos.version_code ?? datos.buildNumber ?? 0;
+      const nombreRemoto = datos.version_name ?? datos.version ?? CURRENT_APP_VERSION;
+      const urlDescarga = datos.download_url || `https://github.com/${repo}/releases/latest`;
+
+      setServerVersionCode(codigoRemoto);
+      setServerVersionName(nombreRemoto);
+      setHasCheckedOnce(true);
+
+      // Comprobar si hay versión superior
+      if (codigoRemoto > versionActual) {
+        setUpdateAvailable(true);
+        setDownloadUrl(urlDescarga);
+        setStatus(`¡Nueva versión v${nombreRemoto} disponible! Lista para instalar.`);
+      } else {
+        setUpdateAvailable(false);
+        if (esManual) {
+          setStatus(`Tu bóveda está en la versión más reciente (v${CURRENT_APP_VERSION}).`);
+        }
+      }
+    } catch (error: any) {
+      if (esManual) {
+        setStatus(error?.message || 'Error de conexión. Inténtalo más tarde.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Comprobación inicial al montar
+  useEffect(() => {
+    verificarActualizaciones(false);
+  }, [verificarActualizaciones]);
+
+  // Ejecución de la descarga e instalación automática
+  const ejecutarActualizacion = async () => {
+    if (!downloadUrl) return;
+    setIsInstalling(true);
+    setStatus('Descargando e iniciando instalación de la actualización...');
+    try {
+      await downloadAndInstallApk(downloadUrl);
+      setStatus('Proceso de instalación enviado al sistema Android.');
+    } catch (err: any) {
+      setStatus(err.message || 'No se pudo completar la instalación automática.');
+    } finally {
+      setIsInstalling(false);
+    }
+  };
+
+  return (
+    <div className="bg-[#0a121d] p-4.5 sm:p-5 rounded-3xl border border-cyan-500/30 shadow-xl space-y-4">
+      {/* Encabezado: Estado de la versión y plataforma */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-[#00e5ff] shrink-0 shadow-lg shadow-cyan-500/10">
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-bold text-white truncate">Versión del Sistema</h4>
+              <span className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
+                v{CURRENT_APP_VERSION}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
+              Lanzamiento: {CURRENT_RELEASE_DATE}
+            </p>
+          </div>
+        </div>
+
+        {/* Badge dinámico de estado */}
+        {updateAvailable ? (
+          <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-cyan-500/20 text-[#00e5ff] border border-cyan-500/40 animate-pulse flex items-center gap-1">
+            <Sparkles className="w-3 h-3" />
+            Nueva versión
+          </span>
+        ) : (
+          <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3 stroke-[2.5]" />
+            Al día
+          </span>
+        )}
+      </div>
+
+      {/* Indicador de capa y comparación de versiones */}
+      <div className="flex items-center justify-between text-[11px] text-slate-300 bg-slate-900/80 px-3.5 py-2.5 rounded-2xl border border-slate-800 font-mono">
+        <div className="flex items-center gap-1.5">
+          <div className={`w-2 h-2 rounded-full ${isNative ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'}`} />
+          <span className="text-slate-400">Plataforma:</span>
+          <span className="text-white font-semibold">{isNative ? 'APK Android' : 'Web'}</span>
+        </div>
+        <div className="text-slate-400">
+          Build <span className="text-slate-200 font-bold">{currentInstalledCode}</span>
+          {serverVersionCode > 0 && (
+            <span> / Servidor <span className="text-cyan-300 font-bold">{serverVersionCode}</span></span>
+          )}
+        </div>
+      </div>
+
+      {/* Mensaje de estado dinámico */}
+      {status && (
+        <div className={`p-3 rounded-2xl text-xs font-medium border leading-relaxed ${
+          updateAvailable
+            ? 'bg-cyan-950/40 border-cyan-500/40 text-cyan-200'
+            : 'bg-slate-900/70 border-slate-800 text-slate-300'
+        }`}>
+          {status}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* EL BOTÓN PRINCIPAL ÚNICO (EL BUENO)                       */}
+      {/* ======================================================== */}
+      <div className="space-y-2.5 pt-1">
+        {updateAvailable ? (
+          <button
+            type="button"
+            onClick={ejecutarActualizacion}
+            disabled={isInstalling}
+            className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 active:scale-[0.99] text-white font-bold rounded-2xl text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            <Download className={`w-4 h-4 ${isInstalling ? 'animate-bounce' : ''}`} />
+            <span>
+              {isInstalling ? 'Instalando actualización...' : `Instalar Actualización v${serverVersionName || 'Nueva'}`}
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => verificarActualizaciones(true)}
+            disabled={loading}
+            className="w-full py-3.5 px-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-[0.99] text-white font-bold rounded-2xl text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>{loading ? 'Buscando actualizaciones...' : 'Buscar Actualizaciones'}</span>
+          </button>
+        )}
+
+        {/* Botones secundarios complementarios */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {onOpenChangelog && (
+            <button
+              type="button"
+              onClick={onOpenChangelog}
+              className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5 text-[#00e5ff]" />
+              <span>Novedades de esta Versión</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => window.open('https://github.com/cuentadecuperacion7525-hub/Mi-B-veda.-/actions', '_blank')}
+            className="py-2.5 px-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/30 text-slate-400 hover:text-[#00e5ff] font-medium text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Descarga manual (GitHub)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Información de seguridad y estado de instalación */}
+      <div className="bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80 text-xs text-slate-300 space-y-1.5">
+        <div className="flex justify-between items-center text-[11px]">
+          <span className="text-slate-400">Estado de instalación:</span>
+          <span className="text-emerald-400 font-bold flex items-center gap-1">
+            <Check className="w-3 h-3 stroke-[3]" />
+            Optimizado sin pérdida de datos
+          </span>
+        </div>
+        <div className="flex justify-between items-center text-[11px]">
+          <span className="text-slate-400">Comprobación:</span>
+          <span className="font-mono text-slate-400">En tiempo real vía red</span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 
-================================================================================
-INICIO DE ARCHIVO: src/components/CameraCaptureModal.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/CameraCaptureModal.tsx ---
 import React, { useRef, useState, useEffect } from 'react';
 import { X, Camera, RefreshCw, AlertCircle, Check, Video, Circle, Square } from 'lucide-react';
 
@@ -3381,15 +3525,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/CameraCaptureModal.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/DeleteGalleryReminderModal.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/DeleteGalleryReminderModal.tsx ---
 import React, { useState } from 'react';
 import { ShieldCheck, AlertCircle, Trash2, Camera, Check, ExternalLink, Image, Smartphone, ChevronDown, ChevronUp, Folder } from 'lucide-react';
 import { openNativeGallery, openNativeFileManager } from '../services/nativeVaultBridge';
@@ -3593,15 +3729,7 @@ export const DeleteGalleryReminderModal: React.FC<DeleteGalleryReminderModalProp
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/DeleteGalleryReminderModal.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/FolderModals.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/FolderModals.tsx ---
 import React, { useState, useEffect } from 'react';
 import { Folder, FolderPlus, X, Check, ArrowRight, Trash2, Edit2 } from 'lucide-react';
 
@@ -3953,15 +4081,7 @@ export function MoveToFolderModal({
 }
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/FolderModals.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/ImportVaultView.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/ImportVaultView.tsx ---
 import React, { useState, useRef } from 'react';
 import {
   Image as ImageIcon,
@@ -4326,15 +4446,7 @@ export const ImportVaultView: React.FC<ImportVaultViewProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/ImportVaultView.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/LockVaultView.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/LockVaultView.tsx ---
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Lock,
@@ -5163,15 +5275,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/LockVaultView.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/MainVaultView.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/MainVaultView.tsx ---
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Shield,
@@ -7936,15 +8040,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/MainVaultView.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/ModalEliminar.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/ModalEliminar.tsx ---
 import React from 'react';
 // Usamos iconos limpios de trazo fino
 import { Trash2 } from 'lucide-react';
@@ -8015,15 +8111,7 @@ export const ModalEliminar: React.FC<ModalEliminarProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/ModalEliminar.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/PhotoViewerModal.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/PhotoViewerModal.tsx ---
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X,
@@ -9053,15 +9141,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/PhotoViewerModal.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/PinKeypad.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/PinKeypad.tsx ---
 import React from 'react';
 import { Delete, Fingerprint } from 'lucide-react';
 
@@ -9234,15 +9314,7 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/PinKeypad.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/SecurityVaultView.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/SecurityVaultView.tsx ---
 import React, { useState, useEffect } from 'react';
 import {
   Shield,
@@ -10387,15 +10459,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/SecurityVaultView.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/SettingsModal.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/SettingsModal.tsx ---
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -11853,15 +11917,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/SettingsModal.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/SettingsVaultView.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/SettingsVaultView.tsx ---
 import React, { useState, useEffect, useRef } from 'react';
 import {
   KeyRound,
@@ -11891,6 +11947,7 @@ import {
 import { updateService, UpdateCheckResult } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
 import { UpdateNotificationModal } from './UpdateNotificationModal';
+import { BovedaUpdater } from './BovedaUpdater';
 import {
   exportEncryptedBackupBlob,
   importEncryptedBackupBlobStream,
@@ -12736,7 +12793,36 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             </div>
           </div>
 
-          {/* Tarjeta 4: Restablecer Bóveda (Zona de Peligro) */}
+          {/* Tarjeta 4: Código Fuente Completo */}
+          <div
+            onClick={() => {
+              const a = document.createElement('a');
+              a.href = '/codigo_completo_boveda.txt';
+              a.download = 'codigo_completo_boveda.txt';
+              a.click();
+              showToast('Descargando código completo de la bóveda...', 'info');
+            }}
+            className="bg-[#0a121d] border border-cyan-950/60 hover:border-cyan-500/50 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-[#00e5ff] shrink-0 group-hover:scale-105 transition-transform">
+                <Code2 className="w-4.5 h-4.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-white group-hover:text-[#00e5ff] transition-colors truncate">
+                  Descargar Código Fuente
+                </h3>
+                <p className="text-[11px] text-cyan-300/80 truncate mt-0.5">
+                  Archivo .txt con los 36 archivos completos para analizar
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-slate-900 border border-slate-800 text-slate-500 group-hover:text-[#00e5ff] group-hover:border-cyan-500/40 transition-colors">
+              <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+            </div>
+          </div>
+
+          {/* Tarjeta 5: Restablecer Bóveda (Zona de Peligro) */}
           <div
             onClick={() => setActiveSubMenu('danger')}
             className="bg-[#0a121d] border border-rose-950/60 hover:border-rose-500/50 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
@@ -13176,121 +13262,9 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
 
         {activeSubMenu === 'updates' && (
           <div className="space-y-4 animate-in fade-in duration-200">
-            {/* Tarjeta de estado de versión actual y búsqueda */}
-            <div className="bg-[#0a121d] p-4.5 rounded-3xl border border-cyan-500/30 shadow-xl space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-[#00e5ff] shrink-0 shadow-lg shadow-cyan-500/10">
-                    <RefreshCw className={`w-5 h-5 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-bold text-white truncate">Versión del Sistema</h4>
-                      <span className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
-                        v{CURRENT_APP_VERSION}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
-                      Lanzamiento: {CURRENT_RELEASE_DATE}
-                    </p>
-                  </div>
-                </div>
+            {/* Tarjeta Unificada de Actualizaciones del Sistema (Un solo botón principal) */}
+            <BovedaUpdater onOpenChangelog={() => setShowChangelogModal(true)} />
 
-                {/* Badge de estado */}
-                {updateCheckResult?.hasUpdate ? (
-                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-cyan-500/20 text-[#00e5ff] border border-cyan-500/40 animate-pulse">
-                    Nueva versión
-                  </span>
-                ) : (
-                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 stroke-[2.5]" />
-                    Al día
-                  </span>
-                )}
-              </div>
-
-              {/* Si hay actualización disponible: Banner destacado con botón directo */}
-              {updateCheckResult?.hasUpdate && (
-                <div className="bg-gradient-to-r from-cyan-950/40 via-blue-950/40 to-slate-900 border border-cyan-500/40 rounded-2xl p-3.5 space-y-3 animate-in zoom-in-95 duration-200">
-                  <div className="flex items-start gap-2.5">
-                    <Sparkles className="w-4 h-4 text-[#00e5ff] shrink-0 mt-0.5 animate-pulse" />
-                    <div>
-                      <p className="text-xs font-bold text-white">
-                        ¡Nueva versión v{updateCheckResult.latestVersion} disponible!
-                      </p>
-                      <p className="text-[11px] text-slate-300 leading-snug mt-0.5">
-                        Mejoras listas para instalar. Tus fotos y claves permanecen 100% protegidas.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowChangelogModal(true)}
-                      className="flex-1 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <span>Ver Novedades</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateService.applyUpdate()}
-                      className="flex-1 py-2 rounded-xl bg-[#00e5ff] hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-md shadow-cyan-500/30 transition-all flex items-center justify-center gap-1.5 active:scale-95"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Actualizar Ahora</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Botón principal: Buscar Actualizaciones */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                <button
-                  type="button"
-                  onClick={handleCheckForUpdates}
-                  disabled={isCheckingUpdate}
-                  className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 cursor-pointer"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
-                  <span>{isCheckingUpdate ? 'Buscando actualizaciones...' : 'Buscar Actualizaciones'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowChangelogModal(true)}
-                  className="py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5 text-[#00e5ff]" />
-                  <span>Novedades de esta Versión</span>
-                </button>
-              </div>
-
-              {/* Botón directo para descargar APK compilado en GitHub */}
-              <button
-                type="button"
-                onClick={() => window.open('https://github.com/cuentadecuperacion7525-hub/Mi-B-veda.-/actions', '_blank')}
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 hover:border-cyan-500/60 text-[#00e5ff] font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Descargar APK más reciente (GitHub Actions)</span>
-              </button>
-
-              {/* Información de estado de firmas y caché */}
-              <div className="bg-slate-900/80 p-3 rounded-2xl border border-slate-800/90 text-xs text-slate-300 space-y-1.5">
-                <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-slate-400">Estado de la instalación:</span>
-                  <span className="text-emerald-400 font-bold flex items-center gap-1">
-                    <Check className="w-3 h-3 stroke-[3]" />
-                    Optimizado sin pérdida de datos
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-slate-400">Comprobación:</span>
-                  <span className="font-mono text-slate-400">En tiempo real vía red</span>
-                </div>
-              </div>
-            </div>
 
             {/* Configuración de Notificaciones Automáticas */}
             <div className="bg-[#0a121d] p-4.5 rounded-3xl border border-slate-800 shadow-xl">
@@ -13671,15 +13645,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/SettingsVaultView.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/SetupVaultView.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/SetupVaultView.tsx ---
 import React, { useState } from 'react';
 import {
   ShieldCheck,
@@ -14064,15 +14030,7 @@ export const SetupVaultView: React.FC<SetupVaultViewProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/SetupVaultView.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/Toast.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/Toast.tsx ---
 import React from 'react';
 import { CheckCircle2, AlertTriangle, AlertCircle, Info, Lock } from 'lucide-react';
 
@@ -14121,15 +14079,7 @@ export const ToastContainer: React.FC<ToastProps> = ({ toasts }) => {
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/Toast.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/components/UpdateNotificationModal.tsx
-================================================================================
-
+// --- ARCHIVO: src/components/UpdateNotificationModal.tsx ---
 import React, { useState } from 'react';
 import { 
   Sparkles, 
@@ -14143,6 +14093,7 @@ import {
   Layers
 } from 'lucide-react';
 import { updateService, UpdateCheckResult } from '../services/updateService';
+import { downloadAndInstallApk } from '../services/nativeUpdaterBridge';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE, CURRENT_CHANGELOG } from '../version';
 
 interface UpdateNotificationModalProps {
@@ -14179,7 +14130,7 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
     setIsApplying(true);
     try {
       if (updateInfo?.downloadUrl) {
-        window.open(updateInfo.downloadUrl, '_blank');
+        await downloadAndInstallApk(updateInfo.downloadUrl);
         setIsApplying(false);
         onClose();
         return;
@@ -14345,7 +14296,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
     setIsApplying(true);
     try {
       if (updateInfo.downloadUrl) {
-        window.open(updateInfo.downloadUrl, '_blank');
+        await downloadAndInstallApk(updateInfo.downloadUrl);
         setIsApplying(false);
         onDismiss();
         return;
@@ -14418,15 +14369,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
 };
 
 
-================================================================================
-FIN DE ARCHIVO: src/components/UpdateNotificationModal.tsx
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/db/vaultDb.ts
-================================================================================
-
+// --- ARCHIVO: src/db/vaultDb.ts ---
 /**
  * IndexedDB storage engine for Bóveda Segura.
  * Stores AES-GCM encrypted binary photos, videos, and application files locally.
@@ -15470,15 +15413,7 @@ export async function importEncryptedBackup(
 }
 
 
-================================================================================
-FIN DE ARCHIVO: src/db/vaultDb.ts
-================================================================================
-
-
-================================================================================
-INICIO DE ARCHIVO: src/crypto/vaultCrypto.ts
-================================================================================
-
+// --- ARCHIVO: src/crypto/vaultCrypto.ts ---
 /**
  * Cryptographic engine for Bóveda Segura using Web Crypto API.
  * Uses PBKDF2 (100,000 rounds, SHA-256) + AES-GCM (256-bit).
@@ -15718,7 +15653,83 @@ export function checkIsUnencryptedMedia(buffer: ArrayBuffer | Uint8Array | null 
 
 
 
-================================================================================
-FIN DE ARCHIVO: src/crypto/vaultCrypto.ts
-================================================================================
+// --- ARCHIVO: public/manifest.json ---
+{
+  "id": "/",
+  "name": "Bóveda Segura - Fotos, Videos y Apps",
+  "short_name": "Mi Bóveda",
+  "description": "Bóveda privada y cifrada con AES-GCM para almacenar fotos, videos y aplicaciones localmente en tu dispositivo.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "lang": "es",
+  "categories": ["utilities", "security", "photo"],
+  "screenshots": [
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Bóveda Segura"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Bóveda Segura"
+    }
+  ],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
+
+
+// --- ARCHIVO: public/version.json ---
+{
+  "version": "1.2.0",
+  "version_name": "1.2.0",
+  "buildNumber": 120,
+  "version_code": 120,
+  "download_url": "https://github.com/cuentadecuperacion7525-hub/Mi-B-veda.-/releases/latest",
+  "releaseDate": "12 de Octubre, 2026",
+  "changelog": [
+    "Encabezados de carpetas y subcarpetas fijos: al deslizar hacia arriba, el título y controles permanecen siempre visibles sin tapar tus fotos.",
+    "Zoom táctil interactivo: haz zoom con pellizco de dos dedos y desplaza la imagen libremente por cualquier parte de la pantalla.",
+    "Límite de desplazamiento perfeccionado: se eliminaron los márgenes negros excesivos al mover imágenes aumentadas.",
+    "Navegación simplificada: eliminación de botones redundantes, ahora vuelves atrás de forma limpia con la flecha o deslizamiento.",
+    "Detección inteligente de actualizaciones: aviso automático al entrar si hay mejoras disponibles y botón para actualizar en 1 toque.",
+    "Verificador manual de versiones y novedades integrado en Configuración.",
+    "Instalador nativo automático para Android APK (UpdaterPlugin) con descarga e instalación directa."
+  ],
+  "mandatory": false
+}
+
 

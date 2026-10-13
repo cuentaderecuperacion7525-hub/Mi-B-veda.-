@@ -1,8 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { UpdaterPlugin, getSafeAppVersionCode, downloadAndInstallApk } from '../services/nativeUpdaterBridge';
+import {
+  RefreshCw,
+  Download,
+  Sparkles,
+  CheckCircle2,
+  FileText,
+  Check,
+  ExternalLink,
+  ShieldCheck,
+  AlertCircle
+} from 'lucide-react';
+import { getSafeAppVersionCode, downloadAndInstallApk } from '../services/nativeUpdaterBridge';
 import { updateService } from '../services/updateService';
-import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER } from '../version';
+import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER, CURRENT_RELEASE_DATE } from '../version';
 
 interface VersionResponseData {
   version_code?: number;
@@ -14,27 +25,33 @@ interface VersionResponseData {
   releaseDate?: string;
 }
 
-export const BovedaUpdater: React.FC = () => {
+interface BovedaUpdaterProps {
+  onOpenChangelog?: () => void;
+}
+
+export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog }) => {
   const [updateAvailable, setUpdateAvailable] = useState<boolean>(false);
   const [downloadUrl, setDownloadUrl] = useState<string>('');
   const [serverVersionName, setServerVersionName] = useState<string>('');
   const [serverVersionCode, setServerVersionCode] = useState<number>(0);
   const [currentInstalledCode, setCurrentInstalledCode] = useState<number>(CURRENT_BUILD_NUMBER);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isInstalling, setIsInstalling] = useState<boolean>(false);
   const [status, setStatus] = useState<string>('');
   const [isNative, setIsNative] = useState<boolean>(false);
+  const [hasCheckedOnce, setHasCheckedOnce] = useState<boolean>(false);
 
   useEffect(() => {
     setIsNative(Capacitor.isNativePlatform());
   }, []);
 
-  // Lógica de verificación (funciona tanto automático al montar como manual con botón)
+  // Lógica unificada de verificación (automática al inicio y manual mediante el botón)
   const verificarActualizaciones = useCallback(async (esManual: boolean = false) => {
     setLoading(true);
-    if (esManual) setStatus('Comprobando el servidor de seguridad...');
+    if (esManual) setStatus('Comprobando actualizaciones en GitHub...');
 
     try {
-      // 1. Obtener la versión instalada en el dispositivo (mediante Capacitor nativo o buildNumber actual)
+      // 1. Obtener la versión de compilación nativa instalada en el dispositivo
       let versionActual = CURRENT_BUILD_NUMBER;
       try {
         versionActual = await getSafeAppVersionCode();
@@ -43,7 +60,7 @@ export const BovedaUpdater: React.FC = () => {
         versionActual = CURRENT_BUILD_NUMBER;
       }
 
-      // 2. Determinar la URL del archivo version.json
+      // 2. Consultar el archivo version.json
       const repo = updateService.getGitHubRepo() || 'cuentadecuperacion7525-hub/Mi-B-veda.-';
       const cacheBuster = `_t=${Date.now()}`;
       const urlGitHub = `https://raw.githubusercontent.com/${repo}/main/public/version.json?${cacheBuster}`;
@@ -57,10 +74,10 @@ export const BovedaUpdater: React.FC = () => {
           datos = await respuesta.json();
         }
       } catch (ghErr) {
-        console.warn('[BovedaUpdater] No se pudo conectar a GitHub, probando origen local:', ghErr);
+        console.warn('[BovedaUpdater] No se pudo conectar directo a raw GitHub, probando origen local:', ghErr);
       }
 
-      // Fallback a version.json local de la app
+      // Fallback a version.json del origen local
       if (!datos) {
         const respuestaLocal = await fetch(`/version.json?${cacheBuster}`, { cache: 'no-store' });
         if (respuestaLocal.ok) {
@@ -69,26 +86,27 @@ export const BovedaUpdater: React.FC = () => {
       }
 
       if (!datos) {
-        throw new Error('No se pudo obtener información de la versión desde el servidor.');
+        throw new Error('No se pudo verificar con el servidor. Revisa tu conexión a internet.');
       }
 
       // Soportar tanto version_code/version_name como buildNumber/version
       const codigoRemoto = datos.version_code ?? datos.buildNumber ?? 0;
       const nombreRemoto = datos.version_name ?? datos.version ?? CURRENT_APP_VERSION;
-      const urlDescarga = datos.download_url || `https://github.com/${repo}/actions`;
+      const urlDescarga = datos.download_url || `https://github.com/${repo}/releases/latest`;
 
       setServerVersionCode(codigoRemoto);
       setServerVersionName(nombreRemoto);
+      setHasCheckedOnce(true);
 
-      // Comprobar si hay una versión superior
+      // Comprobar si hay versión superior
       if (codigoRemoto > versionActual) {
         setUpdateAvailable(true);
         setDownloadUrl(urlDescarga);
-        setStatus(`Nueva versión disponible: v${nombreRemoto} (Build ${codigoRemoto})`);
+        setStatus(`¡Nueva versión v${nombreRemoto} disponible! Lista para instalar.`);
       } else {
         setUpdateAvailable(false);
         if (esManual) {
-          setStatus(`La bóveda se encuentra en la versión más reciente (v${CURRENT_APP_VERSION}).`);
+          setStatus(`Tu bóveda está en la versión más reciente (v${CURRENT_APP_VERSION}).`);
         }
       }
     } catch (error: any) {
@@ -100,7 +118,7 @@ export const BovedaUpdater: React.FC = () => {
     }
   }, []);
 
-  // Comprobación automática al iniciar el componente
+  // Comprobación inicial al montar
   useEffect(() => {
     verificarActualizaciones(false);
   }, [verificarActualizaciones]);
@@ -108,64 +126,144 @@ export const BovedaUpdater: React.FC = () => {
   // Ejecución de la descarga e instalación automática
   const ejecutarActualizacion = async () => {
     if (!downloadUrl) return;
+    setIsInstalling(true);
+    setStatus('Descargando e iniciando instalación de la actualización...');
     try {
-      setStatus('Descargando e iniciando instalación...');
       await downloadAndInstallApk(downloadUrl);
+      setStatus('Proceso de instalación enviado al sistema Android.');
     } catch (err: any) {
-      setStatus(err.message || 'No se pudo completar la instalación.');
+      setStatus(err.message || 'No se pudo completar la instalación automática.');
+    } finally {
+      setIsInstalling(false);
     }
   };
 
   return (
-    <div className="w-full max-w-sm mx-auto p-4 sm:p-5 bg-zinc-950 border border-zinc-800 rounded-2xl text-zinc-100 shadow-2xl space-y-3.5">
-      {/* Encabezado de la sección */}
-      <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-        <div className="flex items-center space-x-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <h3 className="font-semibold text-xs sm:text-sm tracking-wide uppercase text-zinc-300">
-            Actualizador Nativo
-          </h3>
+    <div className="bg-[#0a121d] p-4.5 sm:p-5 rounded-3xl border border-cyan-500/30 shadow-xl space-y-4">
+      {/* Encabezado: Estado de la versión y plataforma */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-[#00e5ff] shrink-0 shadow-lg shadow-cyan-500/10">
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-bold text-white truncate">Versión del Sistema</h4>
+              <span className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
+                v{CURRENT_APP_VERSION}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
+              Lanzamiento: {CURRENT_RELEASE_DATE}
+            </p>
+          </div>
         </div>
-        <span className="text-[10px] sm:text-xs bg-zinc-900 px-2.5 py-1 rounded-md border border-zinc-800 font-mono text-zinc-400">
-          {isNative ? 'Capacitor Layer (APK)' : 'Web Runtime'}
-        </span>
+
+        {/* Badge dinámico de estado */}
+        {updateAvailable ? (
+          <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-cyan-500/20 text-[#00e5ff] border border-cyan-500/40 animate-pulse flex items-center gap-1">
+            <Sparkles className="w-3 h-3" />
+            Nueva versión
+          </span>
+        ) : (
+          <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3 stroke-[2.5]" />
+            Al día
+          </span>
+        )}
       </div>
 
-      {/* Info de versión instalada vs remota */}
-      <div className="flex items-center justify-between text-[11px] text-zinc-400 bg-zinc-900/60 px-3 py-2 rounded-xl border border-zinc-800/60 font-mono">
-        <span>Instalada: v{CURRENT_APP_VERSION} ({currentInstalledCode})</span>
-        {serverVersionCode > 0 && (
-          <span className="text-zinc-300">Servidor: v{serverVersionName || CURRENT_APP_VERSION} ({serverVersionCode})</span>
-        )}
+      {/* Indicador de capa y comparación de versiones */}
+      <div className="flex items-center justify-between text-[11px] text-slate-300 bg-slate-900/80 px-3.5 py-2.5 rounded-2xl border border-slate-800 font-mono">
+        <div className="flex items-center gap-1.5">
+          <div className={`w-2 h-2 rounded-full ${isNative ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'}`} />
+          <span className="text-slate-400">Plataforma:</span>
+          <span className="text-white font-semibold">{isNative ? 'APK Android' : 'Web'}</span>
+        </div>
+        <div className="text-slate-400">
+          Build <span className="text-slate-200 font-bold">{currentInstalledCode}</span>
+          {serverVersionCode > 0 && (
+            <span> / Servidor <span className="text-cyan-300 font-bold">{serverVersionCode}</span></span>
+          )}
+        </div>
       </div>
 
       {/* Mensaje de estado dinámico */}
       {status && (
-        <div className="p-3 text-xs bg-zinc-900/70 border border-zinc-800/90 rounded-xl text-zinc-300 font-medium leading-relaxed">
+        <div className={`p-3 rounded-2xl text-xs font-medium border leading-relaxed ${
+          updateAvailable
+            ? 'bg-cyan-950/40 border-cyan-500/40 text-cyan-200'
+            : 'bg-slate-900/70 border-slate-800 text-slate-300'
+        }`}>
           {status}
         </div>
       )}
 
-      {/* Botones de acción */}
-      <div className="space-y-2 pt-1">
+      {/* ======================================================== */}
+      {/* EL BOTÓN PRINCIPAL ÚNICO (EL BUENO)                       */}
+      {/* ======================================================== */}
+      <div className="space-y-2.5 pt-1">
         {updateAvailable ? (
           <button
             type="button"
             onClick={ejecutarActualizacion}
-            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 font-semibold rounded-xl text-xs uppercase tracking-wider text-white shadow-lg shadow-emerald-950/40 transition-all duration-200 cursor-pointer"
+            disabled={isInstalling}
+            className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 active:scale-[0.99] text-white font-bold rounded-2xl text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            Instalar Actualización v{serverVersionName}
+            <Download className={`w-4 h-4 ${isInstalling ? 'animate-bounce' : ''}`} />
+            <span>
+              {isInstalling ? 'Instalando actualización...' : `Instalar Actualización v${serverVersionName || 'Nueva'}`}
+            </span>
           </button>
         ) : (
           <button
             type="button"
             onClick={() => verificarActualizaciones(true)}
             disabled={loading}
-            className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-900 disabled:opacity-40 font-medium rounded-xl text-xs uppercase tracking-wider border border-zinc-800 transition-all duration-200 cursor-pointer text-zinc-200"
+            className="w-full py-3.5 px-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-[0.99] text-white font-bold rounded-2xl text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
           >
-            {loading ? 'Analizando...' : 'Buscar actualizaciones'}
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>{loading ? 'Buscando actualizaciones...' : 'Buscar Actualizaciones'}</span>
           </button>
         )}
+
+        {/* Botones secundarios complementarios */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {onOpenChangelog && (
+            <button
+              type="button"
+              onClick={onOpenChangelog}
+              className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5 text-[#00e5ff]" />
+              <span>Novedades de esta Versión</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => window.open('https://github.com/cuentadecuperacion7525-hub/Mi-B-veda.-/actions', '_blank')}
+            className="py-2.5 px-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/30 text-slate-400 hover:text-[#00e5ff] font-medium text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Descarga manual (GitHub)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Información de seguridad y estado de instalación */}
+      <div className="bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80 text-xs text-slate-300 space-y-1.5">
+        <div className="flex justify-between items-center text-[11px]">
+          <span className="text-slate-400">Estado de instalación:</span>
+          <span className="text-emerald-400 font-bold flex items-center gap-1">
+            <Check className="w-3 h-3 stroke-[3]" />
+            Optimizado sin pérdida de datos
+          </span>
+        </div>
+        <div className="flex justify-between items-center text-[11px]">
+          <span className="text-slate-400">Comprobación:</span>
+          <span className="font-mono text-slate-400">En tiempo real vía red</span>
+        </div>
       </div>
     </div>
   );
