@@ -111,12 +111,27 @@ public class UpdaterPlugin extends Plugin {
                         return;
                     }
 
+                    int fileLength = connection.getContentLength();
                     InputStream in = connection.getInputStream();
                     FileOutputStream out = new FileOutputStream(apkFile);
                     byte[] buffer = new byte[8192];
                     int bytesRead;
+                    long totalBytes = 0;
+                    int lastReportedPercent = -1;
                     while ((bytesRead = in.read(buffer)) != -1) {
                         out.write(buffer, 0, bytesRead);
+                        totalBytes += bytesRead;
+                        if (fileLength > 0) {
+                            int percent = (int) ((totalBytes * 100) / fileLength);
+                            if (percent != lastReportedPercent) {
+                                lastReportedPercent = percent;
+                                JSObject progressObj = new JSObject();
+                                progressObj.put("percent", percent);
+                                progressObj.put("loaded", totalBytes);
+                                progressObj.put("total", fileLength);
+                                notifyListeners("downloadProgress", progressObj);
+                            }
+                        }
                     }
                     out.flush();
                     out.close();

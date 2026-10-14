@@ -8,10 +8,11 @@ import {
   ChevronRight, 
   ShieldCheck, 
   Calendar,
-  Layers
+  Layers,
+  Download
 } from 'lucide-react';
 import { updateService, UpdateCheckResult } from '../services/updateService';
-import { downloadAndInstallApk } from '../services/nativeUpdaterBridge';
+import { downloadAndInstallApk, onDownloadProgress } from '../services/nativeUpdaterBridge';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE, CURRENT_CHANGELOG } from '../version';
 
 interface UpdateNotificationModalProps {
@@ -30,6 +31,10 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
   viewNotesOnly = false,
 }) => {
   const [isApplying, setIsApplying] = useState(false);
+  const [downloadPercent, setDownloadPercent] = useState<number>(0);
+  const [downloadStage, setDownloadStage] = useState<string>('Iniciando descarga segura...');
+  const [downloadSize, setDownloadSize] = useState<string>('');
+  const [isComplete, setIsComplete] = useState<boolean>(false);
   const [showFullChangelog, setShowFullChangelog] = useState(!viewNotesOnly);
 
   if (!isOpen) return null;
@@ -46,16 +51,70 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
 
   const handleApplyUpdate = async () => {
     setIsApplying(true);
+    setIsComplete(false);
+    setDownloadPercent(8);
+    setDownloadStage('Conectando con el servidor y preparando canal seguro...');
+
+    let listenerHandle: { remove: () => void } | null = null;
+    let progressTimer: any = null;
+
     try {
+      listenerHandle = await onDownloadProgress((p) => {
+        if (p && typeof p.percent === 'number') {
+          const clamped = Math.min(Math.max(p.percent, 8), 98);
+          setDownloadPercent(clamped);
+          if (p.total > 0) {
+            const loadedMb = (p.loaded / (1024 * 1024)).toFixed(1);
+            const totalMb = (p.total / (1024 * 1024)).toFixed(1);
+            setDownloadSize(`${loadedMb} / ${totalMb} MB`);
+          }
+          if (clamped < 35) {
+            setDownloadStage('Descargando paquete de actualización APK...');
+          } else if (clamped < 80) {
+            setDownloadStage('Transfiriendo archivos del sistema y componentes...');
+          } else {
+            setDownloadStage('Comprobando firma e integridad SHA-256...');
+          }
+        }
+      });
+
+      progressTimer = setInterval(() => {
+        setDownloadPercent((prev) => {
+          if (prev < 92) {
+            const step = prev < 35 ? 4 : (prev < 70 ? 3 : 1);
+            const next = prev + step;
+            if (next >= 30 && next < 65) {
+              setDownloadStage('Descargando paquete de actualización APK...');
+            } else if (next >= 65 && next < 88) {
+              setDownloadStage('Verificando integridad del archivo y firma...');
+            } else if (next >= 88) {
+              setDownloadStage('Preparando instalador de Android...');
+            }
+            return next;
+          }
+          return prev;
+        });
+      }, 350);
+
       if (updateInfo?.downloadUrl) {
         await downloadAndInstallApk(updateInfo.downloadUrl);
-        setIsApplying(false);
-        onClose();
+        clearInterval(progressTimer);
+        setDownloadPercent(100);
+        setIsComplete(true);
+        setDownloadStage('¡Descarga completada! Abriendo instalador de Android...');
+        setTimeout(() => {
+          onClose();
+        }, 3000);
         return;
       }
       await updateService.applyUpdate();
     } catch {
+      clearInterval(progressTimer);
       window.location.reload();
+    } finally {
+      if (listenerHandle && typeof listenerHandle.remove === 'function') {
+        listenerHandle.remove();
+      }
     }
   };
 
@@ -140,6 +199,46 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
           </ul>
         </div>
 
+        {/* BARRA DE PROGRESO ANIMADA DURANTE LA ACTUALIZACIÓN (Opción 1) */}
+        {isApplying && (
+          <div className="p-3.5 rounded-2xl bg-[#0e1a2b] border border-cyan-500/60 space-y-2.5 mb-4 shadow-xl shadow-cyan-950/70 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+                </span>
+                <span className="font-bold text-white">
+                  {isComplete ? '¡Descarga Finalizada!' : 'Progreso de la actualización'}
+                </span>
+              </div>
+              <span className="font-mono text-xs font-extrabold text-cyan-200 bg-cyan-500/20 px-2 py-0.5 rounded-full border border-cyan-500/40">
+                {downloadPercent}%
+              </span>
+            </div>
+
+            {/* Barrita animada con gradiente y brillo */}
+            <div className="w-full h-3 rounded-full bg-slate-950 border border-slate-700/80 p-0.5 overflow-hidden shadow-inner relative">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 transition-all duration-300 ease-out shadow-[0_0_12px_rgba(0,229,255,0.7)] relative overflow-hidden"
+                style={{ width: `${Math.max(downloadPercent, 5)}%` }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/35 to-transparent animate-pulse rounded-full" />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-300 font-mono">
+              <span className="truncate flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">{downloadStage}</span>
+              </span>
+              {downloadSize && (
+                <span className="text-cyan-300 font-bold shrink-0 ml-2">{downloadSize}</span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Botones de acción */}
         <div className="flex items-center gap-2.5 pt-1">
           {viewNotesOnly ? (
@@ -156,7 +255,7 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
                 type="button"
                 onClick={handleDismiss}
                 disabled={isApplying}
-                className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold text-xs transition-colors"
+                className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold text-xs transition-colors disabled:opacity-50"
               >
                 Más tarde
               </button>
@@ -164,16 +263,16 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
                 type="button"
                 onClick={handleApplyUpdate}
                 disabled={isApplying}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs transition-all shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2 active:scale-[0.98]"
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white font-bold text-xs transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-75"
               >
                 {isApplying ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
-                    <span>Actualizando...</span>
+                    <span>{isComplete ? 'Instalando...' : 'Descargando...'}</span>
                   </>
                 ) : (
                   <>
-                    <RefreshCw className="w-3.5 h-3.5 text-white" />
+                    <Download className="w-3.5 h-3.5 text-white" />
                     <span>Actualizar Ahora</span>
                   </>
                 )}

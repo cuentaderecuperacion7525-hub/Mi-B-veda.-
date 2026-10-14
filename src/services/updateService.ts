@@ -8,6 +8,8 @@ export interface UpdateCheckResult {
   hasUpdate: boolean;
   currentVersion: string;
   latestVersion: string;
+  buildNumber?: number;
+  repoName?: string;
   releaseDate?: string;
   changelog?: string[];
   mandatory?: boolean;
@@ -237,6 +239,8 @@ class UpdateService {
         hasUpdate,
         currentVersion: installedVersionName,
         latestVersion: hasRemoteUpdate ? remoteVersionStr : installedVersionName,
+        buildNumber: remoteBuild,
+        repoName: this.getGitHubRepo(),
         releaseDate: remoteData.releaseDate || CURRENT_RELEASE_DATE,
         changelog: remoteData.changelog || CURRENT_CHANGELOG,
         mandatory: remoteData.mandatory || false,

@@ -512,7 +512,10 @@ export default function App() {
             setShowUpdateBanner(false);
             setShowUpdateModal(true);
           }}
-          onApplyUpdate={() => updateService.applyUpdate()}
+          onApplyUpdate={() => {
+            setShowUpdateBanner(false);
+            setShowUpdateModal(true);
+          }}
           onDismiss={() => {
             setShowUpdateBanner(false);
             if (pendingUpdateInfo.latestVersion) {

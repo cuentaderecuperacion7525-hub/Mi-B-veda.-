@@ -9712,7 +9712,7 @@ import {
   Sparkles,
   CheckCircle2
 } from 'lucide-react';
-import { getSafeAppVersionCode, downloadAndInstallApk } from '../services/nativeUpdaterBridge';
+import { getSafeAppVersionCode, downloadAndInstallApk, onDownloadProgress } from '../services/nativeUpdaterBridge';
 import { updateService } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER, CURRENT_RELEASE_DATE } from '../version';
 
@@ -9730,6 +9730,9 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
   const [installedVersionName, setInstalledVersionName] = useState<string>(CURRENT_APP_VERSION);
   const [loading, setLoading] = useState<boolean>(false);
   const [isInstalling, setIsInstalling] = useState<boolean>(false);
+  const [downloadPercent, setDownloadPercent] = useState<number>(0);
+  const [downloadStage, setDownloadStage] = useState<string>('Iniciando descarga...');
+  const [downloadSize, setDownloadSize] = useState<string>('');
   const [status, setStatus] = useState<string>('');
   const [isNative, setIsNative] = useState<boolean>(false);
   const [hasCheckedOnce, setHasCheckedOnce] = useState<boolean>(false);
@@ -9797,14 +9800,70 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
   const ejecutarActualizacion = async () => {
     if (!downloadUrl) return;
     setIsInstalling(true);
-    setStatus('Descargando actualización e iniciando el instalador de Android...');
+    setDownloadPercent(5);
+    setDownloadStage('Conectando con el servidor seguro...');
+    setDownloadSize('');
+
+    let listenerHandle: { remove: () => void } | null = null;
+    let progressTimer: any = null;
+
     try {
+      // 1. Escuchar eventos reales de descarga desde el plugin nativo
+      listenerHandle = await onDownloadProgress((p) => {
+        if (p && typeof p.percent === 'number') {
+          const clamped = Math.min(Math.max(p.percent, 5), 98);
+          setDownloadPercent(clamped);
+          if (p.total > 0) {
+            const loadedMb = (p.loaded / (1024 * 1024)).toFixed(1);
+            const totalMb = (p.total / (1024 * 1024)).toFixed(1);
+            setDownloadSize(`${loadedMb} / ${totalMb} MB`);
+          }
+          if (clamped < 35) {
+            setDownloadStage('Descargando paquete de actualización...');
+          } else if (clamped < 85) {
+            setDownloadStage('Transfiriendo archivos del sistema...');
+          } else {
+            setDownloadStage('Verificando integridad y firma...');
+          }
+        }
+      });
+
+      // 2. Temporizador fluido de respaldo para avance continuo
+      progressTimer = setInterval(() => {
+        setDownloadPercent((prev) => {
+          if (prev < 90) {
+            const step = prev < 30 ? 4 : (prev < 65 ? 3 : 1);
+            const next = prev + step;
+            if (next >= 30 && next < 65) {
+              setDownloadStage('Descargando paquete de actualización APK...');
+            } else if (next >= 65 && next < 90) {
+              setDownloadStage('Comprobando integridad del archivo...');
+            }
+            return next;
+          }
+          return prev;
+        });
+      }, 350);
+
       const res = await downloadAndInstallApk(downloadUrl);
+
+      clearInterval(progressTimer);
+      setDownloadPercent(100);
+      setDownloadStage('¡Descarga completada! Abriendo instalador...');
       setStatus(res.message || 'Instalador de Android abierto en pantalla. Confirma la instalación.');
     } catch (err: any) {
+      clearInterval(progressTimer);
       setStatus(err.message || 'No se pudo completar la instalación automática.');
-    } finally {
       setIsInstalling(false);
+      setDownloadPercent(0);
+    } finally {
+      if (listenerHandle && typeof listenerHandle.remove === 'function') {
+        listenerHandle.remove();
+      }
+      setTimeout(() => {
+        setIsInstalling(false);
+        setDownloadPercent(0);
+      }, 3000);
     }
   };
 
@@ -9877,6 +9936,43 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
             : 'bg-slate-900/70 border-slate-800 text-slate-300'
         }`}>
           {status}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* BARRA DE PROGRESO ANIMADA DURANTE LA ACTUALIZACIÓN        */}
+      {/* ======================================================== */}
+      {isInstalling && (
+        <div className="p-4 rounded-2xl bg-cyan-950/40 border border-cyan-500/50 space-y-2.5 shadow-lg shadow-cyan-950/60 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+              </span>
+              <span className="font-semibold text-cyan-200">Progreso de la actualización</span>
+            </div>
+            <span className="font-mono text-xs font-bold text-cyan-300 bg-cyan-500/15 px-2.5 py-0.5 rounded-full border border-cyan-500/30">
+              {downloadPercent}%
+            </span>
+          </div>
+
+          {/* Barrita estilizada con gradiente cian-esmeralda y brillo activo */}
+          <div className="w-full h-3 rounded-full bg-slate-900 border border-slate-700/80 p-0.5 overflow-hidden shadow-inner">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 transition-all duration-300 ease-out shadow-[0_0_12px_rgba(0,229,255,0.6)] relative"
+              style={{ width: `${Math.max(downloadPercent, 4)}%` }}
+            >
+              <div className="absolute inset-0 bg-white/25 animate-pulse rounded-full" />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono pt-0.5">
+            <span className="truncate text-slate-300">{downloadStage}</span>
+            {downloadSize && (
+              <span className="text-cyan-300 font-semibold shrink-0 ml-2">{downloadSize}</span>
+            )}
+          </div>
         </div>
       )}
 
@@ -23189,31 +23285,47 @@ export function clearIntruderAlert() {
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { CURRENT_BUILD_NUMBER, CURRENT_APP_VERSION } from '../version';
 
+export interface DownloadProgress {
+  percent: number;
+  loaded: number;
+  total: number;
+}
+
 export interface UpdaterPluginInterface {
-  getAppVersionCode(): Promise<{ versionCode: number }>;
-  downloadAndInstall(options: { url: string }): Promise<void>;
+  getAppVersionCode(): Promise<{ versionCode: number; versionName?: string }>;
+  downloadAndInstall(options: { url: string }): Promise<{ success: boolean; message?: string }>;
 }
 
 // Registro del plugin nativo Capacitor con nombre 'UpdaterPlugin'
 export const UpdaterPlugin = registerPlugin<UpdaterPluginInterface>('UpdaterPlugin');
 
+export function onDownloadProgress(callback: (progress: DownloadProgress) => void): Promise<{ remove: () => void }> {
+  if (Capacitor.isNativePlatform() && typeof (UpdaterPlugin as any).addListener === 'function') {
+    return (UpdaterPlugin as any).addListener('downloadProgress', callback);
+  }
+  return Promise.resolve({ remove: () => {} });
+}
+
 /**
  * Obtiene de forma segura el código de versión del APK o el build actual si corre en web
  */
-export async function getSafeAppVersionCode(): Promise<number> {
+export async function getSafeAppVersionCode(): Promise<{ versionCode: number; versionName: string }> {
   if (!Capacitor.isNativePlatform()) {
-    return CURRENT_BUILD_NUMBER;
+    return { versionCode: CURRENT_BUILD_NUMBER, versionName: CURRENT_APP_VERSION };
   }
 
   try {
     const res = await UpdaterPlugin.getAppVersionCode();
     if (res && typeof res.versionCode === 'number') {
-      return res.versionCode;
+      return {
+        versionCode: res.versionCode,
+        versionName: res.versionName || CURRENT_APP_VERSION
+      };
     }
-    return CURRENT_BUILD_NUMBER;
+    return { versionCode: CURRENT_BUILD_NUMBER, versionName: CURRENT_APP_VERSION };
   } catch (err) {
     console.warn('[NativeUpdater] UpdaterPlugin no disponible en este entorno nativo, usando buildNumber:', err);
-    return CURRENT_BUILD_NUMBER;
+    return { versionCode: CURRENT_BUILD_NUMBER, versionName: CURRENT_APP_VERSION };
   }
 }
 

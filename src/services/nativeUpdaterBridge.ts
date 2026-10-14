@@ -1,6 +1,12 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { CURRENT_BUILD_NUMBER, CURRENT_APP_VERSION } from '../version';
 
+export interface DownloadProgress {
+  percent: number;
+  loaded: number;
+  total: number;
+}
+
 export interface UpdaterPluginInterface {
   getAppVersionCode(): Promise<{ versionCode: number; versionName?: string }>;
   downloadAndInstall(options: { url: string }): Promise<{ success: boolean; message?: string }>;
@@ -8,6 +14,13 @@ export interface UpdaterPluginInterface {
 
 // Registro del plugin nativo Capacitor con nombre 'UpdaterPlugin'
 export const UpdaterPlugin = registerPlugin<UpdaterPluginInterface>('UpdaterPlugin');
+
+export function onDownloadProgress(callback: (progress: DownloadProgress) => void): Promise<{ remove: () => void }> {
+  if (Capacitor.isNativePlatform() && typeof (UpdaterPlugin as any).addListener === 'function') {
+    return (UpdaterPlugin as any).addListener('downloadProgress', callback);
+  }
+  return Promise.resolve({ remove: () => {} });
+}
 
 /**
  * Obtiene de forma segura el código de versión del APK o el build actual si corre en web
