@@ -22,10 +22,11 @@ interface BovedaUpdaterProps {
 }
 
 export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog }) => {
-  const [updateAvailable, setUpdateAvailable] = useState<boolean>(false);
-  const [downloadUrl, setDownloadUrl] = useState<string>('');
-  const [serverVersionName, setServerVersionName] = useState<string>('');
-  const [serverVersionCode, setServerVersionCode] = useState<number>(0);
+  const cachedCheck = updateService.getLastCheckResult();
+  const [updateAvailable, setUpdateAvailable] = useState<boolean>(() => !!cachedCheck?.hasUpdate);
+  const [downloadUrl, setDownloadUrl] = useState<string>(() => cachedCheck?.downloadUrl || '');
+  const [serverVersionName, setServerVersionName] = useState<string>(() => cachedCheck?.latestVersion || '');
+  const [serverVersionCode, setServerVersionCode] = useState<number>(() => cachedCheck?.buildNumber || 0);
   const [currentInstalledCode, setCurrentInstalledCode] = useState<number>(CURRENT_BUILD_NUMBER);
   const [installedVersionName, setInstalledVersionName] = useState<string>(CURRENT_APP_VERSION);
   const [loading, setLoading] = useState<boolean>(false);
@@ -35,10 +36,10 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
   const [downloadSize, setDownloadSize] = useState<string>('');
   const [status, setStatus] = useState<string>('');
   const [isNative, setIsNative] = useState<boolean>(false);
-  const [hasCheckedOnce, setHasCheckedOnce] = useState<boolean>(false);
-  const [lastCheckTime, setLastCheckTime] = useState<string>('Al iniciar');
+  const [hasCheckedOnce, setHasCheckedOnce] = useState<boolean>(() => !!cachedCheck);
+  const [lastCheckTime, setLastCheckTime] = useState<string>(() => cachedCheck ? 'Reciente' : 'Al iniciar');
   const [isChangelogOpen, setIsChangelogOpen] = useState<boolean>(false);
-  const [activeChangelog, setActiveChangelog] = useState<string[]>(CURRENT_CHANGELOG);
+  const [activeChangelog, setActiveChangelog] = useState<string[]>(() => cachedCheck?.changelog || CURRENT_CHANGELOG);
   const [installCompleted, setInstallCompleted] = useState<boolean>(false);
 
   useEffect(() => {

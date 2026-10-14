@@ -292,45 +292,51 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
 };
 
 /**
- * Banner superior discreto que aparece al abrir la app si hay actualización lista
+ * Banner superior discreto que aparece al abrir la app si hay actualización lista.
+ * Al tocarlo o pulsar el botón, redirige al menú de actualizaciones de la aplicación
+ * en lugar de actualizar ahí mismo, permitiendo ver la barra de progreso animada (Opción 1).
  */
 interface UpdateBannerProps {
   updateInfo: UpdateCheckResult;
-  onOpenDetails: () => void;
-  onApplyUpdate: () => void;
+  onOpenUpdateMenu: () => void;
+  onOpenDetails?: () => void;
+  onApplyUpdate?: () => void;
   onDismiss: () => void;
 }
 
 export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
   updateInfo,
+  onOpenUpdateMenu,
   onOpenDetails,
   onApplyUpdate,
   onDismiss,
 }) => {
-  const [isApplying, setIsApplying] = useState(false);
-
-  const handleUpdate = async () => {
-    setIsApplying(true);
-    try {
-      if (updateInfo.downloadUrl) {
-        await downloadAndInstallApk(updateInfo.downloadUrl);
-        setIsApplying(false);
-        onDismiss();
-        return;
-      }
-      await updateService.applyUpdate();
-    } catch {
-      window.location.reload();
+  const handleGoToMenu = () => {
+    if (onOpenUpdateMenu) {
+      onOpenUpdateMenu();
+    } else if (onOpenDetails) {
+      onOpenDetails();
+    } else if (onApplyUpdate) {
+      onApplyUpdate();
     }
   };
 
   return (
     <aside 
       aria-label="Aviso de actualización disponible"
-      className="fixed top-3 inset-x-3 sm:inset-x-auto sm:right-4 sm:max-w-md z-[9999] bg-[#0a121d]/95 backdrop-blur-xl border border-cyan-500/50 rounded-2xl p-3 shadow-2xl shadow-cyan-500/20 animate-in slide-in-from-top-4 duration-300 flex items-center justify-between gap-3 text-white"
+      role="button"
+      tabIndex={0}
+      onClick={handleGoToMenu}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleGoToMenu();
+        }
+      }}
+      className="fixed top-3 inset-x-3 sm:inset-x-auto sm:right-4 sm:max-w-md z-[9999] bg-[#0a121d]/95 backdrop-blur-xl border border-cyan-500/50 rounded-2xl p-3 shadow-2xl shadow-cyan-500/20 animate-in slide-in-from-top-4 duration-300 flex items-center justify-between gap-3 text-white cursor-pointer active:scale-[0.99] transition-transform select-none group"
     >
       <div className="flex items-center gap-2.5 min-w-0">
-        <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-[#00e5ff] flex items-center justify-center shrink-0 shadow-sm animate-pulse">
+        <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-[#00e5ff] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform animate-pulse">
           <Sparkles className="w-4.5 h-4.5" />
         </div>
         <div className="min-w-0">
@@ -343,7 +349,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
             </span>
           </div>
           <p className="text-xs font-semibold text-slate-200 truncate mt-0.5">
-            Nuevas mejoras de navegación y zoom
+            Toca aquí para ir al menú y actualizar
           </p>
         </div>
       </div>
@@ -351,32 +357,27 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
       <div className="flex items-center gap-1.5 shrink-0">
         <button
           type="button"
-          onClick={handleUpdate}
-          disabled={isApplying}
-          className="px-3 py-1.5 rounded-xl bg-[#00e5ff] hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-md shadow-cyan-500/30 flex items-center gap-1.5 transition-all active:scale-95"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleGoToMenu();
+          }}
+          className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#00e5ff] to-cyan-400 hover:from-cyan-300 hover:to-teal-300 text-slate-950 font-bold text-xs shadow-md shadow-cyan-500/30 flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+          title="Ir al menú de actualización"
         >
-          {isApplying ? (
-            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="w-3.5 h-3.5" />
-          )}
+          <Sparkles className="w-3.5 h-3.5 text-slate-950" />
           <span>Actualizar</span>
+          <ChevronRight className="w-3.5 h-3.5 text-slate-950 stroke-[2.5]" />
         </button>
 
         <button
           type="button"
-          onClick={onOpenDetails}
-          className="p-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors"
-          title="Ver novedades"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="p-1.5 rounded-xl text-slate-500 hover:text-slate-300 transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDismiss();
+          }}
+          className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
           title="Posponer"
+          aria-label="Posponer aviso"
         >
           <X className="w-4 h-4" />
         </button>

@@ -89,6 +89,10 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
 }) => {
   // Sub-menús de Configuración: null = menú principal vertical
   const [activeSubMenu, setActiveSubMenu] = useState<'security' | 'backup' | 'danger' | 'updates' | null>(() => {
+    if (sessionStorage.getItem('open_updates_tab_on_settings') === 'true') {
+      sessionStorage.removeItem('open_updates_tab_on_settings');
+      return 'updates';
+    }
     if (sessionStorage.getItem('open_backup_tab_on_settings') === 'true') {
       sessionStorage.removeItem('open_backup_tab_on_settings');
       return 'backup';
@@ -145,8 +149,25 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         setActiveSubMenu('backup');
       }
     };
+    const handleCheckUpdatesTab = () => {
+      sessionStorage.removeItem('open_updates_tab_on_settings');
+      setActiveSubMenu('updates');
+    };
+    const handleSwitchSubmenu = (e: any) => {
+      const sub = e.detail?.submenu;
+      if (sub) {
+        setActiveSubMenu(sub);
+      }
+    };
+
     window.addEventListener('nullvault_switch_settings_backup', handleCheckBackupTab);
-    return () => window.removeEventListener('nullvault_switch_settings_backup', handleCheckBackupTab);
+    window.addEventListener('vault_open_updates_menu', handleCheckUpdatesTab);
+    window.addEventListener('settings_switch_submenu', handleSwitchSubmenu);
+    return () => {
+      window.removeEventListener('nullvault_switch_settings_backup', handleCheckBackupTab);
+      window.removeEventListener('vault_open_updates_menu', handleCheckUpdatesTab);
+      window.removeEventListener('settings_switch_submenu', handleSwitchSubmenu);
+    };
   }, []);
 
   // Estado del sistema de actualizaciones

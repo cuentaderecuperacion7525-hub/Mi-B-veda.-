@@ -25,10 +25,10 @@ export const BarraAccionesInferior: React.FC<BarraAccionesProps> = ({
 }) => {
   return (
     <footer
-      className={`fixed bottom-0 left-0 right-0 z-50 w-full bg-slate-950/50 [backdrop-filter:blur(24px)_saturate(180%)] backdrop-blur-xl px-6 py-4 pb-safe flex items-center justify-around border-t border-white/[0.12] shadow-[0_-12px_40px_rgba(0,0,0,0.7)] transition-transform duration-300 relative overflow-hidden ${
+      className={`fixed bottom-0 left-0 right-0 z-50 w-full bg-slate-950/35 [backdrop-filter:blur(24px)_saturate(190%)] backdrop-blur-2xl px-6 py-4 pb-safe flex items-center justify-around border-t border-white/[0.14] shadow-[0_-8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.15)] transition-transform duration-300 relative overflow-hidden ${
         esInmersivo ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
       }`}
-      style={{ WebkitBackdropFilter: 'blur(24px) saturate(180%)' }}
+      style={{ WebkitBackdropFilter: 'blur(24px) saturate(190%)' }}
     >
       {/* Reflejo especular superior fino */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/35 to-transparent" />

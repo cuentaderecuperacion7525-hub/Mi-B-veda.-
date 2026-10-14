@@ -761,6 +761,24 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     }
   };
 
+  // Listener para redirigir directamente al menú de actualización cuando se toca el banner
+  useEffect(() => {
+    const handleOpenUpdatesMenu = () => {
+      setActiveCategory(null);
+      setIsSelectMode(false);
+      setSelectedIds(new Set());
+      navigateToTab('settings');
+      sessionStorage.setItem('open_updates_tab_on_settings', 'true');
+      // Enviar evento al sub-menú para abrir la sección de Actualizaciones de inmediato
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('settings_switch_submenu', { detail: { submenu: 'updates' } }));
+      }, 50);
+    };
+
+    window.addEventListener('vault_open_updates_menu', handleOpenUpdatesMenu);
+    return () => window.removeEventListener('vault_open_updates_menu', handleOpenUpdatesMenu);
+  }, []);
+
   const openCategory = (cat: 'photo' | 'video' | 'audio' | 'app') => {
     window.history.pushState({ vaultCat: cat }, '');
     setActiveCategory(cat);
@@ -2167,8 +2185,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       {/* Barra de Acciones Inferior para Modo Selección - Estilo Glassmorphism ahumado */}
       {isSelectMode || selectedIds.size > 0 ? (
         <footer
-          className="fixed bottom-0 left-0 right-0 z-50 w-full bg-slate-950/60 [backdrop-filter:blur(24px)_saturate(180%)] backdrop-blur-xl px-3 sm:px-8 py-2 pb-[max(calc(env(safe-area-inset-bottom,0px)+0.35rem),0.625rem)] flex items-center justify-around border-t border-white/[0.12] shadow-[0_-12px_40px_rgba(0,0,0,0.7)] select-none animate-in slide-in-from-bottom duration-200 relative overflow-hidden"
-          style={{ WebkitBackdropFilter: 'blur(24px) saturate(180%)' }}
+          className="fixed bottom-0 left-0 right-0 z-50 w-full bg-slate-950/35 [backdrop-filter:blur(24px)_saturate(190%)] backdrop-blur-2xl px-3 sm:px-8 py-2 pb-[max(calc(env(safe-area-inset-bottom,0px)+0.35rem),0.625rem)] flex items-center justify-around border-t border-white/[0.14] shadow-[0_-8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.15)] select-none animate-in slide-in-from-bottom duration-200 relative overflow-hidden"
+          style={{ WebkitBackdropFilter: 'blur(24px) saturate(190%)' }}
         >
           {/* Reflejo especular superior fino */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/35 to-transparent" />
@@ -2252,11 +2270,11 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         </footer>
       ) : (
         <nav
-          className="fixed bottom-0 left-0 right-0 z-40 w-full bg-[#060b14]/80 [backdrop-filter:blur(24px)_saturate(180%)] backdrop-blur-xl border-t border-white/[0.10] shadow-[0_-8px_30px_rgba(0,0,0,0.7)] select-none pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] pt-2 transition-all"
-          style={{ WebkitBackdropFilter: 'blur(24px) saturate(180%)' }}
+          className="fixed bottom-0 left-0 right-0 z-40 w-full bg-[#060b14]/35 [backdrop-filter:blur(24px)_saturate(190%)] backdrop-blur-2xl border-t border-white/[0.14] shadow-[0_-8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.15)] select-none pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] pt-2 transition-all"
+          style={{ WebkitBackdropFilter: 'blur(24px) saturate(190%)' }}
         >
           {/* Reflejo especular superior fino tipo iOS */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
           <div className="max-w-md mx-auto w-full px-6 flex items-center justify-around">
             {/* Botón 1: Mi Bóveda */}
@@ -2266,13 +2284,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 setActiveCategory(null);
                 navigateToTab('vault');
               }}
-              className={`flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 ${
+              className={`flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${
                 activeNavTab === 'vault'
                   ? 'text-[#00e5ff] font-semibold'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  : 'text-slate-300 hover:text-white'
               }`}
             >
-              <Home className={`w-5 h-5 transition-transform ${activeNavTab === 'vault' ? 'scale-110 text-[#00e5ff]' : ''}`} strokeWidth={1.5} />
+              <Home className={`w-5 h-5 transition-transform ${activeNavTab === 'vault' ? 'scale-110 text-[#00e5ff] drop-shadow-[0_0_8px_rgba(0,229,255,0.6)]' : ''}`} strokeWidth={1.5} />
               <span className="text-[10px] sm:text-[11px] tracking-tight">Mi Bóveda</span>
             </button>
 
@@ -2283,13 +2301,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 setActiveCategory(null);
                 navigateToTab('security');
               }}
-              className={`flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 ${
+              className={`flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${
                 activeNavTab === 'security'
                   ? 'text-[#00e5ff] font-semibold'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  : 'text-slate-300 hover:text-white'
               }`}
             >
-              <Shield className={`w-5 h-5 transition-transform ${activeNavTab === 'security' ? 'scale-110 text-[#00e5ff]' : ''}`} strokeWidth={1.5} />
+              <Shield className={`w-5 h-5 transition-transform ${activeNavTab === 'security' ? 'scale-110 text-[#00e5ff] drop-shadow-[0_0_8px_rgba(0,229,255,0.6)]' : ''}`} strokeWidth={1.5} />
               <span className="text-[10px] sm:text-[11px] tracking-tight">Seguridad</span>
             </button>
 
@@ -2300,14 +2318,14 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 setActiveCategory(null);
                 navigateToTab('settings');
               }}
-              className={`flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 ${
+              className={`flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${
                 activeNavTab === 'settings'
                   ? 'text-[#00e5ff] font-semibold'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  : 'text-slate-300 hover:text-white'
               }`}
             >
               <div className="relative">
-                <Settings className={`w-5 h-5 transition-transform ${activeNavTab === 'settings' ? 'scale-110 text-[#00e5ff]' : ''}`} strokeWidth={1.5} />
+                <Settings className={`w-5 h-5 transition-transform ${activeNavTab === 'settings' ? 'scale-110 text-[#00e5ff] drop-shadow-[0_0_8px_rgba(0,229,255,0.6)]' : ''}`} strokeWidth={1.5} />
                 {(hasUpdatePending || liveUpdateAvailable) && (
                   <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00e5ff] shadow-[0_0_8px_#00e5ff] animate-pulse" />
                 )}

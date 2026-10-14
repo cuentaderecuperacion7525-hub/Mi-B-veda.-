@@ -508,13 +508,29 @@ export default function App() {
       {showUpdateBanner && pendingUpdateInfo && (
         <UpdateNotificationBanner
           updateInfo={pendingUpdateInfo}
+          onOpenUpdateMenu={() => {
+            setShowUpdateBanner(false);
+            sessionStorage.setItem('open_updates_tab_on_settings', 'true');
+            window.dispatchEvent(new CustomEvent('vault_open_updates_menu'));
+            if (vaultStatus !== 'unlocked') {
+              setShowUpdateModal(true);
+            }
+          }}
           onOpenDetails={() => {
             setShowUpdateBanner(false);
-            setShowUpdateModal(true);
+            sessionStorage.setItem('open_updates_tab_on_settings', 'true');
+            window.dispatchEvent(new CustomEvent('vault_open_updates_menu'));
+            if (vaultStatus !== 'unlocked') {
+              setShowUpdateModal(true);
+            }
           }}
           onApplyUpdate={() => {
             setShowUpdateBanner(false);
-            setShowUpdateModal(true);
+            sessionStorage.setItem('open_updates_tab_on_settings', 'true');
+            window.dispatchEvent(new CustomEvent('vault_open_updates_menu'));
+            if (vaultStatus !== 'unlocked') {
+              setShowUpdateModal(true);
+            }
           }}
           onDismiss={() => {
             setShowUpdateBanner(false);
