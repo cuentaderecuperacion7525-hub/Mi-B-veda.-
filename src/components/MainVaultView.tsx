@@ -2164,9 +2164,14 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       </div>
     )}
 
-      {/* Barra de Acciones Inferior para Modo Selección - Estilo BarraAccionesInferior (Outline fino, distribución equilibrada, tema oscuro premium) */}
+      {/* Barra de Acciones Inferior para Modo Selección - Estilo Glassmorphism ahumado */}
       {isSelectMode || selectedIds.size > 0 ? (
-        <footer className="fixed bottom-0 left-0 right-0 z-50 w-full bg-zinc-950/95 backdrop-blur-md px-3 sm:px-8 py-2 pb-[max(calc(env(safe-area-inset-bottom,0px)+0.35rem),0.625rem)] flex items-center justify-around border-t border-zinc-900 shadow-2xl select-none animate-in slide-in-from-bottom duration-200">
+        <footer
+          className="fixed bottom-0 left-0 right-0 z-50 w-full bg-slate-950/60 [backdrop-filter:blur(24px)_saturate(180%)] backdrop-blur-xl px-3 sm:px-8 py-2 pb-[max(calc(env(safe-area-inset-bottom,0px)+0.35rem),0.625rem)] flex items-center justify-around border-t border-white/[0.12] shadow-[0_-12px_40px_rgba(0,0,0,0.7)] select-none animate-in slide-in-from-bottom duration-200 relative overflow-hidden"
+          style={{ WebkitBackdropFilter: 'blur(24px) saturate(180%)' }}
+        >
+          {/* Reflejo especular superior fino */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/35 to-transparent" />
           {/* 1. Mover seleccionados a otra carpeta */}
           {activeTab !== 'all' && activeTab !== 'favorites' && (
             <button
@@ -2246,53 +2251,70 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           </button>
         </footer>
       ) : (
-        <nav className="fixed safe-bottom-nav left-4 right-4 z-40 max-w-[320px] mx-auto bg-zinc-900/90 backdrop-blur-2xl border border-zinc-800/90 rounded-full py-2 px-6 flex items-center justify-between shadow-2xl shadow-black/80 select-none">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveCategory(null);
-              navigateToTab('vault');
-            }}
-            className={`flex flex-col items-center gap-1 transition-all cursor-pointer ${
-              activeNavTab === 'vault' ? 'text-zinc-100 font-semibold' : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-          >
-            <Home className="w-5 h-5" strokeWidth={1.5} />
-            <span className="text-[10px] sm:text-[11px] font-medium">Mi Bóveda</span>
-          </button>
+        <nav
+          className="fixed bottom-0 left-0 right-0 z-40 w-full bg-[#060b14]/80 [backdrop-filter:blur(24px)_saturate(180%)] backdrop-blur-xl border-t border-white/[0.10] shadow-[0_-8px_30px_rgba(0,0,0,0.7)] select-none pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] pt-2 transition-all"
+          style={{ WebkitBackdropFilter: 'blur(24px) saturate(180%)' }}
+        >
+          {/* Reflejo especular superior fino tipo iOS */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveCategory(null);
-              navigateToTab('security');
-            }}
-            className={`flex flex-col items-center gap-1 transition-all cursor-pointer ${
-              activeNavTab === 'security' ? 'text-zinc-100 font-semibold' : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-          >
-            <Shield className="w-5 h-5" strokeWidth={1.5} />
-            <span className="text-[10px] sm:text-[11px] font-medium">Seguridad</span>
-          </button>
+          <div className="max-w-md mx-auto w-full px-6 flex items-center justify-around">
+            {/* Botón 1: Mi Bóveda */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategory(null);
+                navigateToTab('vault');
+              }}
+              className={`flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 ${
+                activeNavTab === 'vault'
+                  ? 'text-[#00e5ff] font-semibold'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <Home className={`w-5 h-5 transition-transform ${activeNavTab === 'vault' ? 'scale-110 text-[#00e5ff]' : ''}`} strokeWidth={1.5} />
+              <span className="text-[10px] sm:text-[11px] tracking-tight">Mi Bóveda</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveCategory(null);
-              navigateToTab('settings');
-            }}
-            className={`flex flex-col items-center gap-1 transition-all cursor-pointer ${
-              activeNavTab === 'settings' ? 'text-zinc-100 font-semibold' : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-          >
-            <div className="relative">
-              <Settings className="w-5 h-5" strokeWidth={1.5} />
-              {(hasUpdatePending || liveUpdateAvailable) && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00e5ff] shadow-[0_0_8px_#00e5ff] animate-pulse" />
-              )}
-            </div>
-            <span className="text-[10px] sm:text-[11px] font-medium">Configuración</span>
-          </button>
+            {/* Botón 2: Seguridad */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategory(null);
+                navigateToTab('security');
+              }}
+              className={`flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 ${
+                activeNavTab === 'security'
+                  ? 'text-[#00e5ff] font-semibold'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <Shield className={`w-5 h-5 transition-transform ${activeNavTab === 'security' ? 'scale-110 text-[#00e5ff]' : ''}`} strokeWidth={1.5} />
+              <span className="text-[10px] sm:text-[11px] tracking-tight">Seguridad</span>
+            </button>
+
+            {/* Botón 3: Configuración */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategory(null);
+                navigateToTab('settings');
+              }}
+              className={`flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 ${
+                activeNavTab === 'settings'
+                  ? 'text-[#00e5ff] font-semibold'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <div className="relative">
+                <Settings className={`w-5 h-5 transition-transform ${activeNavTab === 'settings' ? 'scale-110 text-[#00e5ff]' : ''}`} strokeWidth={1.5} />
+                {(hasUpdatePending || liveUpdateAvailable) && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00e5ff] shadow-[0_0_8px_#00e5ff] animate-pulse" />
+                )}
+              </div>
+              <span className="text-[10px] sm:text-[11px] tracking-tight">Configuración</span>
+            </button>
+          </div>
         </nav>
       )}
 

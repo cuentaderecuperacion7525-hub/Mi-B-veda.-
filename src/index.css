@@ -50,11 +50,11 @@
 }
 
 .safe-bottom-fab {
-  bottom: max(calc(env(safe-area-inset-bottom, 0px) + 4.25rem), 4.65rem);
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) + 4.75rem), 5.25rem);
 }
 
 .safe-bottom-fab-menu {
-  bottom: max(calc(env(safe-area-inset-bottom, 0px) + 8.25rem), 8.75rem);
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) + 8.75rem), 9.25rem);
 }
 
 /* Custom scrollbars */
