@@ -105,8 +105,10 @@ const handleKeyUp = (e: KeyboardEvent) => {
 
 const handleContextMenu = (e: MouseEvent) => {
   if (!isBlockerActive) return;
+  // Bloquea el menú contextual nativo (evita "Guardar imagen como...", etc.)
+  // Sin disparar falsa alerta de captura, ya que en Android la pulsación larga
+  // para seleccionar elementos emite automáticamente el evento 'contextmenu'.
   e.preventDefault();
-  triggerScreenshotBlockedAlert();
 };
 
 const handleDragStart = (e: DragEvent) => {

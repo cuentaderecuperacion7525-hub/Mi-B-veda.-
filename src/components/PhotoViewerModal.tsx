@@ -565,7 +565,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     try {
       setShowDeleteConfirm(false);
       await onDelete(activeItem.id);
-      showToast('Elemento eliminado permanentemente de la bóveda', 'success');
+      showToast('Elemento movido a la Papelera de Reciclaje (30 días)', 'info');
       onClose();
     } catch {
       showToast('Error al eliminar el elemento', 'error');

@@ -48,6 +48,8 @@ import {
   saveEncryptedItems,
   deleteEncryptedItem,
   deleteMultipleEncryptedItems,
+  moveToTrash,
+  batchMoveToTrash,
   updateItemMetadata,
   batchUpdateAlbum,
   batchRenameAlbum,
@@ -430,7 +432,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       app: loadFolder('app'),
     });
 
+    const handleTrashUpdated = () => {
+      loadVaultItems();
+    };
+    window.addEventListener('vault_trash_updated', handleTrashUpdated);
+
     return () => {
+      window.removeEventListener('vault_trash_updated', handleTrashUpdated);
       // Memory cleanup when component unmounts / locks
       blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
       blobUrlsRef.current = [];
@@ -1082,11 +1090,17 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     }
   };
 
-  // Delete & Favorite
+  // Delete & Favorite (Movidos a Papelera de reciclaje cifrada con auto-vaciado a 30 días)
   const handleDeleteItem = async (id: string) => {
-    await deleteEncryptedItem(id);
-    setItems((prev) => prev.filter((p) => p.id !== id));
-    setActiveViewerItem(null);
+    try {
+      await moveToTrash(id);
+      setItems((prev) => prev.filter((p) => p.id !== id));
+      setActiveViewerItem(null);
+      showToast('Elemento movido a la Papelera de Reciclaje (30 días)', 'info');
+    } catch (err) {
+      console.error('Error moving item to trash:', err);
+      showToast('Error al mover elemento a la papelera', 'error');
+    }
   };
 
   const handleToggleFavorite = async (id: string, isFav: boolean) => {
@@ -1132,15 +1146,15 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     setIsDeletingBatch(true);
     try {
       const idsToDelete = Array.from(selectedIds);
-      await deleteMultipleEncryptedItems(idsToDelete);
-      showToast(`${idsToDelete.length} elemento(s) eliminado(s) de la bóveda`, 'success');
+      await batchMoveToTrash(idsToDelete);
+      showToast(`${idsToDelete.length} elemento(s) movido(s) a la Papelera (30 días)`, 'info');
       setItems((prev) => prev.filter((p) => !selectedIds.has(p.id)));
       setSelectedIds(new Set());
       setIsSelectMode(false);
       setShowBatchDeleteModal(false);
     } catch (err) {
-      console.error('Error deleting items:', err);
-      showToast('Error al eliminar elementos', 'error');
+      console.error('Error moving items to trash:', err);
+      showToast('Error al mover elementos a la papelera', 'error');
     } finally {
       setIsDeletingBatch(false);
     }
@@ -1309,7 +1323,11 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col relative select-none pb-28 w-full max-w-full"
+      className="min-h-screen flex flex-col relative select-none pb-28 w-full max-w-full transition-colors duration-250"
+      style={{
+        backgroundColor: 'var(--theme-bg-main, #060b14)',
+        color: 'var(--theme-text-main, #f8fafc)',
+      }}
     >
       {/* Drag & Drop Visual Overlay */}
       {isDraggingOver && (
@@ -1389,13 +1407,20 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         /* Screen 1: Bóveda Tab Home (Exact Image 1) */
         <div className="max-w-md mx-auto w-full px-4 pb-28 flex-1 flex flex-col animate-in fade-in duration-200">
           {/* Fixed Pinned Header */}
-          <header className="fixed top-0 left-0 right-0 z-30 bg-[#090d16]/95 backdrop-blur-xl border-b border-slate-800/80 safe-top-sticky pb-3 px-4 shadow-md shadow-black/40 transition-all">
+          <header
+            className="fixed top-0 left-0 right-0 z-30 [backdrop-filter:blur(24px)] backdrop-blur-xl border-b safe-top-sticky pb-3 px-4 shadow-md transition-all"
+            style={{
+              backgroundColor: 'var(--theme-bg-header, rgba(6, 11, 20, 0.94))',
+              borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.8))',
+              WebkitBackdropFilter: 'blur(24px)',
+            }}
+          >
             <div className="max-w-md mx-auto w-full flex items-center justify-between">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white mb-0.5">
-                  Mi <span className="text-[#00e5ff]">Bóveda</span>
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-0.5" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
+                  Mi <span style={{ color: 'var(--theme-primary, #00e5ff)' }}>Bóveda</span>
                 </h1>
-                <p className="text-[10px] font-semibold text-slate-400 tracking-[0.2em] uppercase">
+                <p className="text-[10px] font-semibold tracking-[0.2em] uppercase" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
                   TUS ARCHIVOS, SIEMPRE PROTEGIDOS
                 </p>
               </div>
@@ -2185,8 +2210,12 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       {/* Barra de Acciones Inferior para Modo Selección - Estilo Glassmorphism ahumado */}
       {isSelectMode || selectedIds.size > 0 ? (
         <footer
-          className="fixed bottom-0 left-0 right-0 z-50 w-full bg-slate-950/35 [backdrop-filter:blur(24px)_saturate(190%)] backdrop-blur-2xl px-3 sm:px-8 py-2 pb-[max(calc(env(safe-area-inset-bottom,0px)+0.35rem),0.625rem)] flex items-center justify-around border-t border-white/[0.14] shadow-[0_-8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.15)] select-none animate-in slide-in-from-bottom duration-200 relative overflow-hidden"
-          style={{ WebkitBackdropFilter: 'blur(24px) saturate(190%)' }}
+          className="fixed bottom-0 left-0 right-0 z-50 w-full [backdrop-filter:blur(24px)_saturate(190%)] backdrop-blur-2xl px-3 sm:px-8 py-2 pb-[max(calc(env(safe-area-inset-bottom,0px)+0.5rem),0.75rem)] flex items-center justify-around border-t shadow-[0_-8px_32px_rgba(0,0,0,0.5)] select-none animate-in slide-in-from-bottom duration-200 overflow-hidden"
+          style={{
+            backgroundColor: 'var(--theme-bg-header, rgba(6, 11, 20, 0.75))',
+            borderColor: 'var(--theme-border, rgba(255, 255, 255, 0.14))',
+            WebkitBackdropFilter: 'blur(24px) saturate(190%)',
+          }}
         >
           {/* Reflejo especular superior fino */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/35 to-transparent" />
@@ -2270,8 +2299,12 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         </footer>
       ) : (
         <nav
-          className="fixed bottom-0 left-0 right-0 z-40 w-full bg-[#060b14]/35 [backdrop-filter:blur(24px)_saturate(190%)] backdrop-blur-2xl border-t border-white/[0.14] shadow-[0_-8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.15)] select-none pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] pt-2 transition-all"
-          style={{ WebkitBackdropFilter: 'blur(24px) saturate(190%)' }}
+          className="fixed bottom-0 left-0 right-0 z-40 w-full [backdrop-filter:blur(24px)_saturate(190%)] backdrop-blur-2xl border-t shadow-[0_-8px_32px_rgba(0,0,0,0.5)] select-none pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] pt-2 transition-all"
+          style={{
+            backgroundColor: 'var(--theme-bg-header, rgba(6, 11, 20, 0.75))',
+            borderColor: 'var(--theme-border, rgba(255, 255, 255, 0.14))',
+            WebkitBackdropFilter: 'blur(24px) saturate(190%)',
+          }}
         >
           {/* Reflejo especular superior fino tipo iOS */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent" />
@@ -2284,14 +2317,22 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 setActiveCategory(null);
                 navigateToTab('vault');
               }}
-              className={`flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${
-                activeNavTab === 'vault'
-                  ? 'text-[#00e5ff] font-semibold'
-                  : 'text-slate-300 hover:text-white'
-              }`}
+              style={{
+                color: activeNavTab === 'vault' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
+              }}
+              className="flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 group"
             >
-              <Home className={`w-5 h-5 transition-transform ${activeNavTab === 'vault' ? 'scale-110 text-[#00e5ff] drop-shadow-[0_0_8px_rgba(0,229,255,0.6)]' : ''}`} strokeWidth={1.5} />
-              <span className="text-[10px] sm:text-[11px] tracking-tight">Mi Bóveda</span>
+              <Home
+                className="w-5 h-5 transition-transform"
+                style={{
+                  transform: activeNavTab === 'vault' ? 'scale(1.1)' : undefined,
+                  filter: activeNavTab === 'vault' ? 'drop-shadow(0 0 6px var(--theme-glow))' : undefined,
+                }}
+                strokeWidth={1.5}
+              />
+              <span className={`text-[10px] sm:text-[11px] tracking-tight ${activeNavTab === 'vault' ? 'font-bold' : 'font-medium'}`}>
+                Mi Bóveda
+              </span>
             </button>
 
             {/* Botón 2: Seguridad */}
@@ -2301,14 +2342,22 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 setActiveCategory(null);
                 navigateToTab('security');
               }}
-              className={`flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${
-                activeNavTab === 'security'
-                  ? 'text-[#00e5ff] font-semibold'
-                  : 'text-slate-300 hover:text-white'
-              }`}
+              style={{
+                color: activeNavTab === 'security' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
+              }}
+              className="flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 group"
             >
-              <Shield className={`w-5 h-5 transition-transform ${activeNavTab === 'security' ? 'scale-110 text-[#00e5ff] drop-shadow-[0_0_8px_rgba(0,229,255,0.6)]' : ''}`} strokeWidth={1.5} />
-              <span className="text-[10px] sm:text-[11px] tracking-tight">Seguridad</span>
+              <Shield
+                className="w-5 h-5 transition-transform"
+                style={{
+                  transform: activeNavTab === 'security' ? 'scale(1.1)' : undefined,
+                  filter: activeNavTab === 'security' ? 'drop-shadow(0 0 6px var(--theme-glow))' : undefined,
+                }}
+                strokeWidth={1.5}
+              />
+              <span className={`text-[10px] sm:text-[11px] tracking-tight ${activeNavTab === 'security' ? 'font-bold' : 'font-medium'}`}>
+                Seguridad
+              </span>
             </button>
 
             {/* Botón 3: Configuración */}
@@ -2318,19 +2367,33 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 setActiveCategory(null);
                 navigateToTab('settings');
               }}
-              className={`flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${
-                activeNavTab === 'settings'
-                  ? 'text-[#00e5ff] font-semibold'
-                  : 'text-slate-300 hover:text-white'
-              }`}
+              style={{
+                color: activeNavTab === 'settings' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
+              }}
+              className="flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 group"
             >
               <div className="relative">
-                <Settings className={`w-5 h-5 transition-transform ${activeNavTab === 'settings' ? 'scale-110 text-[#00e5ff] drop-shadow-[0_0_8px_rgba(0,229,255,0.6)]' : ''}`} strokeWidth={1.5} />
+                <Settings
+                  className="w-5 h-5 transition-transform"
+                  style={{
+                    transform: activeNavTab === 'settings' ? 'scale(1.1)' : undefined,
+                    filter: activeNavTab === 'settings' ? 'drop-shadow(0 0 6px var(--theme-glow))' : undefined,
+                  }}
+                  strokeWidth={1.5}
+                />
                 {(hasUpdatePending || liveUpdateAvailable) && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00e5ff] shadow-[0_0_8px_#00e5ff] animate-pulse" />
+                  <span
+                    className="absolute -top-1 -right-1 w-2 h-2 rounded-full animate-pulse"
+                    style={{
+                      backgroundColor: 'var(--theme-primary, #00e5ff)',
+                      boxShadow: '0 0 8px var(--theme-primary, #00e5ff)',
+                    }}
+                  />
                 )}
               </div>
-              <span className="text-[10px] sm:text-[11px] tracking-tight">Configuración</span>
+              <span className={`text-[10px] sm:text-[11px] tracking-tight ${activeNavTab === 'settings' ? 'font-bold' : 'font-medium'}`}>
+                Configuración
+              </span>
             </button>
           </div>
         </nav>

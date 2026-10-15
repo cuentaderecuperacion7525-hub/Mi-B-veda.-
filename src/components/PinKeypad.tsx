@@ -79,9 +79,17 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({
           return (
             <div
               key={index}
+              style={
+                filled
+                  ? {
+                      backgroundColor: 'var(--theme-primary, #00e5ff)',
+                      boxShadow: '0 0 12px var(--theme-glow)',
+                    }
+                  : undefined
+              }
               className={`w-3.5 h-3.5 rounded-full transition-all duration-200 transform ${
                 filled
-                  ? 'bg-gradient-to-tr from-[#00e5ff] to-blue-500 scale-125 shadow-[0_0_12px_rgba(0,229,255,0.7)]'
+                  ? 'scale-125'
                   : 'bg-slate-800/90 border border-slate-700/70 shadow-inner'
               }`}
             />
@@ -120,24 +128,31 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({
                     ? 'Toca para escanear huella digital'
                     : 'Toca para activar sensor de huella'
                 }
+                style={{
+                  color: isBiometricsEnrolled ? 'var(--theme-primary, #00e5ff)' : undefined,
+                  borderColor: isBiometricsEnrolled ? 'var(--theme-primary, #00e5ff)' : undefined,
+                  boxShadow: isBiometricsEnrolled ? '0 0 16px var(--theme-glow)' : undefined,
+                }}
                 className={`h-15 sm:h-16 rounded-2xl flex items-center justify-center relative transition-all active:scale-95 group cursor-pointer ${
                   isBiometricsEnrolled
-                    ? 'bg-[#00e5ff]/10 hover:bg-[#00e5ff]/20 border border-[#00e5ff]/35 text-[#00e5ff] shadow-[0_0_16px_rgba(0,229,255,0.15)]'
-                    : 'bg-slate-800/40 hover:bg-slate-800/70 border border-slate-700/50 text-slate-400 hover:text-[#00e5ff] hover:border-[#00e5ff]/30'
+                    ? 'border'
+                    : 'bg-slate-800/40 hover:bg-slate-800/70 border border-slate-700/50 text-slate-400 hover:text-white'
                 } disabled:opacity-30 disabled:pointer-events-none`}
               >
                 {isBiometricsLoading ? (
                   <div className="relative flex items-center justify-center">
-                    <span className="absolute w-8 h-8 rounded-full border-2 border-[#00e5ff] border-t-transparent animate-spin" />
-                    <Fingerprint className="w-6 h-6 text-[#00e5ff] animate-pulse" />
+                    <span
+                      className="absolute w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+                      style={{ borderColor: 'var(--theme-primary, #00e5ff)' }}
+                    />
+                    <Fingerprint className="w-6 h-6 animate-pulse" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
                   </div>
                 ) : (
                   <Fingerprint
-                    className={`w-6.5 h-6.5 transition-transform group-hover:scale-110 ${
-                      isBiometricsEnrolled
-                        ? 'text-[#00e5ff]'
-                        : 'text-slate-400 group-hover:text-[#00e5ff]'
-                    }`}
+                    className="w-6.5 h-6.5 transition-transform group-hover:scale-110"
+                    style={{
+                      color: isBiometricsEnrolled ? 'var(--theme-primary, #00e5ff)' : undefined,
+                    }}
                   />
                 )}
               </button>

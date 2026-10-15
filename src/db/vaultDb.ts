@@ -61,6 +61,7 @@ export interface EncryptedVaultItem {
   category: VaultItemCategory;
   lastModified?: number;
   originalUri?: string;
+  deletedAt?: number;
 }
 
 // Backwards compatibility alias
@@ -121,7 +122,7 @@ export async function saveEncryptedItems(records: EncryptedVaultItem[]): Promise
 // Alias for photo saving
 export const saveEncryptedPhoto = saveEncryptedItem;
 
-export async function getAllEncryptedItems(): Promise<EncryptedVaultItem[]> {
+export async function getAllEncryptedItems(includeTrash: boolean = false): Promise<EncryptedVaultItem[]> {
   const db = await openVaultDatabase();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], 'readonly');
@@ -129,7 +130,7 @@ export async function getAllEncryptedItems(): Promise<EncryptedVaultItem[]> {
     const request = store.getAll();
 
     request.onsuccess = () => {
-      const results: EncryptedVaultItem[] = (request.result || []).map((raw: any) => {
+      const all: EncryptedVaultItem[] = (request.result || []).map((raw: any) => {
         const name = raw.name || `item_${raw.id}`;
         const mimeType = raw.mimeType || (raw.category === 'video' ? 'video/mp4' : 'image/jpeg');
         const category = raw.category || detectCategory(name, mimeType);
@@ -147,9 +148,12 @@ export async function getAllEncryptedItems(): Promise<EncryptedVaultItem[]> {
           category,
           lastModified: raw.lastModified,
           originalUri: raw.originalUri,
+          deletedAt: raw.deletedAt,
         };
       });
 
+      // Filter out items in trash unless explicitly requested
+      const results = includeTrash ? all : all.filter((item) => !item.deletedAt);
       resolve(results);
     };
     request.onerror = () => reject(request.error);
@@ -158,6 +162,132 @@ export async function getAllEncryptedItems(): Promise<EncryptedVaultItem[]> {
 
 // Alias for photos
 export const getAllEncryptedPhotos = getAllEncryptedItems;
+
+/**
+ * Get all items currently in the Encrypted Trash / Papelera de Reciclaje
+ */
+export async function getTrashItems(): Promise<EncryptedVaultItem[]> {
+  const all = await getAllEncryptedItems(true);
+  return all
+    .filter((item) => typeof item.deletedAt === 'number' && item.deletedAt > 0)
+    .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+}
+
+/**
+ * Move a single item to the trash (soft-delete with 30-day countdown)
+ */
+export async function moveToTrash(id: string): Promise<void> {
+  return batchMoveToTrash([id]);
+}
+
+/**
+ * Move multiple items to the trash
+ */
+export async function batchMoveToTrash(ids: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return;
+  const db = await openVaultDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const now = Date.now();
+
+    ids.forEach((id) => {
+      const getReq = store.get(id);
+      getReq.onsuccess = () => {
+        if (getReq.result) {
+          store.put({ ...getReq.result, deletedAt: now });
+        }
+      };
+    });
+
+    transaction.oncomplete = () => {
+      window.dispatchEvent(new CustomEvent('vault_trash_updated'));
+      resolve();
+    };
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+/**
+ * Restore an item from the trash back to the active vault
+ */
+export async function restoreFromTrash(id: string): Promise<void> {
+  return batchRestoreFromTrash([id]);
+}
+
+/**
+ * Restore multiple items from trash
+ */
+export async function batchRestoreFromTrash(ids: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return;
+  const db = await openVaultDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+
+    ids.forEach((id) => {
+      const getReq = store.get(id);
+      getReq.onsuccess = () => {
+        if (getReq.result) {
+          const item = { ...getReq.result };
+          delete item.deletedAt;
+          store.put(item);
+        }
+      };
+    });
+
+    transaction.oncomplete = () => {
+      window.dispatchEvent(new CustomEvent('vault_trash_updated'));
+      resolve();
+    };
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+/**
+ * Empty the entire trash permanently (hard-delete)
+ */
+export async function emptyTrash(): Promise<number> {
+  const trashItems = await getTrashItems();
+  if (trashItems.length === 0) return 0;
+
+  const ids = trashItems.map((item) => item.id);
+  await deleteMultipleEncryptedItems(ids);
+  window.dispatchEvent(new CustomEvent('vault_trash_updated'));
+  return ids.length;
+}
+
+/**
+ * Automatically purge items that have been in the trash for more than maxDays (default 30 days)
+ */
+export async function autoPurgeTrash(maxDays: number = 30): Promise<number> {
+  const trashItems = await getTrashItems();
+  const cutoff = Date.now() - maxDays * 24 * 60 * 60 * 1000;
+  const expiredIds = trashItems
+    .filter((item) => item.deletedAt && item.deletedAt < cutoff)
+    .map((item) => item.id);
+
+  if (expiredIds.length > 0) {
+    await deleteMultipleEncryptedItems(expiredIds);
+    window.dispatchEvent(new CustomEvent('vault_trash_updated'));
+  }
+  return expiredIds.length;
+}
+
+/**
+ * Get statistics of the encrypted trash
+ */
+export async function getTrashStats(): Promise<{ count: number; totalBytes: number }> {
+  const trash = await getTrashItems();
+  let totalBytes = 0;
+  trash.forEach((item) => {
+    totalBytes += item.size || item.data?.byteLength || 0;
+  });
+  return {
+    count: trash.length,
+    totalBytes,
+  };
+}
 
 export async function getEncryptedItemById(id: string): Promise<EncryptedVaultItem | null> {
   const db = await openVaultDatabase();
@@ -187,6 +317,7 @@ export async function getEncryptedItemById(id: string): Promise<EncryptedVaultIt
         album: raw.album || 'General',
         isFavorite: !!raw.isFavorite,
         category,
+        deletedAt: raw.deletedAt,
       });
     };
     request.onerror = () => reject(request.error);

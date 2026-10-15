@@ -11,10 +11,12 @@ import { LockVaultView } from './components/LockVaultView';
 import { MainVaultView } from './components/MainVaultView';
 import { SettingsModal } from './components/SettingsModal';
 import { ToastContainer, ToastData } from './components/Toast';
-import { openVaultDatabase, clearVaultDatabase } from './db/vaultDb';
+import { openVaultDatabase, clearVaultDatabase, autoPurgeTrash } from './db/vaultDb';
 import { initScreenshotBlocker, setScreenshotBlockToastCallback } from './services/screenshotBlockService';
 import { initBackButtonListener } from './services/backButtonService';
 import { updateService, UpdateCheckResult } from './services/updateService';
+import { flipToLockService } from './services/flipToLockService';
+import { themeService } from './services/themeService';
 import { UpdateNotificationBanner, UpdateNotificationModal } from './components/UpdateNotificationModal';
 import { CURRENT_APP_VERSION } from './version';
 
@@ -131,6 +133,8 @@ export default function App() {
         } else {
           setVaultStatus('setup');
         }
+        // Auto-limpieza en segundo plano de la papelera (elementos mayores a 30 días)
+        autoPurgeTrash(30).catch(() => {});
       } catch (err) {
         console.error('Initialization error:', err);
         setVaultStatus('setup');
@@ -142,6 +146,20 @@ export default function App() {
     setScreenshotBlockToastCallback(showToast);
     initBackButtonListener();
   }, [showToast]);
+
+  // Bloqueo al Voltear el Teléfono Boca Abajo (Flip to Lock / Face-Down)
+  useEffect(() => {
+    if (vaultStatus !== 'unlocked') return;
+
+    const unregister = flipToLockService.register(() => {
+      showToast('Bóveda bloqueada al voltear el teléfono 🔄', 'alert');
+      lockVault();
+    });
+
+    return () => {
+      unregister();
+    };
+  }, [vaultStatus, lockVault, showToast]);
 
   // Root back button press notice
   useEffect(() => {
@@ -435,7 +453,13 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans select-none w-full max-w-full overflow-x-hidden">
+    <div
+      className="min-h-screen flex flex-col font-sans select-none w-full max-w-full overflow-x-hidden transition-colors duration-250"
+      style={{
+        backgroundColor: 'var(--theme-bg-main, #060b14)',
+        color: 'var(--theme-text-main, #f8fafc)',
+      }}
+    >
       {/* Toast Notification Layer */}
       <ToastContainer toasts={toasts} />
 

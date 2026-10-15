@@ -21,11 +21,17 @@ import {
   RefreshCw,
   Sparkles,
   Bell,
+  Palette,
+  RotateCcw,
+  Undo2,
 } from 'lucide-react';
 import { updateService, UpdateCheckResult } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
 import { UpdateNotificationModal } from './UpdateNotificationModal';
 import { BovedaUpdater } from './BovedaUpdater';
+import { NeonSwitch } from './NeonSwitch';
+import { themeService, VaultTheme, VAULT_THEMES } from '../services/themeService';
+import { flipToLockService } from '../services/flipToLockService';
 import {
   exportEncryptedBackupBlob,
   importEncryptedBackupBlobStream,
@@ -36,6 +42,13 @@ import {
   getAllEncryptedItems,
   saveEncryptedItems,
   EncryptedVaultItem,
+  getTrashItems,
+  getTrashStats,
+  emptyTrash,
+  restoreFromTrash,
+  batchRestoreFromTrash,
+  deleteEncryptedItem,
+  deleteMultipleEncryptedItems,
 } from '../db/vaultDb';
 import {
   deriveKeyFromPin,
@@ -88,7 +101,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
   showToast,
 }) => {
   // Sub-menús de Configuración: null = menú principal vertical
-  const [activeSubMenu, setActiveSubMenu] = useState<'security' | 'backup' | 'danger' | 'updates' | null>(() => {
+  const [activeSubMenu, setActiveSubMenu] = useState<'security' | 'backup' | 'danger' | 'updates' | 'trash' | 'theme' | null>(() => {
     if (sessionStorage.getItem('open_updates_tab_on_settings') === 'true') {
       sessionStorage.removeItem('open_updates_tab_on_settings');
       return 'updates';
@@ -97,8 +110,148 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       sessionStorage.removeItem('open_backup_tab_on_settings');
       return 'backup';
     }
+    if (sessionStorage.getItem('open_trash_tab_on_settings') === 'true') {
+      sessionStorage.removeItem('open_trash_tab_on_settings');
+      return 'trash';
+    }
     return null;
   });
+
+  // Theme state
+  const [currentTheme, setCurrentTheme] = useState<VaultTheme>(() => themeService.getTheme());
+  useEffect(() => {
+    return themeService.subscribe((t) => {
+      setCurrentTheme(t);
+    });
+  }, []);
+
+  const handleSelectTheme = (theme: VaultTheme) => {
+    themeService.setTheme(theme);
+    showToast(`Tema "${VAULT_THEMES[theme].name}" activado`, 'success');
+  };
+
+  // Flip to lock state
+  const [flipToLockEnabled, setFlipToLockEnabled] = useState<boolean>(() => flipToLockService.isEnabled());
+
+  const handleToggleFlipToLock = (enabled: boolean) => {
+    setFlipToLockEnabled(enabled);
+    flipToLockService.setEnabled(enabled);
+    showToast(
+      enabled
+        ? 'Bloqueo al voltear boca abajo activado 🔄'
+        : 'Bloqueo al voltear desactivado',
+      'info'
+    );
+  };
+
+  const handleSimulateFlipToLock = () => {
+    showToast('Simulando giro del dispositivo boca abajo...', 'info');
+    setTimeout(() => {
+      flipToLockService.simulateFlipLock();
+    }, 400);
+  };
+
+  // Trash / Papelera de reciclaje state
+  const [trashItems, setTrashItems] = useState<EncryptedVaultItem[]>([]);
+  const [trashStats, setTrashStats] = useState<{ count: number; totalBytes: number }>({ count: 0, totalBytes: 0 });
+  const [isLoadingTrash, setIsLoadingTrash] = useState(false);
+  const [selectedTrashIds, setSelectedTrashIds] = useState<Set<string>>(new Set());
+  const [showEmptyTrashModal, setShowEmptyTrashModal] = useState(false);
+  const [isEmptyingTrash, setIsEmptyingTrash] = useState(false);
+  const [itemToDeleteDefinitively, setItemToDeleteDefinitively] = useState<EncryptedVaultItem | null>(null);
+
+  const loadTrash = async () => {
+    setIsLoadingTrash(true);
+    try {
+      const items = await getTrashItems();
+      setTrashItems(items);
+      const stats = await getTrashStats();
+      setTrashStats(stats);
+    } catch (err) {
+      console.error('Error loading trash items:', err);
+    } finally {
+      setIsLoadingTrash(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTrash();
+    const handleTrashUpdated = () => {
+      loadTrash();
+    };
+    window.addEventListener('vault_trash_updated', handleTrashUpdated);
+    return () => {
+      window.removeEventListener('vault_trash_updated', handleTrashUpdated);
+    };
+  }, []);
+
+  const handleRestoreItem = async (id: string) => {
+    try {
+      await restoreFromTrash(id);
+      showToast('Elemento restaurado a la bóveda', 'success');
+      await loadTrash();
+      await onPhotosUpdated();
+    } catch {
+      showToast('Error al restaurar elemento', 'error');
+    }
+  };
+
+  const handleBatchRestore = async () => {
+    if (selectedTrashIds.size === 0) return;
+    try {
+      const ids = Array.from(selectedTrashIds);
+      await batchRestoreFromTrash(ids);
+      showToast(`${ids.length} elementos restaurados a la bóveda`, 'success');
+      setSelectedTrashIds(new Set());
+      await loadTrash();
+      await onPhotosUpdated();
+    } catch {
+      showToast('Error al restaurar elementos', 'error');
+    }
+  };
+
+  const handleConfirmEmptyTrash = async () => {
+    setIsEmptyingTrash(true);
+    try {
+      const count = await emptyTrash();
+      showToast(`Papelera vaciada (${count} elementos eliminados definitivamente)`, 'success');
+      setShowEmptyTrashModal(false);
+      setSelectedTrashIds(new Set());
+      await loadTrash();
+      await onPhotosUpdated();
+    } catch {
+      showToast('Error al vaciar la papelera', 'error');
+    } finally {
+      setIsEmptyingTrash(false);
+    }
+  };
+
+  const handleConfirmSingleDeleteDefinitive = async () => {
+    if (!itemToDeleteDefinitively) return;
+    try {
+      await deleteEncryptedItem(itemToDeleteDefinitively.id);
+      showToast('Elemento eliminado definitivamente', 'success');
+      setItemToDeleteDefinitively(null);
+      await loadTrash();
+      await onPhotosUpdated();
+    } catch {
+      showToast('Error al eliminar elemento', 'error');
+    }
+  };
+
+  const handleBatchDeleteDefinitive = async () => {
+    if (selectedTrashIds.size === 0) return;
+    try {
+      const ids = Array.from(selectedTrashIds);
+      await deleteMultipleEncryptedItems(ids);
+      showToast(`${ids.length} elementos eliminados definitivamente`, 'success');
+      setSelectedTrashIds(new Set());
+      await loadTrash();
+      await onPhotosUpdated();
+    } catch {
+      showToast('Error al eliminar elementos', 'error');
+    }
+  };
 
   // Gesto táctil de deslizamiento (swipe right) para retroceder
   const touchStartXRef = useRef<number | null>(null);
@@ -281,6 +434,24 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       }, 75);
     }
   }, [showPasteInput]);
+
+  useEffect(() => {
+    if (showEmptyTrashModal) {
+      return registerBackHandler('settings_empty_trash', () => {
+        setShowEmptyTrashModal(false);
+        return true;
+      }, 75);
+    }
+  }, [showEmptyTrashModal]);
+
+  useEffect(() => {
+    if (itemToDeleteDefinitively) {
+      return registerBackHandler('settings_delete_trash_item', () => {
+        setItemToDeleteDefinitively(null);
+        return true;
+      }, 75);
+    }
+  }, [itemToDeleteDefinitively]);
 
   // Si está en un submenú, al presionar atrás regresa a la lista vertical de configuración
   useEffect(() => {
@@ -754,14 +925,21 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
   return (
     <div className="w-full max-w-md mx-auto px-4 pb-28 animate-in fade-in duration-200 select-none box-border">
       {/* Fixed Pinned Header */}
-      <header className="fixed top-0 left-0 right-0 z-30 bg-[#090d16]/95 backdrop-blur-xl border-b border-slate-800/80 safe-top-sticky pb-3 px-4 shadow-md shadow-black/40 transition-all">
+      <header
+        className="fixed top-0 left-0 right-0 z-30 [backdrop-filter:blur(24px)] backdrop-blur-xl border-b safe-top-sticky pb-3 px-4 shadow-md transition-all"
+        style={{
+          backgroundColor: 'var(--theme-bg-header, rgba(6, 11, 20, 0.94))',
+          borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.8))',
+          WebkitBackdropFilter: 'blur(24px)',
+        }}
+      >
         <div className="max-w-md mx-auto w-full">
           {activeSubMenu === null ? (
             <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mb-0.5">
-                Configu<span className="text-[#00e5ff]">ración</span>
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-0.5" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
+                Configu<span style={{ color: 'var(--theme-primary, #00e5ff)' }}>ración</span>
               </h1>
-              <p className="text-[10px] font-semibold text-slate-400 tracking-[0.2em] uppercase">
+              <p className="text-[10px] font-semibold tracking-[0.2em] uppercase" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
                 AJUSTES Y PREFERENCIAS DE BÓVEDA
               </p>
             </div>
@@ -774,16 +952,20 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 title="Volver a Configuración"
                 aria-label="Volver"
               >
-                <ArrowLeft className="w-5 h-5 text-[#00e5ff]" />
+                <ArrowLeft className="w-5 h-5" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
               </button>
               <div className="min-w-0 flex-1">
-                <h1 className="text-xl font-bold tracking-tight text-white truncate mb-0.5">
+                <h1 className="text-xl font-bold tracking-tight truncate mb-0.5" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
                   {activeSubMenu === 'security'
                     ? 'Seguridad y PIN'
                     : activeSubMenu === 'backup'
                     ? 'Copia de Seguridad'
                     : activeSubMenu === 'updates'
                     ? 'Actualizaciones del Sistema'
+                    : activeSubMenu === 'trash'
+                    ? 'Papelera de Reciclaje'
+                    : activeSubMenu === 'theme'
+                    ? 'Temas y Apariencia'
                     : 'Restablecer Bóveda'}
                 </h1>
                 <p className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase truncate">
@@ -793,6 +975,10 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     ? 'Respaldo y restauración cifrada'
                     : activeSubMenu === 'updates'
                     ? 'Búsqueda de novedades y versión actual'
+                    : activeSubMenu === 'trash'
+                    ? 'Auto-vaciado a 30 días y borrado definitivo'
+                    : activeSubMenu === 'theme'
+                    ? 'Paletas Neón y Negro Puro AMOLED'
                     : 'Zona de peligro'}
                 </p>
               </div>
@@ -821,7 +1007,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   Seguridad y PIN
                 </h3>
                 <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                  Cambiar PIN maestro, auto-bloqueo y timeout
+                  Cambiar PIN, bloqueo al voltear 🔄 y timeout
                 </p>
               </div>
             </div>
@@ -853,7 +1039,65 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             </div>
           </div>
 
-          {/* Tarjeta 3: Actualizaciones del Sistema */}
+          {/* Tarjeta 3: Papelera de Reciclaje Cifrada (30 días) */}
+          <div
+            onClick={() => setActiveSubMenu('trash')}
+            className="bg-[#0a121d] border border-slate-800/90 hover:border-amber-500/40 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 group-hover:scale-105 transition-transform">
+                <Trash2 className="w-4.5 h-4.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors truncate">
+                    Papelera de Reciclaje Cifrada
+                  </h3>
+                  {trashStats.count > 0 && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      {trashStats.count} {trashStats.count === 1 ? 'arch.' : 'archs.'}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                  Auto-vaciado a 30 días o eliminación definitiva
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-slate-900 border border-slate-800 text-slate-500 group-hover:text-amber-400 group-hover:border-amber-500/40 transition-colors">
+              <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </div>
+
+          {/* Tarjeta 4: Temas y Apariencia Visual */}
+          <div
+            onClick={() => setActiveSubMenu('theme')}
+            className="bg-[#0a121d] border border-slate-800/90 hover:border-purple-500/40 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0 group-hover:scale-105 transition-transform">
+                <Palette className="w-4.5 h-4.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-white group-hover:text-purple-400 transition-colors truncate">
+                    Temas y Apariencia Visual
+                  </h3>
+                  <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                    {VAULT_THEMES[currentTheme]?.name || 'Cian Neón'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                  Cian Neón, AMOLED puro, Esmeralda, Violeta y Claro
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-slate-900 border border-slate-800 text-slate-500 group-hover:text-purple-400 group-hover:border-purple-500/40 transition-colors">
+              <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </div>
+
+          {/* Tarjeta 5: Actualizaciones del Sistema */}
           <div
             onClick={() => setActiveSubMenu('updates')}
             className="bg-[#0a121d] border border-slate-800/90 hover:border-cyan-500/40 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
@@ -883,7 +1127,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             </div>
           </div>
 
-          {/* Tarjeta 4: Restablecer Bóveda (Zona de Peligro) */}
+          {/* Tarjeta 6: Restablecer Bóveda (Zona de Peligro) */}
           <div
             onClick={() => setActiveSubMenu('danger')}
             className="bg-[#0a121d] border border-rose-950/60 hover:border-rose-500/50 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
@@ -950,19 +1194,49 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     <EyeOff className="w-4 h-4 text-[#00e5ff]" />
                     <div>
                       <p className="text-xs font-semibold text-slate-200">Bloquear al cambiar de pestaña</p>
-                      <p className="text-[11px] text-slate-400">Protege tu pantalla si sales del navegador</p>
+                      <p className="text-[11px] text-slate-400">Protege tu pantalla si sales del navegador o minimizas</p>
                     </div>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={lockOnTabSwitch}
-                      onChange={(e) => onLockOnTabSwitchChange(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-10 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00e5ff]"></div>
-                  </label>
+                  <NeonSwitch
+                    checked={lockOnTabSwitch}
+                    onChange={onLockOnTabSwitchChange}
+                    ariaLabel="Bloquear al cambiar de pestaña"
+                  />
                 </div>
+
+                {/* Bloqueo al Voltear Boca Abajo (Flip to Lock / Face-Down) 🔄 */}
+                <div className="border-t border-slate-800/80 pt-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <RotateCcw className="w-4 h-4 text-[#00e5ff]" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-semibold text-slate-200">Bloqueo al Voltear Boca Abajo</p>
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-[#00e5ff] border border-cyan-500/30">
+                          Face-Down 🔄
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">Bloquea la bóveda al colocar el móvil sobre la mesa o voltearlo</p>
+                    </div>
+                  </div>
+                  <NeonSwitch
+                    checked={flipToLockEnabled}
+                    onChange={handleToggleFlipToLock}
+                    ariaLabel="Bloqueo al voltear boca abajo"
+                  />
+                </div>
+
+                {flipToLockEnabled && (
+                  <div className="pt-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSimulateFlipToLock}
+                      className="text-[11px] font-medium text-[#00e5ff] hover:text-cyan-300 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#00e5ff]/10 hover:bg-[#00e5ff]/20 border border-[#00e5ff]/25 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      Probar volteo (Simular Face-Down)
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1316,15 +1590,11 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   </div>
                 </div>
 
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={autoCheckUpdates}
-                    onChange={(e) => handleToggleAutoCheck(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-10 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00e5ff]"></div>
-                </label>
+                <NeonSwitch
+                  checked={autoCheckUpdates}
+                  onChange={handleToggleAutoCheck}
+                  ariaLabel="Avisos automáticos de actualización"
+                />
               </div>
             </div>
             {/* Consejo de seguridad */}
@@ -1339,7 +1609,357 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             </div>
           </div>
         )}
+
+        {/* Submenú: Papelera de Reciclaje Cifrada (30 días) 🗑️ */}
+        {activeSubMenu === 'trash' && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Tarjeta explicativa */}
+            <div className="bg-[#0a121d] p-4 rounded-3xl border border-slate-800/90 shadow-xl space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-white">Papelera Cifrada</h3>
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Auto-Vaciado 30d 🗑️
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    Los archivos permanecen cifrados con tu clave <strong className="text-slate-300">AES-256-GCM</strong>.
+                    Se auto-destruyen tras <strong className="text-amber-400 font-semibold">30 días</strong>, o puedes restaurarlos o eliminarlos definitivamente cuando desees.
+                  </p>
+                </div>
+              </div>
+
+              {/* Barra de estado y acción de vaciado */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800/80">
+                <div className="text-xs text-slate-400">
+                  Total en papelera: <strong className="text-white font-bold">{trashStats.count}</strong> elemento(s)
+                  {trashStats.totalBytes > 0 && ` • ${formatFileSize(trashStats.totalBytes)}`}
+                </div>
+                {trashItems.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowEmptyTrashModal(true)}
+                    className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm shadow-rose-900/30"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Vaciar Papelera Ahora
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Barra de acciones para elementos seleccionados */}
+            {selectedTrashIds.size > 0 && (
+              <div className="bg-[#0f172a] border border-[#00e5ff]/30 p-3 rounded-2xl flex items-center justify-between shadow-xl animate-in fade-in duration-150">
+                <span className="text-xs font-semibold text-slate-200">
+                  {selectedTrashIds.size} elemento(s) seleccionado(s)
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleBatchRestore}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <Undo2 className="w-3.5 h-3.5" />
+                    Restaurar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBatchDeleteDefinitive}
+                    className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-md shadow-rose-600/30"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Lista de archivos en la papelera */}
+            {trashItems.length === 0 ? (
+              <div className="bg-[#0a121d] border border-slate-800/80 rounded-3xl p-8 text-center space-y-3">
+                <div className="w-14 h-14 rounded-3xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-slate-500 mx-auto">
+                  <Trash2 className="w-7 h-7" />
+                </div>
+                <h4 className="text-sm font-bold text-white">La papelera está vacía</h4>
+                <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+                  Cuando borres fotos, videos o archivos de tu bóveda, se enviarán aquí con resguardo cifrado de 30 días antes de su destrucción definitiva.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1 text-xs text-slate-400">
+                  <span>Archivos en espera ({trashItems.length})</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedTrashIds.size === trashItems.length) {
+                        setSelectedTrashIds(new Set());
+                      } else {
+                        setSelectedTrashIds(new Set(trashItems.map((t) => t.id)));
+                      }
+                    }}
+                    className="text-[#00e5ff] hover:underline font-semibold cursor-pointer"
+                  >
+                    {selectedTrashIds.size === trashItems.length ? 'Deseleccionar todo' : 'Seleccionar todo'}
+                  </button>
+                </div>
+
+                {trashItems.map((item) => {
+                  const daysPassed = item.deletedAt ? Math.floor((Date.now() - item.deletedAt) / (1000 * 60 * 60 * 24)) : 0;
+                  const daysRemaining = Math.max(0, 30 - daysPassed);
+                  const isSelected = selectedTrashIds.has(item.id);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                        isSelected
+                          ? 'bg-slate-800/70 border-[#00e5ff]/60 shadow-md shadow-[#00e5ff]/5'
+                          : 'bg-[#0a121d] border-slate-800/90 hover:border-slate-700'
+                      }`}
+                    >
+                      <div
+                        className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer select-none"
+                        onClick={() => {
+                          setSelectedTrashIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(item.id)) next.delete(item.id);
+                            else next.add(item.id);
+                            return next;
+                          });
+                        }}
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0">
+                          {item.category === 'photo' ? (
+                            <FileText className="w-5 h-5 text-amber-400" />
+                          ) : item.category === 'video' ? (
+                            <FileText className="w-5 h-5 text-sky-400" />
+                          ) : item.category === 'audio' ? (
+                            <FileText className="w-5 h-5 text-purple-400" />
+                          ) : (
+                            <FileText className="w-5 h-5 text-emerald-400" />
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs font-semibold text-white truncate">{item.name}</h4>
+                          <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-slate-400">
+                            <span>{formatFileSize(item.size)}</span>
+                            <span>•</span>
+                            <span className={`font-semibold ${daysRemaining <= 5 ? 'text-rose-400' : 'text-amber-400'}`}>
+                              Auto-vaciado en {daysRemaining} {daysRemaining === 1 ? 'día' : 'días'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          title="Restaurar a la bóveda"
+                          onClick={() => handleRestoreItem(item.id)}
+                          className="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 hover:text-emerald-300 border border-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <Undo2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Eliminar definitivamente ahora"
+                          onClick={() => setItemToDeleteDefinitively(item)}
+                          className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 hover:text-rose-300 border border-rose-500/20 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Submenú: Temas y Apariencia Visual 🎨 */}
+        {activeSubMenu === 'theme' && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Encabezado */}
+            <div className="bg-[#0a121d] p-4 rounded-3xl border border-slate-800/90 shadow-xl space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400 shrink-0">
+                  <Palette className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Temas de la Bóveda</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Personaliza la estética visual o maximiza el ahorro de batería en pantallas OLED.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Listado de temas */}
+            <div className="space-y-2.5">
+              {Object.values(VAULT_THEMES).map((themeDef) => {
+                const isSelected = currentTheme === themeDef.id;
+
+                return (
+                  <div
+                    key={themeDef.id}
+                    onClick={() => handleSelectTheme(themeDef.id)}
+                    className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] ${
+                      isSelected
+                        ? 'bg-[#0a121d] border-2 shadow-lg'
+                        : 'bg-[#0a121d] border-slate-800/90 hover:border-slate-700'
+                    }`}
+                    style={{
+                      borderColor: isSelected ? themeDef.primaryColor : undefined,
+                      boxShadow: isSelected ? `0 0 16px ${themeDef.glowColor}` : undefined,
+                    }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {/* Paleta de círculos cromáticos de vista previa */}
+                      <div className="flex items-center -space-x-2 shrink-0">
+                        <span
+                          className="w-6 h-6 rounded-full border border-slate-900 shadow-md shrink-0"
+                          style={{ backgroundColor: themeDef.primaryColor }}
+                        />
+                        <span
+                          className="w-6 h-6 rounded-full border border-slate-900 shadow-md shrink-0"
+                          style={{ backgroundColor: themeDef.bgCard }}
+                        />
+                        <span
+                          className="w-6 h-6 rounded-full border border-slate-900 shadow-md shrink-0"
+                          style={{ backgroundColor: themeDef.bgMain }}
+                        />
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-bold text-white truncate">{themeDef.name}</h4>
+                          {themeDef.id === 'amoled' && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-800 text-sky-400 border border-slate-700">
+                              OLED Puro
+                            </span>
+                          )}
+                          {themeDef.id === 'cyan' && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-800/70">
+                              Original
+                            </span>
+                          )}
+                          {themeDef.id === 'emerald' && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-950/70 text-emerald-300 border border-emerald-800/70">
+                              Seguro
+                            </span>
+                          )}
+                          {themeDef.id === 'violet' && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-purple-950/70 text-purple-300 border border-purple-800/70">
+                              Cripto
+                            </span>
+                          )}
+                          {themeDef.id === 'light' && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-800 border border-slate-300">
+                              Claro
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{themeDef.tagline}</p>
+                      </div>
+                    </div>
+
+                    {/* Radio/Check button indicator */}
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                        isSelected
+                          ? 'text-white font-bold shadow-sm'
+                          : 'border border-slate-700 bg-slate-800/60 text-transparent'
+                      }`}
+                      style={{
+                        backgroundColor: isSelected ? themeDef.primaryColor : undefined,
+                        color: isSelected ? '#ffffff' : undefined,
+                      }}
+                    >
+                      {isSelected && <Check className="w-3.5 h-3.5 stroke-[3] text-white" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
+      )}
+
+      {/* Modal: Confirmación de Vaciar Papelera Definitivamente */}
+      {showEmptyTrashModal && (
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-[#0e1626] border-2 border-rose-500/60 rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-400 flex items-center justify-center mb-3">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-white mb-1.5">
+              ¿Vaciar la papelera definitivamente?
+            </h3>
+            <p className="text-xs text-slate-300 mb-5 leading-relaxed">
+              Esta acción eliminará de forma irreversible <strong>{trashStats.count} elemento(s)</strong> ({formatFileSize(trashStats.totalBytes)}) de tu dispositivo. No podrás recuperarlos.
+            </p>
+            <div className="flex gap-2.5">
+              <button
+                type="button"
+                disabled={isEmptyingTrash}
+                onClick={() => setShowEmptyTrashModal(false)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isEmptyingTrash}
+                onClick={handleConfirmEmptyTrash}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all shadow-lg shadow-rose-600/30 active:scale-[0.98] cursor-pointer"
+              >
+                {isEmptyingTrash ? 'Vaciando...' : 'Sí, Vaciar Todo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Confirmación de Eliminar Un Solo Elemento Definitivamente */}
+      {itemToDeleteDefinitively && (
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-[#0e1626] border-2 border-rose-500/60 rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-400 flex items-center justify-center mb-3">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-white mb-1.5">
+              ¿Eliminar definitivamente este archivo?
+            </h3>
+            <p className="text-xs text-slate-300 mb-5 leading-relaxed">
+              El archivo <strong className="text-white truncate block my-1">"{itemToDeleteDefinitively.name}"</strong> ({formatFileSize(itemToDeleteDefinitively.size)}) será destruido permanentemente de tu dispositivo.
+            </p>
+            <div className="flex gap-2.5">
+              <button
+                type="button"
+                onClick={() => setItemToDeleteDefinitively(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSingleDeleteDefinitive}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all shadow-lg shadow-rose-600/30 active:scale-[0.98] cursor-pointer"
+              >
+                Eliminar Definitivamente
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal 1: Confirmación Inicial (OK) para Borrar Datos */}

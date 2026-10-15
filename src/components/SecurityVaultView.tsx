@@ -393,13 +393,20 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   return (
     <div className="w-full max-w-md mx-auto px-4 pb-28 animate-in fade-in duration-200 select-none box-border">
       {/* Fixed Pinned Header */}
-      <header className="fixed top-0 left-0 right-0 z-30 bg-[#090d16]/95 backdrop-blur-xl border-b border-slate-800/80 safe-top-sticky pb-3 px-4 shadow-md shadow-black/40 transition-all">
+      <header
+        className="fixed top-0 left-0 right-0 z-30 [backdrop-filter:blur(24px)] backdrop-blur-xl border-b safe-top-sticky pb-3 px-4 shadow-md transition-all"
+        style={{
+          backgroundColor: 'var(--theme-bg-header, rgba(6, 11, 20, 0.94))',
+          borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.8))',
+          WebkitBackdropFilter: 'blur(24px)',
+        }}
+      >
         <div className="max-w-md mx-auto w-full flex items-center justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mb-0.5">
-              Seguri<span className="text-[#00e5ff]">dad</span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-0.5" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
+              Seguri<span style={{ color: 'var(--theme-primary, #00e5ff)' }}>dad</span>
             </h1>
-            <p className="text-[10px] font-semibold text-slate-400 tracking-[0.2em] uppercase">
+            <p className="text-[10px] font-semibold tracking-[0.2em] uppercase" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
               PROTECCIÓN ACTIVA Y REGISTRO DE ACCESOS
             </p>
           </div>
