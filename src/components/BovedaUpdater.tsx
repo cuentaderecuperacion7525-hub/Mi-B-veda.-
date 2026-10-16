@@ -5,23 +5,26 @@ import {
   Download,
   Sparkles,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   ShieldCheck,
-  Layers,
-  Wifi,
+  Shield,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Bell,
+  Check,
+  Smartphone,
+  Globe
 } from 'lucide-react';
 import { getSafeAppVersionCode, downloadAndInstallApk, onDownloadProgress } from '../services/nativeUpdaterBridge';
 import { updateService } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER, CURRENT_RELEASE_DATE, CURRENT_CHANGELOG } from '../version';
+import { NeonSwitch } from './NeonSwitch';
 
 interface BovedaUpdaterProps {
   onOpenChangelog?: () => void;
+  onNavigateToBackup?: () => void;
 }
 
-export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog }) => {
+export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog, onNavigateToBackup }) => {
   const cachedCheck = updateService.getLastCheckResult();
   const [updateAvailable, setUpdateAvailable] = useState<boolean>(() => !!cachedCheck?.hasUpdate);
   const [downloadUrl, setDownloadUrl] = useState<string>(() => cachedCheck?.downloadUrl || '');
@@ -32,15 +35,15 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
   const [loading, setLoading] = useState<boolean>(false);
   const [isInstalling, setIsInstalling] = useState<boolean>(false);
   const [downloadPercent, setDownloadPercent] = useState<number>(0);
-  const [downloadStage, setDownloadStage] = useState<string>('Iniciando descarga segura...');
+  const [downloadStage, setDownloadStage] = useState<string>('Iniciando canal seguro...');
   const [downloadSize, setDownloadSize] = useState<string>('');
   const [status, setStatus] = useState<string>('');
   const [isNative, setIsNative] = useState<boolean>(false);
   const [hasCheckedOnce, setHasCheckedOnce] = useState<boolean>(() => !!cachedCheck);
   const [lastCheckTime, setLastCheckTime] = useState<string>(() => cachedCheck ? 'Reciente' : 'Al iniciar');
-  const [isChangelogOpen, setIsChangelogOpen] = useState<boolean>(false);
   const [activeChangelog, setActiveChangelog] = useState<string[]>(() => cachedCheck?.changelog || CURRENT_CHANGELOG);
   const [installCompleted, setInstallCompleted] = useState<boolean>(false);
+  const [autoCheckUpdates, setAutoCheckUpdates] = useState<boolean>(() => updateService.isAutoCheckEnabled());
 
   useEffect(() => {
     setIsNative(Capacitor.isNativePlatform());
@@ -52,7 +55,13 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
     return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Lógica unificada de verificación (automática al inicio y manual mediante el botón)
+  // Toggle de avisos automáticos
+  const handleToggleAutoCheck = (enabled: boolean) => {
+    setAutoCheckUpdates(enabled);
+    updateService.setAutoCheckEnabled(enabled);
+  };
+
+  // Lógica unificada de verificación
   const verificarActualizaciones = useCallback(async (esManual: boolean = false) => {
     setLoading(true);
     if (esManual) {
@@ -93,9 +102,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
       if (res.hasUpdate) {
         setUpdateAvailable(true);
         setDownloadUrl(res.downloadUrl || '');
-        setStatus(`¡Nueva versión v${res.latestVersion} lista para instalar! Presiona el botón verde.`);
-        // Si hay actualización nueva, expandir automáticamente para ver las mejoras
-        setIsChangelogOpen(true);
+        setStatus(`Nueva versión v${res.latestVersion} lista para instalar.`);
       } else {
         setUpdateAvailable(false);
         if (esManual) {
@@ -107,7 +114,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
       setHasCheckedOnce(true);
       setLastCheckTime(getFormattedTime());
       if (esManual) {
-        setStatus(error?.message || 'No se pudo conectar a GitHub. Revisa tu conexión o permisos del repositorio.');
+        setStatus(error?.message || 'No se pudo conectar a GitHub. Revisa tu conexión.');
       }
     } finally {
       setLoading(false);
@@ -119,20 +126,19 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
     verificarActualizaciones(false);
   }, [verificarActualizaciones]);
 
-  // Ejecución de la descarga e instalación automática (Opción 1: Barra de progreso viva)
+  // Ejecución de la descarga e instalación automática
   const ejecutarActualizacion = async () => {
     if (!downloadUrl) return;
     setIsInstalling(true);
     setInstallCompleted(false);
     setDownloadPercent(8);
-    setDownloadStage('Conectando con GitHub Releases y preparando canal seguro...');
+    setDownloadStage('Conectando con GitHub Releases y canal seguro...');
     setDownloadSize('');
 
     let listenerHandle: { remove: () => void } | null = null;
     let progressTimer: any = null;
 
     try {
-      // 1. Escuchar eventos reales de descarga desde el plugin nativo
       listenerHandle = await onDownloadProgress((p) => {
         if (p && typeof p.percent === 'number') {
           const clamped = Math.min(Math.max(p.percent, 8), 98);
@@ -147,14 +153,13 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
           } else if (clamped < 75) {
             setDownloadStage('Transfiriendo archivos del sistema y componentes...');
           } else if (clamped < 95) {
-            setDownloadStage('Comprobando integridad y firma criptográfica SHA-256...');
+            setDownloadStage('Comprobando firma criptográfica SHA-256...');
           } else {
             setDownloadStage('Finalizando descarga...');
           }
         }
       });
 
-      // 2. Temporizador fluido de respaldo para avance constante y natural
       progressTimer = setInterval(() => {
         setDownloadPercent((prev) => {
           if (prev < 92) {
@@ -163,7 +168,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
             if (next >= 30 && next < 65) {
               setDownloadStage('Descargando paquete de actualización APK...');
             } else if (next >= 65 && next < 88) {
-              setDownloadStage('Verificando integridad del archivo y firma...');
+              setDownloadStage('Verificando integridad y firma SHA-256...');
             } else if (next >= 88) {
               setDownloadStage('Preparando instalador de Android...');
             }
@@ -190,7 +195,6 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
       if (listenerHandle && typeof listenerHandle.remove === 'function') {
         listenerHandle.remove();
       }
-      // Mantener la confirmación visible un momento antes de restaurar
       setTimeout(() => {
         if (!installCompleted) {
           setIsInstalling(false);
@@ -200,256 +204,233 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = ({ onOpenChangelog })
   };
 
   return (
-    <div className="bg-[#0a121d] p-4.5 sm:p-5 rounded-3xl border border-cyan-500/30 shadow-2xl shadow-cyan-950/40 space-y-4 relative overflow-hidden">
-      {/* Resplandor decorativo de fondo */}
-      <div className="absolute -top-16 -right-16 w-36 h-36 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-
+    <div className="bg-[radial-gradient(circle_at_center,#111827_0%,#030712_100%)] p-4 sm:p-5 rounded-3xl space-y-4 sm:space-y-5 relative font-sans shadow-2xl border border-white/[0.05] box-border">
       {/* ======================================================== */}
-      {/* OPCIÓN 4: MONITOR DE ESTADO Y ENCABEZADO FUTURISTA       */}
+      {/* TARJETA 1: ESTADO ACTUAL Y DATOS DE GITHUB               */}
       {/* ======================================================== */}
-      <div className="flex items-center justify-between gap-3 relative z-10">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-11 h-11 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-[#00e5ff] shrink-0 shadow-lg shadow-cyan-500/15">
-            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+      <section className="bg-slate-900/40 backdrop-blur-lg border border-white/[0.08] border-t border-t-white/10 rounded-3xl p-4.5 sm:p-5 shadow-2xl shadow-black/40 space-y-4 relative overflow-hidden transition-all">
+        {/* Encabezado de la tarjeta */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+              ESTADO ACTUAL Y GITHUB
+            </span>
+            <h3 className="text-white text-base font-semibold truncate">
+              {updateAvailable
+                ? `Nueva versión v${serverVersionName || 'disponible'}`
+                : 'Sistema actualizado y protegido'}
+            </h3>
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h4 className="text-sm font-bold text-white truncate">Actualizaciones del Sistema</h4>
-              {onOpenChangelog ? (
-                <button
-                  type="button"
-                  onClick={onOpenChangelog}
-                  title="Ver novedades de la versión"
-                  className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 hover:bg-cyan-500/20 px-2 py-0.5 rounded-full border border-cyan-500/25 cursor-pointer transition-colors"
-                >
-                  v{installedVersionName}
-                </button>
-              ) : (
-                <span className="font-mono text-xs font-bold text-[#00e5ff] bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
-                  v{installedVersionName}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium truncate mt-0.5">
-              <span>Lanzamiento: {CURRENT_RELEASE_DATE}</span>
-            </div>
-          </div>
-        </div>
 
-        {/* Badge dinámico de estado */}
-        {updateAvailable ? (
-          <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-cyan-500/20 text-[#00e5ff] border border-cyan-500/40 animate-pulse flex items-center gap-1 shadow-md shadow-cyan-500/20">
-            <Sparkles className="w-3 h-3" />
-            Nueva versión
-          </span>
-        ) : (
-          <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3 stroke-[2.5]" />
-            Al día
-          </span>
-        )}
-      </div>
-
-      {/* ======================================================== */}
-      {/* OPCIÓN 4: RADAR DE SALUD DEL SERVIDOR Y DETALLES BUILD   */}
-      {/* ======================================================== */}
-      <div className="grid grid-cols-2 gap-2 text-[11px] font-mono relative z-10">
-        <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-2 rounded-2xl border border-slate-800">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-          <div className="min-w-0 truncate">
-            <span className="text-slate-400 text-[10px] block">Servidor GitHub</span>
-            <span className="text-emerald-300 font-bold truncate block">En línea</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-2 rounded-2xl border border-slate-800">
-          <Clock className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-          <div className="min-w-0 truncate">
-            <span className="text-slate-400 text-[10px] block">Última comprobación</span>
-            <span className="text-slate-200 font-semibold truncate block">{lastCheckTime}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Barra de estado con versión actual vs versión remota */}
-      <div className="flex items-center justify-between text-[11px] text-slate-300 bg-slate-900/80 px-3.5 py-2 rounded-2xl border border-slate-800/90 font-mono relative z-10">
-        <div className="flex items-center gap-1.5">
-          <div className={`w-2 h-2 rounded-full ${isNative ? 'bg-emerald-400' : 'bg-cyan-400'}`} />
-          <span className="text-slate-400">Plataforma:</span>
-          <span className="text-white font-semibold">{isNative ? 'APK Android' : 'Web PWA'}</span>
-        </div>
-        <div className="text-slate-400 flex items-center gap-1">
-          <span>Build actual:</span>
-          <span className="text-cyan-300 font-bold">{currentInstalledCode}</span>
-          {serverVersionCode > 0 && (
-            <>
-              <ArrowRight className="w-3 h-3 text-slate-500 mx-0.5 inline" />
-              <span className="text-emerald-400 font-bold">{serverVersionCode}</span>
-            </>
+          {updateAvailable ? (
+            <span className="shrink-0 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-blue-500/15 text-blue-300 border border-blue-400/30 flex items-center gap-1.5 shadow-sm">
+              <Sparkles className="w-3.5 h-3.5" />
+              Actualización lista
+            </span>
+          ) : (
+            <span className="shrink-0 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5 shadow-sm">
+              <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />
+              Al día
+            </span>
           )}
         </div>
-      </div>
 
-      {/* Mensaje de estado dinámico */}
-      {status && (
-        <div className={`p-3 rounded-2xl text-xs font-medium border leading-relaxed relative z-10 ${
-          updateAvailable
-            ? 'bg-cyan-950/40 border-cyan-500/40 text-cyan-200 shadow-lg shadow-cyan-950/30'
-            : 'bg-slate-900/70 border-slate-800 text-slate-300'
-        }`}>
-          {status}
+        {/* Bloque de datos y métricas estilo cristal */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="bg-slate-950/40 border border-white/[0.06] rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+              <Smartphone className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] text-slate-400 block font-medium">Versión instalada</span>
+              <span className="text-white font-mono font-semibold truncate block">
+                v{installedVersionName} ({currentInstalledCode})
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-slate-950/40 border border-white/[0.06] rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] text-slate-400 block font-medium">Servidor GitHub</span>
+              <span className="text-emerald-300 font-semibold truncate block">En línea</span>
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* ======================================================== */}
-      {/* OPCIÓN 1: BARRA DE PROGRESO ANIMADA DURANTE ACTUALIZACIÓN */}
-      {/* ======================================================== */}
-      {isInstalling && (
-        <div className="p-4 rounded-2xl bg-gradient-to-b from-[#0e1a2b] to-[#091321] border border-cyan-500/60 space-y-3 shadow-2xl shadow-cyan-950/80 animate-in fade-in zoom-in-95 duration-200 relative z-10">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
-              </span>
-              <span className="font-bold text-white tracking-wide">
-                {installCompleted ? '¡Actualización Lista!' : 'Descargando actualización...'}
+        {/* Información adicional de última comprobación */}
+        <div className="flex items-center justify-between text-xs text-slate-400 bg-slate-950/30 px-3.5 py-2 rounded-2xl border border-white/[0.04]">
+          <div className="flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 text-slate-400" />
+            <span>Última comprobación:</span>
+          </div>
+          <span className="text-slate-200 font-mono font-medium">{lastCheckTime}</span>
+        </div>
+
+        {/* Mensaje de estado cuando corresponda */}
+        {status && (
+          <div className={`p-3 rounded-2xl text-xs font-medium border leading-relaxed ${
+            updateAvailable
+              ? 'bg-blue-950/30 border-blue-500/30 text-blue-200'
+              : 'bg-slate-950/40 border-white/[0.06] text-slate-300'
+          }`}>
+            {status}
+          </div>
+        )}
+
+        {/* Barra de progreso de descarga si se está instalando */}
+        {isInstalling && (
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-indigo-500/50 space-y-3 shadow-2xl animate-in fade-in duration-200">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                </span>
+                <span className="font-semibold text-white">
+                  {installCompleted ? '¡Actualización lista!' : 'Descargando paquete APK...'}
+                </span>
+              </div>
+              <span className="font-mono text-xs font-bold text-blue-300 bg-blue-500/20 px-2 py-0.5 rounded-full border border-blue-400/30">
+                {downloadPercent}%
               </span>
             </div>
-            <span className="font-mono text-xs font-extrabold text-cyan-200 bg-cyan-500/20 px-2.5 py-0.5 rounded-full border border-cyan-500/40 shadow-[0_0_10px_rgba(0,229,255,0.3)]">
-              {downloadPercent}%
-            </span>
-          </div>
 
-          {/* Barrita estilizada con gradiente cian-turquesa-esmeralda y brillo activo */}
-          <div className="w-full h-3.5 rounded-full bg-slate-950 border border-slate-700/80 p-0.5 overflow-hidden shadow-inner relative">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 transition-all duration-300 ease-out shadow-[0_0_15px_rgba(0,229,255,0.7)] relative overflow-hidden"
-              style={{ width: `${Math.max(downloadPercent, 5)}%` }}
-            >
-              {/* Reflejo deslizante brillante */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-pulse rounded-full" />
+            {/* Barra con reflejo */}
+            <div className="w-full h-3 rounded-full bg-slate-900 border border-slate-700/80 p-0.5 overflow-hidden shadow-inner relative">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 transition-all duration-300 ease-out shadow-[0_0_12px_rgba(99,102,241,0.6)] relative overflow-hidden"
+                style={{ width: `${Math.max(downloadPercent, 6)}%` }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse rounded-full" />
+              </div>
             </div>
-          </div>
 
-          {/* Estado de etapa y tamaño en MB */}
-          <div className="flex items-center justify-between text-[11px] text-slate-300 font-mono pt-0.5">
-            <span className="truncate text-slate-300 flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
               <span className="truncate">{downloadStage}</span>
-            </span>
-            {downloadSize && (
-              <span className="text-cyan-300 font-bold shrink-0 ml-2 bg-slate-900/90 px-2 py-0.5 rounded-md border border-slate-800">
-                {downloadSize}
+              {downloadSize && <span className="text-blue-300 font-bold shrink-0 ml-2">{downloadSize}</span>}
+            </div>
+          </div>
+        )}
+
+        {/* Botón de Acción Principal - Degradado suave de azul cobalto a violeta oscuro */}
+        <div className="pt-1">
+          {updateAvailable ? (
+            <button
+              type="button"
+              onClick={ejecutarActualizacion}
+              disabled={isInstalling}
+              className="w-full py-4 px-5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 active:scale-[0.99] text-white font-bold rounded-2xl text-sm tracking-wide shadow-xl shadow-indigo-950/60 hover:shadow-indigo-900/70 transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60"
+            >
+              <Download className={`w-4 h-4 ${isInstalling ? 'animate-bounce' : ''}`} />
+              <span>
+                {isInstalling ? 'Descargando e instalando...' : `Instalar Actualización v${serverVersionName || 'Nueva'}`}
               </span>
-            )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => verificarActualizaciones(true)}
+              disabled={loading || isInstalling}
+              className="w-full py-4 px-5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 active:scale-[0.99] text-white font-bold rounded-2xl text-sm tracking-wide shadow-xl shadow-indigo-950/60 hover:shadow-indigo-900/70 transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>{loading ? 'Escaneando GitHub Releases...' : 'Buscar Actualizaciones'}</span>
+            </button>
+          )}
+        </div>
+      </section>
+
+      {/* ======================================================== */}
+      {/* TARJETA 2: LISTA DE NOVEDADES CON DISEÑO LIMPIO          */}
+      {/* ======================================================== */}
+      <section className="bg-slate-900/40 backdrop-blur-lg border border-white/[0.08] border-t border-t-white/10 rounded-3xl p-4.5 sm:p-5 shadow-2xl shadow-black/40 space-y-4 relative overflow-hidden transition-all">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+              LISTA DE NOVEDADES
+            </span>
+            <h3 className="text-white text-base font-semibold flex items-center gap-2">
+              <span>Versión v{serverVersionName || installedVersionName}</span>
+              <span className="text-xs font-normal text-slate-400 font-mono">({CURRENT_RELEASE_DATE})</span>
+            </h3>
+          </div>
+        </div>
+
+        <ul className="space-y-2.5 pt-1">
+          {activeChangelog.map((item, idx) => (
+            <li key={idx} className="flex items-start gap-3 text-xs text-slate-200 leading-relaxed">
+              <div className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                <Check className="w-2.5 h-2.5 stroke-[3]" />
+              </div>
+              <span className="flex-1">{item}</span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="pt-2 border-t border-white/[0.06] flex items-center gap-2 text-[11px] text-slate-400">
+          <ShieldCheck className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+          <span>Tus fotos, notas y claves permanecen 100% cifradas e intactas en cada actualización.</span>
+        </div>
+      </section>
+
+      {/* ======================================================== */}
+      {/* TARJETA 3: SWITCH DE AVISOS Y CONSEJO DE SEGURIDAD       */}
+      {/* ======================================================== */}
+      <section className="bg-slate-900/40 backdrop-blur-lg border border-white/[0.08] border-t border-t-white/10 rounded-3xl p-4.5 sm:p-5 shadow-2xl shadow-black/40 space-y-4 relative overflow-hidden transition-all">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+            CONFIGURACIÓN Y SEGURIDAD
+          </span>
+          <h3 className="text-white text-base font-semibold">
+            Avisos y Protección Criptográfica
+          </h3>
+        </div>
+
+        {/* Fila interactiva del Switch */}
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 flex items-center justify-center shrink-0">
+              <Bell className="w-4.5 h-4.5" />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-sm font-semibold text-white truncate">Avisos automáticos al entrar</h4>
+              <p className="text-xs text-slate-400 truncate">Notificar si hay una nueva versión disponible</p>
+            </div>
           </div>
 
-          {/* 4 Pasos secuenciales visuales */}
-          <div className="grid grid-cols-4 gap-1.5 pt-1 text-[9px] font-mono text-center">
-            <div className={`p-1 rounded-lg border transition-all ${downloadPercent >= 10 ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-200 font-bold' : 'bg-slate-900/60 border-slate-800 text-slate-500'}`}>
-              1. Conexión
-            </div>
-            <div className={`p-1 rounded-lg border transition-all ${downloadPercent >= 35 ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-200 font-bold' : 'bg-slate-900/60 border-slate-800 text-slate-500'}`}>
-              2. Paquete APK
-            </div>
-            <div className={`p-1 rounded-lg border transition-all ${downloadPercent >= 75 ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-200 font-bold' : 'bg-slate-900/60 border-slate-800 text-slate-500'}`}>
-              3. Verificación
-            </div>
-            <div className={`p-1 rounded-lg border transition-all ${downloadPercent >= 100 ? 'bg-emerald-500/25 border-emerald-500/50 text-emerald-300 font-bold' : 'bg-slate-900/60 border-slate-800 text-slate-500'}`}>
-              4. Instalador
-            </div>
-          </div>
+          <NeonSwitch
+            checked={autoCheckUpdates}
+            onChange={handleToggleAutoCheck}
+            ariaLabel="Avisos automáticos de versión"
+          />
+        </div>
 
-          {/* Botón de reintento directo por si se cerró la ventana del instalador */}
-          {installCompleted && (
-            <div className="pt-2 animate-in fade-in duration-200">
+        {/* Consejo de seguridad integrado */}
+        <div className="p-3.5 rounded-2xl bg-slate-950/40 border border-white/[0.06] space-y-1.5">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+            <Shield className="w-4 h-4 text-indigo-400 shrink-0" />
+            <span>Consejo de seguridad permanente</span>
+          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Antes de cualquier actualización mayor del sistema operativo, siempre puedes exportar un respaldo cifrado desde{' '}
+            {onNavigateToBackup ? (
               <button
                 type="button"
-                onClick={ejecutarActualizacion}
-                className="w-full py-2.5 bg-emerald-600/90 hover:bg-emerald-500 active:scale-[0.98] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
+                onClick={onNavigateToBackup}
+                className="text-indigo-400 hover:text-indigo-300 underline font-semibold cursor-pointer"
               >
-                <Download className="w-4 h-4" />
-                <span>Volver a abrir instalador si se cerró</span>
+                Copia de Seguridad
               </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ======================================================== */}
-      {/* OPCIÓN 4: NOVEDADES DESPLEGABLES (CHANGELOG INTERACTIVO)  */}
-      {/* ======================================================== */}
-      <div className="border border-slate-800 rounded-2xl bg-slate-950/40 overflow-hidden relative z-10">
-        <button
-          type="button"
-          onClick={() => setIsChangelogOpen(!isChangelogOpen)}
-          className="w-full px-3.5 py-2.5 flex items-center justify-between text-xs text-slate-300 hover:text-white transition-colors cursor-pointer select-none"
-        >
-          <div className="flex items-center gap-2">
-            <Layers className="w-3.5 h-3.5 text-[#00e5ff]" />
-            <span className="font-semibold text-slate-200">
-              {updateAvailable ? `Novedades incluidas en v${serverVersionName}` : 'Novedades y mejoras del sistema'}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-            <span>{isChangelogOpen ? 'Ocultar' : 'Ver'}</span>
-            {isChangelogOpen ? (
-              <ChevronUp className="w-3.5 h-3.5 text-cyan-400" />
             ) : (
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-indigo-300 font-semibold">Copia de Seguridad</span>
             )}
-          </div>
-        </button>
-
-        {isChangelogOpen && (
-          <div className="px-3.5 pb-3.5 pt-1 space-y-2 border-t border-slate-800/80 animate-in fade-in duration-150">
-            <p className="text-[10px] text-slate-400 leading-relaxed">
-              Tus fotos, notas y claves permanecen 100% cifradas e intactas en cada actualización.
-            </p>
-            <ul className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-              {activeChangelog.map((item, index) => (
-                <li key={index} className="flex items-start gap-2 text-[11px] text-slate-200 leading-snug">
-                  <div className="w-3.5 h-3.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30">
-                    <CheckCircle2 className="w-2.5 h-2.5 stroke-[2.5]" />
-                  </div>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {/* ======================================================== */}
-      {/* EL BOTÓN PRINCIPAL ÚNICO (EL BUENO)                       */}
-      {/* ======================================================== */}
-      <div className="pt-1 relative z-10">
-        {updateAvailable ? (
-          <button
-            type="button"
-            onClick={ejecutarActualizacion}
-            disabled={isInstalling}
-            className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 active:scale-[0.99] text-white font-bold rounded-2xl text-xs uppercase tracking-wider shadow-xl shadow-emerald-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            <Download className={`w-4 h-4 ${isInstalling ? 'animate-bounce' : ''}`} />
-            <span>
-              {isInstalling ? 'Descargando e instalando...' : `Instalar Actualización v${serverVersionName || 'Nueva'}`}
-            </span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => verificarActualizaciones(true)}
-            disabled={loading || isInstalling}
-            className="w-full py-3.5 px-4 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-blue-500 active:scale-[0.99] text-white font-bold rounded-2xl text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>{loading ? 'Escaneando servidor...' : 'Buscar Actualizaciones'}</span>
-          </button>
-        )}
-      </div>
+            . Cada paquete comprueba su firma criptográfica antes de ejecutarse.
+          </p>
+        </div>
+      </section>
     </div>
   );
 };

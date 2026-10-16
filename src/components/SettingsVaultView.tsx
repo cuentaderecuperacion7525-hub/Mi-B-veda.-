@@ -1588,41 +1588,11 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         )}
 
         {activeSubMenu === 'updates' && (
-          <div className="space-y-4 animate-in fade-in duration-200">
-            {/* Tarjeta Unificada de Actualizaciones del Sistema (Un solo botón principal) */}
-            <BovedaUpdater onOpenChangelog={() => setShowChangelogModal(true)} />
-
-
-            {/* Configuración de Notificaciones Automáticas */}
-            <div className="bg-[#0a121d] p-4.5 rounded-3xl border border-slate-800 shadow-xl">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-[#00e5ff] shrink-0">
-                    <Bell className="w-4.5 h-4.5" />
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-white">Aviso automático al entrar</h5>
-                    <p className="text-[11px] text-slate-400">Muestra un mensaje si hay una nueva versión lista</p>
-                  </div>
-                </div>
-
-                <NeonSwitch
-                  checked={autoCheckUpdates}
-                  onChange={handleToggleAutoCheck}
-                  ariaLabel="Avisos automáticos de actualización"
-                />
-              </div>
-            </div>
-            {/* Consejo de seguridad */}
-            <div className="bg-emerald-950/20 p-4 rounded-3xl border border-emerald-500/30 text-xs space-y-2">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>Consejo de seguridad permanente</span>
-              </div>
-              <p className="text-slate-300 leading-relaxed text-[11px]">
-                Antes de cualquier actualización mayor del sistema operativo de tu teléfono, siempre puedes exportar un respaldo desde la pestaña <button type="button" onClick={() => setActiveSubMenu('backup')} className="text-emerald-300 underline font-bold cursor-pointer">Copia de Seguridad</button>.
-              </p>
-            </div>
+          <div className="animate-in fade-in duration-200">
+            <BovedaUpdater
+              onOpenChangelog={() => setShowChangelogModal(true)}
+              onNavigateToBackup={() => setActiveSubMenu('backup')}
+            />
           </div>
         )}
 
