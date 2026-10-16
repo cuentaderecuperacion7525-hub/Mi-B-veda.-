@@ -1897,15 +1897,17 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
           {/* Dynamic Spacer so content starts right below fixed header */}
           <div
-            className={`shrink-0 w-full transition-all ${
-              carpetaActiva === 'todas' && !isSelectMode
-                ? isSearchOpen || searchQuery
-                  ? 'h-[10.5rem] sm:h-[11.5rem]'
-                  : 'h-[7.5rem] sm:h-[8.5rem]'
-                : isSearchOpen || searchQuery
-                ? 'h-[7.5rem] sm:h-[8.5rem]'
-                : 'h-[4.75rem] sm:h-[5.5rem]'
-            }`}
+            className="shrink-0 w-full transition-all"
+            style={{
+              height:
+                carpetaActiva === 'todas' && !isSelectMode
+                  ? isSearchOpen || searchQuery
+                    ? 'max(calc(env(safe-area-inset-top, 0px) + 10.5rem), 11.75rem)'
+                    : 'max(calc(env(safe-area-inset-top, 0px) + 7.75rem), 8.75rem)'
+                  : isSearchOpen || searchQuery
+                  ? 'max(calc(env(safe-area-inset-top, 0px) + 8.25rem), 9.25rem)'
+                  : 'max(calc(env(safe-area-inset-top, 0px) + 5.5rem), 6.5rem)',
+            }}
           />
 
         {/* Items Grid & Carpetas View */}
