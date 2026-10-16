@@ -769,6 +769,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     }
   };
 
+  useEffect(() => {
+    if (activeNavTab !== 'settings') {
+      sessionStorage.removeItem('vault_updates_menu_active');
+      window.dispatchEvent(new CustomEvent('vault_updates_view_state', { detail: { isOpen: false } }));
+    }
+  }, [activeNavTab]);
+
   // Listener para redirigir directamente al menú de actualización cuando se toca el banner
   useEffect(() => {
     const handleOpenUpdatesMenu = () => {
@@ -793,31 +800,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     setActiveTab(cat);
   };
 
-  // Swipe Gesture Handling - retroceso en pantalla únicamente dentro de vistas hijas
-  const touchStartX = useRef<number | null>(null);
-  const touchStartY = useRef<number | null>(null);
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null || touchStartY.current === null) return;
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
-    touchStartX.current = null;
-    touchStartY.current = null;
-
-    // Deslizar de izquierda a derecha (swipe horizontal para atrás: deltaX > 65 y dominante)
-    if (deltaX > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA')) {
-        return;
-      }
-      triggerBackAction();
-    }
-  };
 
   // Total storage calculated from real user files
   const totalStorageBytes = useMemo(() => {
@@ -1318,8 +1301,6 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
   return (
     <div
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1806,7 +1787,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
             {/* Content Type Filter Tabs - Solo visible cuando está en la vista general de carpetas */}
             {carpetaActiva === 'todas' && (
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 mb-1.5 no-scrollbar text-xs w-full max-w-full">
+              <div
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+                className="flex items-center gap-1.5 overflow-x-auto pb-1 mb-1.5 no-scrollbar text-xs w-full max-w-full touch-pan-x"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -1905,8 +1892,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                     ? 'max(calc(env(safe-area-inset-top, 0px) + 10.5rem), 11.75rem)'
                     : 'max(calc(env(safe-area-inset-top, 0px) + 7.75rem), 8.75rem)'
                   : isSearchOpen || searchQuery
-                  ? 'max(calc(env(safe-area-inset-top, 0px) + 8.25rem), 9.25rem)'
-                  : 'max(calc(env(safe-area-inset-top, 0px) + 5.5rem), 6.5rem)',
+                  ? 'max(calc(env(safe-area-inset-top, 0px) + 6.75rem), 7.65rem)'
+                  : 'max(calc(env(safe-area-inset-top, 0px) + 3.95rem), 4.85rem)',
             }}
           />
 

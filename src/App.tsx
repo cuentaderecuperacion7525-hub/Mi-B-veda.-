@@ -46,6 +46,27 @@ export default function App() {
   const [pendingUpdateInfo, setPendingUpdateInfo] = useState<UpdateCheckResult | null>(null);
   const [showUpdateBanner, setShowUpdateBanner] = useState<boolean>(false);
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
+  const [isViewingUpdates, setIsViewingUpdates] = useState<boolean>(() => {
+    return typeof window !== 'undefined' && sessionStorage.getItem('vault_updates_menu_active') === 'true';
+  });
+  const isViewingUpdatesRef = useRef<boolean>(isViewingUpdates);
+
+  useEffect(() => {
+    isViewingUpdatesRef.current = isViewingUpdates;
+  }, [isViewingUpdates]);
+
+  useEffect(() => {
+    const handleUpdateViewState = (e: any) => {
+      const isOpen = !!e.detail?.isOpen;
+      setIsViewingUpdates(isOpen);
+      if (isOpen) {
+        setShowUpdateBanner(false);
+      }
+    };
+
+    window.addEventListener('vault_updates_view_state', handleUpdateViewState);
+    return () => window.removeEventListener('vault_updates_view_state', handleUpdateViewState);
+  }, []);
 
   const inactivityTimerRef = useRef<number | null>(null);
 
@@ -212,7 +233,11 @@ export default function App() {
     return updateService.subscribe((res) => {
       if (res.hasUpdate) {
         setPendingUpdateInfo(res);
-        if (!updateService.isUpdateDismissed(res.latestVersion)) {
+        if (
+          !updateService.isUpdateDismissed(res.latestVersion) &&
+          !isViewingUpdatesRef.current &&
+          sessionStorage.getItem('vault_updates_menu_active') !== 'true'
+        ) {
           setShowUpdateBanner(true);
         }
       }
@@ -528,12 +553,14 @@ export default function App() {
         </>
       )}
 
-      {/* Aviso flotante de Actualización Disponible al entrar */}
-      {showUpdateBanner && pendingUpdateInfo && (
+      {/* Aviso flotante de Actualización Disponible al entrar - Oculto si se encuentra en el apartado de actualizaciones */}
+      {showUpdateBanner && pendingUpdateInfo && !isViewingUpdates && (
         <UpdateNotificationBanner
           updateInfo={pendingUpdateInfo}
           onOpenUpdateMenu={() => {
             setShowUpdateBanner(false);
+            setIsViewingUpdates(true);
+            sessionStorage.setItem('vault_updates_menu_active', 'true');
             sessionStorage.setItem('open_updates_tab_on_settings', 'true');
             window.dispatchEvent(new CustomEvent('vault_open_updates_menu'));
             if (vaultStatus !== 'unlocked') {
@@ -542,6 +569,8 @@ export default function App() {
           }}
           onOpenDetails={() => {
             setShowUpdateBanner(false);
+            setIsViewingUpdates(true);
+            sessionStorage.setItem('vault_updates_menu_active', 'true');
             sessionStorage.setItem('open_updates_tab_on_settings', 'true');
             window.dispatchEvent(new CustomEvent('vault_open_updates_menu'));
             if (vaultStatus !== 'unlocked') {
@@ -550,6 +579,8 @@ export default function App() {
           }}
           onApplyUpdate={() => {
             setShowUpdateBanner(false);
+            setIsViewingUpdates(true);
+            sessionStorage.setItem('vault_updates_menu_active', 'true');
             sessionStorage.setItem('open_updates_tab_on_settings', 'true');
             window.dispatchEvent(new CustomEvent('vault_open_updates_menu'));
             if (vaultStatus !== 'unlocked') {

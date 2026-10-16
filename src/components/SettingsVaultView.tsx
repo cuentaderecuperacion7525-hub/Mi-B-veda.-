@@ -266,16 +266,17 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     if (touchStartXRef.current === null || touchStartYRef.current === null) return;
     const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
     const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+    const startX = touchStartXRef.current;
     touchStartXRef.current = null;
     touchStartYRef.current = null;
 
-    // Deslizar de izquierda a derecha (swipe horizontal > 60px con baja desviación vertical)
-    if (deltaX > 60 && Math.abs(deltaY) < 70) {
-      if (activeSubMenu !== null) {
-        setActiveSubMenu(null);
-      } else {
-        triggerBackAction();
+    // Solo retroceder si está dentro de un sub-menú, comenzó estrictamente en el borde izquierdo (< 30px) y no en elementos desplazables
+    if (activeSubMenu !== null && startX <= 30 && deltaX > 60 && Math.abs(deltaY) < 70) {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || target.closest('[class*="overflow-"]'))) {
+        return;
       }
+      setActiveSubMenu(null);
     }
   };
 
@@ -322,6 +323,21 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       window.removeEventListener('settings_switch_submenu', handleSwitchSubmenu);
     };
   }, []);
+
+  // Notificar si el usuario se encuentra dentro del sub-menú de actualizaciones
+  useEffect(() => {
+    const isUpdatesOpen = activeSubMenu === 'updates';
+    if (isUpdatesOpen) {
+      sessionStorage.setItem('vault_updates_menu_active', 'true');
+    } else {
+      sessionStorage.removeItem('vault_updates_menu_active');
+    }
+    window.dispatchEvent(new CustomEvent('vault_updates_view_state', { detail: { isOpen: isUpdatesOpen } }));
+    return () => {
+      sessionStorage.removeItem('vault_updates_menu_active');
+      window.dispatchEvent(new CustomEvent('vault_updates_view_state', { detail: { isOpen: false } }));
+    };
+  }, [activeSubMenu]);
 
   // Estado del sistema de actualizaciones
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
