@@ -1304,7 +1304,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className="min-h-screen flex flex-col relative select-none pb-28 w-full max-w-full transition-colors duration-250"
+      className="min-h-screen flex flex-col relative select-none w-full max-w-full transition-colors duration-250"
       style={{
         backgroundColor: 'var(--theme-bg-main, #060b14)',
         color: 'var(--theme-text-main, #f8fafc)',
@@ -1385,8 +1385,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           showToast={showToast}
         />
       ) : activeCategory === null ? (
-        /* Screen 1: Bóveda Tab Home (Exact Image 1) */
-        <div className="max-w-md mx-auto w-full px-4 pb-28 flex-1 flex flex-col animate-in fade-in duration-200">
+        <div className="max-w-md mx-auto w-full px-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+4.5rem),4.75rem)] flex flex-col animate-in fade-in duration-200">
           {/* Fixed Pinned Header */}
           <header
             className="fixed top-0 left-0 right-0 z-30 [backdrop-filter:blur(24px)] backdrop-blur-xl border-b safe-top-sticky pb-3 px-4 shadow-md transition-all"
@@ -1621,7 +1620,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         </div>
       ) : (
         /* Detailed Category View */
-        <div className="max-w-4xl w-full mx-auto p-4 pb-28 sm:pb-32 flex-1 flex flex-col">
+        <div className="max-w-4xl w-full mx-auto p-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+5rem),5.25rem)] flex-1 flex flex-col">
           {/* Fixed Pinned Header for Folders & Subfolders */}
           <header className="fixed top-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-xl border-b border-zinc-900 safe-top-sticky pb-2.5 shadow-lg shadow-black/50 transition-all">
             <div className="max-w-4xl mx-auto w-full px-3 sm:px-4">

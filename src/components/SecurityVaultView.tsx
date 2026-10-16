@@ -391,7 +391,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   };
 
   return (
-    <div className="w-full max-w-md mx-auto px-4 pb-28 animate-in fade-in duration-200 select-none box-border">
+    <div className="w-full max-w-md mx-auto px-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+4.75rem),5rem)] animate-in fade-in duration-200 select-none box-border">
       {/* Fixed Pinned Header */}
       <header
         className="fixed top-0 left-0 right-0 z-30 [backdrop-filter:blur(24px)] backdrop-blur-xl border-b safe-top-sticky pb-3 px-4 shadow-md transition-all"
