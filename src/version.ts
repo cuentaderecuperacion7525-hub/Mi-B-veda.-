@@ -10,17 +10,15 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const CURRENT_APP_VERSION = '1.2.32';
-export const CURRENT_BUILD_NUMBER = 1032;
-export const CURRENT_RELEASE_DATE = '13 de Octubre, 2026';
+export const CURRENT_APP_VERSION = '1.2.40';
+export const CURRENT_BUILD_NUMBER = 1040;
+export const CURRENT_RELEASE_DATE = '16 oct 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
-  'Encabezados de carpetas y subcarpetas fijos: al deslizar hacia arriba, el título y controles permanecen siempre visibles sin tapar tus fotos.',
-  'Zoom táctil interactivo: haz zoom con pellizco de dos dedos y desplaza la imagen libremente por cualquier parte de la pantalla.',
-  'Límite de desplazamiento perfeccionado: se eliminaron los márgenes negros excesivos al mover imágenes aumentadas.',
-  'Navegación simplificada: eliminación de botones redundantes, ahora vuelves atrás de forma limpia con la flecha o deslizamiento.',
-  'Detección inteligente de actualizaciones: aviso automático al entrar si hay mejoras disponibles y botón para actualizar en 1 toque.',
-  'Verificador manual de versiones y novedades integrado en Configuración.'
+  'Encabezados fijos en carpetas y subcarpetas: el título y los controles siempre visibles.',
+  'Zoom táctil con pellizco de dos dedos y desplazamiento libre de la imagen.',
+  'Navegación simplificada: retorno fluido a carpetas con la flecha o gesto del sistema.',
+  'Detección inteligente de actualizaciones y descarga directa de paquetes APK.'
 ];
 
 export const APP_VERSION_METADATA: VersionInfo = {

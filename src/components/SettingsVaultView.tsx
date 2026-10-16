@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   X,
   ChevronRight,
+  ChevronLeft,
   ArrowLeft,
   Smartphone,
   RefreshCw,
@@ -964,33 +965,41 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveSubMenu(null)}
-                className="p-2 -ml-2 rounded-2xl bg-slate-800/60 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
+                className={`transition-colors cursor-pointer flex items-center justify-center shrink-0 active:scale-95 ${
+                  activeSubMenu === 'updates'
+                    ? 'w-11 h-11 rounded-2xl bg-[#0e172a]/80 hover:bg-[#1e293b] border border-slate-800 text-blue-400 hover:text-white'
+                    : 'p-2 -ml-2 rounded-2xl bg-slate-800/60 hover:bg-slate-700 text-slate-300 hover:text-white'
+                }`}
                 title="Volver a Configuración"
                 aria-label="Volver"
               >
-                <ArrowLeft className="w-5 h-5" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
+                {activeSubMenu === 'updates' ? (
+                  <ChevronLeft className="w-5 h-5 text-blue-400" />
+                ) : (
+                  <ArrowLeft className="w-5 h-5" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
+                )}
               </button>
               <div className="min-w-0 flex-1">
-                <h1 className="text-xl font-bold tracking-tight truncate mb-0.5" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate mb-0.5" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
                   {activeSubMenu === 'security'
                     ? 'Seguridad y PIN'
                     : activeSubMenu === 'backup'
                     ? 'Copia de Seguridad'
                     : activeSubMenu === 'updates'
-                    ? 'Actualizaciones del Sistema'
+                    ? 'Actualizaciones'
                     : activeSubMenu === 'trash'
                     ? 'Papelera de Reciclaje'
                     : activeSubMenu === 'theme'
                     ? 'Temas y Apariencia'
                     : 'Restablecer Bóveda'}
                 </h1>
-                <p className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase truncate">
+                <p className={`text-xs text-slate-400 truncate ${activeSubMenu === 'updates' ? 'normal-case' : 'text-[10px] font-semibold tracking-wider uppercase'}`}>
                   {activeSubMenu === 'security'
                     ? 'Políticas de acceso y credenciales'
                     : activeSubMenu === 'backup'
                     ? 'Respaldo y restauración cifrada'
                     : activeSubMenu === 'updates'
-                    ? 'Búsqueda de novedades y versión actual'
+                    ? 'Versión actual y novedades'
                     : activeSubMenu === 'trash'
                     ? 'Auto-vaciado a 30 días y borrado definitivo'
                     : activeSubMenu === 'theme'
