@@ -333,24 +333,19 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
           handleGoToMenu();
         }
       }}
-      className="fixed top-3 inset-x-3 sm:inset-x-auto sm:right-4 sm:max-w-md z-[9999] bg-[#0a121d]/95 backdrop-blur-xl border border-cyan-500/50 rounded-2xl p-3 shadow-2xl shadow-cyan-500/20 animate-in slide-in-from-top-4 duration-300 flex items-center justify-between gap-3 text-white cursor-pointer active:scale-[0.99] transition-transform select-none group"
+      className="vault-update-banner w-full bg-[#08111d]/90 backdrop-blur-xl border border-cyan-500/35 rounded-full py-1.5 px-3 mb-2.5 shadow-[0_4px_16px_rgba(0,229,255,0.08)] flex items-center justify-between gap-2.5 text-white cursor-pointer active:scale-[0.99] transition-all select-none group"
     >
-      <div className="flex items-center gap-2.5 min-w-0">
-        <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-[#00e5ff] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform animate-pulse">
-          <Sparkles className="w-4.5 h-4.5" />
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="vault-update-banner-icon w-6 h-6 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-[#00e5ff] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform">
+          <Sparkles className="w-3.5 h-3.5 text-current animate-pulse" />
         </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#00e5ff]">
-              Actualización lista
-            </span>
-            <span className="text-[10px] font-mono text-slate-400">
-              v{updateInfo.latestVersion}
-            </span>
-          </div>
-          <p className="text-xs font-semibold text-slate-200 truncate mt-0.5">
-            Toca aquí para ir al menú y actualizar
-          </p>
+        <div className="flex items-center gap-1.5 min-w-0 truncate">
+          <span className="vault-update-banner-title text-xs font-bold text-white tracking-tight truncate">
+            Nueva versión v{updateInfo.latestVersion}
+          </span>
+          <span className="vault-update-banner-desc text-[11px] font-medium text-cyan-300/80 hidden sm:inline shrink-0">
+            · Toca para instalar
+          </span>
         </div>
       </div>
 
@@ -361,12 +356,11 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
             e.stopPropagation();
             handleGoToMenu();
           }}
-          className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#00e5ff] to-cyan-400 hover:from-cyan-300 hover:to-teal-300 text-slate-950 font-bold text-xs shadow-md shadow-cyan-500/30 flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+          className="vault-update-banner-btn px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-[11px] shadow-sm flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
           title="Ir al menú de actualización"
         >
-          <Sparkles className="w-3.5 h-3.5 text-slate-950" />
-          <span>Actualizar</span>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-950 stroke-[2.5]" />
+          <Download className="w-3 h-3 text-white" />
+          <span className="text-white">Actualizar</span>
         </button>
 
         <button
@@ -375,11 +369,11 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
             e.stopPropagation();
             onDismiss();
           }}
-          className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
-          title="Posponer"
+          className="vault-update-banner-close w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+          title="Posponer aviso"
           aria-label="Posponer aviso"
         >
-          <X className="w-4 h-4" />
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
     </aside>

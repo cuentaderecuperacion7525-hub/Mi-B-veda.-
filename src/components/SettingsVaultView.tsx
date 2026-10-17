@@ -145,13 +145,6 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     );
   };
 
-  const handleSimulateFlipToLock = () => {
-    showToast('Simulando giro del dispositivo boca abajo...', 'info');
-    setTimeout(() => {
-      flipToLockService.simulateFlipLock();
-    }, 400);
-  };
-
   // Trash / Papelera de reciclaje state
   const [trashItems, setTrashItems] = useState<EncryptedVaultItem[]>([]);
   const [trashStats, setTrashStats] = useState<{ count: number; totalBytes: number }>({ count: 0, totalBytes: 0 });
@@ -1231,18 +1224,6 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   />
                 </div>
 
-                {flipToLockEnabled && (
-                  <div className="pt-1 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handleSimulateFlipToLock}
-                      className="text-[11px] font-medium text-[#00e5ff] hover:text-cyan-300 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#00e5ff]/10 hover:bg-[#00e5ff]/20 border border-[#00e5ff]/25 active:scale-95 transition-all cursor-pointer"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      Probar volteo (Simular Face-Down)
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
 

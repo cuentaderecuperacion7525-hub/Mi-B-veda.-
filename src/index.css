@@ -385,3 +385,42 @@
 [data-theme="light"] ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
 }
+
+/* 14. Modern Jewel Pill Update Banner in Light Theme */
+[data-theme="light"] .vault-update-banner {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid #7dd3fc !important;
+  box-shadow: 0 4px 16px -2px rgba(2, 132, 199, 0.12) !important;
+}
+
+[data-theme="light"] .vault-update-banner-icon {
+  background-color: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] .vault-update-banner-title {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .vault-update-banner-desc {
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] .vault-update-banner-btn {
+  background: linear-gradient(to right, #0284c7, #2563eb) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .vault-update-banner-btn * {
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .vault-update-banner-close {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .vault-update-banner-close:hover {
+  color: #0f172a !important;
+  background-color: #f1f5f9 !important;
+}

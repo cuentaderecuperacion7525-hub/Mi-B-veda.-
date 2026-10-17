@@ -72,7 +72,8 @@ import { ImportVaultView } from './ImportVaultView';
 import { SecurityVaultView } from './SecurityVaultView';
 import { SettingsVaultView } from './SettingsVaultView';
 import { registerBackHandler, triggerBackAction } from '../services/backButtonService';
-import { updateService } from '../services/updateService';
+import { updateService, UpdateCheckResult } from '../services/updateService';
+import { UpdateNotificationBanner } from './UpdateNotificationModal';
 
 export interface Carpeta {
   id: string;
@@ -117,6 +118,15 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   onResetVault,
   hasUpdatePending = false,
 }) => {
+  const [pendingUpdateInfo, setPendingUpdateInfo] = useState<UpdateCheckResult | null>(() => {
+    const cached = updateService.getLastCheckResult();
+    return cached?.hasUpdate ? cached : null;
+  });
+  const [showUpdateBanner, setShowUpdateBanner] = useState<boolean>(() => {
+    const cached = updateService.getLastCheckResult();
+    if (!cached?.hasUpdate) return false;
+    return !updateService.isUpdateDismissed(cached.latestVersion);
+  });
   const [liveUpdateAvailable, setLiveUpdateAvailable] = useState<boolean>(() => {
     return updateService.getLastCheckResult()?.hasUpdate || false;
   });
@@ -124,6 +134,15 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   useEffect(() => {
     return updateService.subscribe((res) => {
       setLiveUpdateAvailable(res.hasUpdate);
+      if (res.hasUpdate) {
+        setPendingUpdateInfo(res);
+        if (!updateService.isUpdateDismissed(res.latestVersion)) {
+          setShowUpdateBanner(true);
+        }
+      } else {
+        setPendingUpdateInfo(null);
+        setShowUpdateBanner(false);
+      }
     });
   }, []);
 
@@ -1409,6 +1428,27 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
           {/* Spacer so content starts right below fixed header */}
           <div className="safe-top-header-spacer shrink-0 w-full mb-3" />
+
+          {/* Banner de Actualización Disponible - Exclusivo del apartado principal de Bóveda */}
+          {showUpdateBanner && pendingUpdateInfo && (
+            <UpdateNotificationBanner
+              updateInfo={pendingUpdateInfo}
+              onOpenUpdateMenu={() => {
+                setShowUpdateBanner(false);
+                navigateToTab('settings');
+                sessionStorage.setItem('open_updates_tab_on_settings', 'true');
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('settings_switch_submenu', { detail: { submenu: 'updates' } }));
+                }, 50);
+              }}
+              onDismiss={() => {
+                setShowUpdateBanner(false);
+                if (pendingUpdateInfo.latestVersion) {
+                  updateService.dismissUpdate(pendingUpdateInfo.latestVersion);
+                }
+              }}
+            />
+          )}
 
           {/* Card: BÓVEDA SELLADA (Real Data) - Compact sleek card */}
           <div className="bg-[#0a121d] border border-slate-800/90 rounded-2xl p-2.5 sm:p-3 mb-2.5 shadow-xl flex items-center justify-between">

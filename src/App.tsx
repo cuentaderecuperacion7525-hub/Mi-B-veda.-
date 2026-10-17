@@ -17,7 +17,7 @@ import { initBackButtonListener } from './services/backButtonService';
 import { updateService, UpdateCheckResult } from './services/updateService';
 import { flipToLockService } from './services/flipToLockService';
 import { themeService } from './services/themeService';
-import { UpdateNotificationBanner, UpdateNotificationModal } from './components/UpdateNotificationModal';
+import { UpdateNotificationModal } from './components/UpdateNotificationModal';
 import { CURRENT_APP_VERSION } from './version';
 
 export default function App() {
@@ -551,49 +551,6 @@ export default function App() {
             showToast={showToast}
           />
         </>
-      )}
-
-      {/* Aviso flotante de Actualización Disponible al entrar - Oculto si se encuentra en el apartado de actualizaciones */}
-      {showUpdateBanner && pendingUpdateInfo && !isViewingUpdates && (
-        <UpdateNotificationBanner
-          updateInfo={pendingUpdateInfo}
-          onOpenUpdateMenu={() => {
-            setShowUpdateBanner(false);
-            setIsViewingUpdates(true);
-            sessionStorage.setItem('vault_updates_menu_active', 'true');
-            sessionStorage.setItem('open_updates_tab_on_settings', 'true');
-            window.dispatchEvent(new CustomEvent('vault_open_updates_menu'));
-            if (vaultStatus !== 'unlocked') {
-              setShowUpdateModal(true);
-            }
-          }}
-          onOpenDetails={() => {
-            setShowUpdateBanner(false);
-            setIsViewingUpdates(true);
-            sessionStorage.setItem('vault_updates_menu_active', 'true');
-            sessionStorage.setItem('open_updates_tab_on_settings', 'true');
-            window.dispatchEvent(new CustomEvent('vault_open_updates_menu'));
-            if (vaultStatus !== 'unlocked') {
-              setShowUpdateModal(true);
-            }
-          }}
-          onApplyUpdate={() => {
-            setShowUpdateBanner(false);
-            setIsViewingUpdates(true);
-            sessionStorage.setItem('vault_updates_menu_active', 'true');
-            sessionStorage.setItem('open_updates_tab_on_settings', 'true');
-            window.dispatchEvent(new CustomEvent('vault_open_updates_menu'));
-            if (vaultStatus !== 'unlocked') {
-              setShowUpdateModal(true);
-            }
-          }}
-          onDismiss={() => {
-            setShowUpdateBanner(false);
-            if (pendingUpdateInfo.latestVersion) {
-              updateService.dismissUpdate(pendingUpdateInfo.latestVersion);
-            }
-          }}
-        />
       )}
 
       {/* Modal interactivo con Novedades de la Versión */}
