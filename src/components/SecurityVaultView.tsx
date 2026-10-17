@@ -255,7 +255,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
         setIsBioPairConfigured(true);
         setShowBioPinModal(false);
         setBioPinInput('');
-        showToast('✅ Huella digital vinculada y activada', 'success');
+        showToast('Huella digital vinculada y activada', 'success');
       } else {
         setBiometricsAutoPromptEnabled(false);
         setBiometricsActive(false);
@@ -281,7 +281,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
       if (hasBiometricCredentials()) {
         setBiometricsAutoPromptEnabled(true);
         setBiometricsActive(true);
-        showToast('✅ Huella activada para inicio automático', 'success');
+        showToast('Huella activada para inicio automático', 'success');
       } else {
         const activePin = sessionPin || sessionStorage.getItem('vault_session_pin');
         if (activePin) {
@@ -374,7 +374,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
         setShowDuressModal(false);
         setDuressPinInput('');
         setDuressPinConfirmInput('');
-        showToast('✅ PIN de coacción activado correctamente', 'success');
+        showToast('PIN de coacción activado correctamente', 'success');
       } else {
         setDuressPinError('Los PINs no coinciden. Inténtalo de nuevo.');
         setDuressStep('create');

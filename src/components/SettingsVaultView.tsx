@@ -139,7 +139,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     flipToLockService.setEnabled(enabled);
     showToast(
       enabled
-        ? 'Bloqueo al voltear boca abajo activado 🔄'
+        ? 'Bloqueo al voltear boca abajo activado'
         : 'Bloqueo al voltear desactivado',
       'info'
     );
@@ -1003,7 +1003,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     : activeSubMenu === 'trash'
                     ? 'Auto-vaciado a 30 días y borrado definitivo'
                     : activeSubMenu === 'theme'
-                    ? 'Paletas Neón y Negro Puro AMOLED'
+                    ? 'Cian Neón y Modo Claro'
                     : 'Zona de peligro'}
                 </p>
               </div>
@@ -1032,7 +1032,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   Seguridad y PIN
                 </h3>
                 <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                  Cambiar PIN, bloqueo al voltear 🔄 y timeout
+                  Cambiar PIN, bloqueo al voltear y timeout
                 </p>
               </div>
             </div>
@@ -1074,18 +1074,11 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 <Trash2 className="w-4.5 h-4.5" />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors truncate">
-                    Papelera de Reciclaje Cifrada
-                  </h3>
-                  {trashStats.count > 0 && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      {trashStats.count} {trashStats.count === 1 ? 'arch.' : 'archs.'}
-                    </span>
-                  )}
-                </div>
+                <h3 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors truncate">
+                  Papelera de Reciclaje Cifrada
+                </h3>
                 <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                  Auto-vaciado a 30 días o eliminación definitiva
+                  {trashStats.count > 0 ? `${trashStats.count} ${trashStats.count === 1 ? 'archivo' : 'archivos'} · Auto-vaciado a 30 días` : 'Auto-vaciado a 30 días o eliminación definitiva'}
                 </p>
               </div>
             </div>
@@ -1104,16 +1097,11 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 <Palette className="w-4.5 h-4.5" />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-white group-hover:text-purple-400 transition-colors truncate">
-                    Temas y Apariencia Visual
-                  </h3>
-                  <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">
-                    {VAULT_THEMES[currentTheme]?.name || 'Cian Neón'}
-                  </span>
-                </div>
+                <h3 className="text-sm font-bold text-white group-hover:text-purple-400 transition-colors truncate">
+                  Temas y Apariencia Visual
+                </h3>
                 <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                  Cian Neón, AMOLED puro, Esmeralda, Violeta y Claro
+                  Cian Neón (original) y Modo Claro
                 </p>
               </div>
             </div>
@@ -1137,9 +1125,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     Actualizaciones del Sistema
                   </h3>
                   {updateCheckResult?.hasUpdate && (
-                    <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/20 text-[#00e5ff] border border-cyan-500/40 animate-pulse">
-                      Nueva versión
-                    </span>
+                    <span className="w-2 h-2 rounded-full bg-[#00e5ff] animate-pulse shrink-0" title="Nueva versión disponible" />
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400 truncate mt-0.5">
@@ -1229,17 +1215,12 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   />
                 </div>
 
-                {/* Bloqueo al Voltear Boca Abajo (Flip to Lock / Face-Down) 🔄 */}
+                {/* Bloqueo al Voltear Boca Abajo (Flip to Lock / Face-Down) */}
                 <div className="border-t border-slate-800/80 pt-3 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <RotateCcw className="w-4 h-4 text-[#00e5ff]" />
                     <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-semibold text-slate-200">Bloqueo al Voltear Boca Abajo</p>
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-[#00e5ff] border border-cyan-500/30">
-                          Face-Down 🔄
-                        </span>
-                      </div>
+                      <p className="text-xs font-semibold text-slate-200">Bloqueo al Voltear Boca Abajo</p>
                       <p className="text-[11px] text-slate-400">Bloquea la bóveda al colocar el móvil sobre la mesa o voltearlo</p>
                     </div>
                   </div>
@@ -1605,7 +1586,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
           </div>
         )}
 
-        {/* Submenú: Papelera de Reciclaje Cifrada (30 días) 🗑️ */}
+        {/* Submenú: Papelera de Reciclaje Cifrada (30 días) */}
         {activeSubMenu === 'trash' && (
           <div className="space-y-4 animate-in fade-in duration-200">
             {/* Tarjeta explicativa */}
@@ -1615,11 +1596,8 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   <Trash2 className="w-5 h-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div>
                     <h3 className="text-sm font-bold text-white">Papelera Cifrada</h3>
-                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      Auto-Vaciado 30d 🗑️
-                    </span>
                   </div>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                     Los archivos permanecen cifrados con tu clave <strong className="text-slate-300">AES-256-GCM</strong>.
@@ -1779,7 +1757,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
           </div>
         )}
 
-        {/* Submenú: Temas y Apariencia Visual 🎨 */}
+        {/* Submenú: Temas y Apariencia Visual */}
         {activeSubMenu === 'theme' && (
           <div className="space-y-4 animate-in fade-in duration-200">
             {/* Encabezado */}
@@ -1791,7 +1769,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 <div>
                   <h3 className="text-sm font-bold text-white">Temas de la Bóveda</h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Personaliza la estética visual o maximiza el ahorro de batería en pantallas OLED.
+                    Alterna entre el tema tecnológico original Cian Neón o el Tema Claro.
                   </p>
                 </div>
               </div>
@@ -1834,34 +1812,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                       </div>
 
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-white truncate">{themeDef.name}</h4>
-                          {themeDef.id === 'amoled' && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-800 text-sky-400 border border-slate-700">
-                              OLED Puro
-                            </span>
-                          )}
-                          {themeDef.id === 'cyan' && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-800/70">
-                              Original
-                            </span>
-                          )}
-                          {themeDef.id === 'emerald' && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-950/70 text-emerald-300 border border-emerald-800/70">
-                              Seguro
-                            </span>
-                          )}
-                          {themeDef.id === 'violet' && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-purple-950/70 text-purple-300 border border-purple-800/70">
-                              Cripto
-                            </span>
-                          )}
-                          {themeDef.id === 'light' && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-800 border border-slate-300">
-                              Claro
-                            </span>
-                          )}
-                        </div>
+                        <h4 className="text-sm font-bold text-white truncate">{themeDef.name}</h4>
                         <p className="text-[11px] text-slate-400 truncate mt-0.5">{themeDef.tagline}</p>
                       </div>
                     </div>
@@ -2186,7 +2137,8 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 }}
                 className="w-full py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black rounded-2xl text-sm transition-all shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer active:scale-98"
               >
-                <span>🔄 Reiniciar Aplicación Ahora</span>
+                <RotateCcw className="w-4 h-4 text-slate-950" />
+                <span>Reiniciar aplicación ahora</span>
               </button>
 
               <button

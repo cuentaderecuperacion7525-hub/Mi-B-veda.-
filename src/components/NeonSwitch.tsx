@@ -61,22 +61,16 @@ export const NeonSwitch: React.FC<NeonSwitchProps> = ({
   // Neon glow and background according to active theme
   const getActiveThemeStyle = () => {
     if (!checked) {
-      return 'bg-slate-800 border-slate-700/80 text-slate-400';
+      return currentTheme === 'light'
+        ? 'bg-slate-200 border-slate-300 text-slate-500'
+        : 'bg-slate-800 border-slate-700/80 text-slate-400';
     }
 
-    switch (currentTheme) {
-      case 'emerald':
-        return 'bg-emerald-500 border-emerald-400/80 shadow-[0_0_14px_rgba(16,185,129,0.7)]';
-      case 'violet':
-        return 'bg-purple-600 border-purple-400/80 shadow-[0_0_14px_rgba(168,85,247,0.75)]';
-      case 'amoled':
-        return 'bg-sky-500 border-sky-300 shadow-[0_0_14px_rgba(56,189,248,0.75)]';
-      case 'light':
-        return 'bg-sky-600 border-sky-500 shadow-[0_0_10px_rgba(2,132,199,0.45)]';
-      case 'cyan':
-      default:
-        return 'bg-[#00e5ff] border-cyan-300 shadow-[0_0_14px_rgba(0,229,255,0.75)]';
+    if (currentTheme === 'light') {
+      return 'bg-sky-600 border-sky-500 shadow-[0_0_10px_rgba(2,132,199,0.45)]';
     }
+
+    return 'bg-[#00e5ff] border-cyan-300 shadow-[0_0_14px_rgba(0,229,255,0.75)]';
   };
 
   return (

@@ -173,7 +173,7 @@ export default function App() {
     if (vaultStatus !== 'unlocked') return;
 
     const unregister = flipToLockService.register(() => {
-      showToast('Bóveda bloqueada al voltear el teléfono 🔄', 'alert');
+      showToast('Bóveda bloqueada al voltear el teléfono', 'alert');
       lockVault();
     });
 

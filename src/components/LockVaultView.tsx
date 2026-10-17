@@ -814,7 +814,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                     <span>{enrollError}</span>
                   </div>
                   <div className="text-[10px] text-rose-400/90 pt-1 border-t border-rose-800/40 space-y-0.5">
-                    <p>💡 <b>Para solucionar:</b></p>
+                    <p><b>Para solucionar:</b></p>
                     <p>• Si tienes <b>"Modo avión"</b> activado, desactívalo un momento.</p>
                     <p>• Si usas un <b>APK de WebIntoApp</b> (WebView), abre la app en <b>Google Chrome</b> en tu celular e instálala como <b>PWA ("Añadir a pantalla")</b> para acceso 100% nativo al sensor de huella.</p>
                   </div>

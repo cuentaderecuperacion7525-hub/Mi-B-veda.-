@@ -42,7 +42,7 @@ export const triggerScreenshotBlockedAlert = () => {
   // Show detailed security notice
   if (toastCallback) {
     toastCallback(
-      '🛡️ Captura de pantalla no permitida por seguridad de la Bóveda. Si deseas desactivar el bloqueo, ve a la pestaña Seguridad e introduce tu PIN.',
+      'Captura de pantalla no permitida por seguridad de la Bóveda. Si deseas desactivar el bloqueo, ve a la pestaña Seguridad e introduce tu PIN.',
       'alert'
     );
   }

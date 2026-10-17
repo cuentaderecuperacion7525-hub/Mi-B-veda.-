@@ -2,13 +2,10 @@
  * Theme service for Bóveda Segura.
  * Supports:
  * - 'cyan': Cian Neón (tecnológico cian/turquesa original)
- * - 'amoled': Negro Puro AMOLED (#000000 absoluto para pantallas OLED)
- * - 'emerald': Esmeralda Seguro (tonos verde esmeralda y menta de alta seguridad)
- * - 'violet': Violeta Cripto (púrpura e índigo sobrio de alta gama)
  * - 'light': Tema Claro (blanco perla limpio de alto contraste y legibilidad)
  */
 
-export type VaultTheme = 'cyan' | 'amoled' | 'emerald' | 'violet' | 'light';
+export type VaultTheme = 'cyan' | 'light';
 
 export interface ThemeDefinition {
   id: VaultTheme;
@@ -48,60 +45,6 @@ export const VAULT_THEMES: Record<VaultTheme, ThemeDefinition> = {
     borderColor: 'rgba(51, 65, 85, 0.75)',
     isDark: true,
   },
-  amoled: {
-    id: 'amoled',
-    name: 'Negro Puro AMOLED',
-    tagline: 'Máximo ahorro de batería OLED (#000000)',
-    primaryColor: '#38bdf8',
-    primaryHover: '#0ea5e9',
-    glowColor: 'rgba(56, 189, 248, 0.45)',
-    bgMain: '#000000',
-    bgCard: '#09090b',
-    bgSecondary: '#141416',
-    bgHeader: 'rgba(0, 0, 0, 0.96)',
-    bgInput: '#080808',
-    textMain: '#ffffff',
-    textMuted: '#a1a1aa',
-    textSubtle: '#71717a',
-    borderColor: '#27272a',
-    isDark: true,
-  },
-  emerald: {
-    id: 'emerald',
-    name: 'Esmeralda Seguro',
-    tagline: 'Tonos verde esmeralda y menta criptográfica',
-    primaryColor: '#10b981',
-    primaryHover: '#059669',
-    glowColor: 'rgba(16, 185, 129, 0.45)',
-    bgMain: '#020b06',
-    bgCard: '#061a10',
-    bgSecondary: '#0a2e1d',
-    bgHeader: 'rgba(2, 11, 6, 0.95)',
-    bgInput: '#04140c',
-    textMain: '#f0fdf4',
-    textMuted: '#a7f3d0',
-    textSubtle: '#6ee7b7',
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    isDark: true,
-  },
-  violet: {
-    id: 'violet',
-    name: 'Violeta Cripto',
-    tagline: 'Púrpura e índigo sobrio de alta gama',
-    primaryColor: '#a855f7',
-    primaryHover: '#9333ea',
-    glowColor: 'rgba(168, 85, 247, 0.45)',
-    bgMain: '#080314',
-    bgCard: '#120924',
-    bgSecondary: '#1d0f38',
-    bgHeader: 'rgba(8, 3, 20, 0.95)',
-    bgInput: '#0e061c',
-    textMain: '#faf5ff',
-    textMuted: '#d8b4fe',
-    textSubtle: '#c084fc',
-    borderColor: 'rgba(168, 85, 247, 0.3)',
-    isDark: true,
-  },
   light: {
     id: 'light',
     name: 'Tema Claro',
@@ -135,10 +78,16 @@ class ThemeService {
   private init() {
     try {
       const saved = localStorage.getItem(THEME_STORAGE_KEY) as VaultTheme;
-      if (saved && VAULT_THEMES[saved]) {
+      if (saved && (saved === 'cyan' || saved === 'light')) {
         this.currentTheme = saved;
+      } else {
+        // Fallback to cyan for legacy themes (amoled, emerald, violet)
+        this.currentTheme = 'cyan';
+        localStorage.setItem(THEME_STORAGE_KEY, 'cyan');
       }
-    } catch {}
+    } catch {
+      this.currentTheme = 'cyan';
+    }
     this.applyToDom(this.currentTheme);
   }
 
@@ -147,7 +96,7 @@ class ThemeService {
   }
 
   public getThemeDefinition(theme?: VaultTheme): ThemeDefinition {
-    return VAULT_THEMES[theme || this.currentTheme];
+    return VAULT_THEMES[theme || this.currentTheme] || VAULT_THEMES.cyan;
   }
 
   public setTheme(theme: VaultTheme) {
@@ -180,7 +129,7 @@ class ThemeService {
 
   private applyToDom(theme: VaultTheme) {
     if (typeof document === 'undefined') return;
-    const def = VAULT_THEMES[theme];
+    const def = VAULT_THEMES[theme] || VAULT_THEMES.cyan;
     const root = document.documentElement;
 
     root.setAttribute('data-theme', theme);
