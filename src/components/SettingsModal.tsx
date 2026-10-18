@@ -51,6 +51,10 @@ import {
   BackupHeaderInfo,
 } from '../db/vaultDb';
 import {
+  saveInternalBackup,
+  downloadBackupToDevice,
+} from '../services/backupStorageService';
+import {
   deriveKeyFromPin,
   verifyKey,
   createVerificationPayload,
@@ -272,46 +276,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     (window as any).__isPickingFile = true;
     (window as any).__isProcessingBackup = true;
     try {
+      let finalCount = 0;
       const blob = await exportEncryptedBackupBlob((current, total) => {
+        finalCount = total;
         setExportProgress({ current, total });
       });
 
       const filename = `boveda_segura_backup_${new Date().toISOString().slice(0, 10)}.json`;
-      const file = new File([blob], filename, { type: 'application/json' });
 
-      // Check if native file sharing is supported (standard in Android Chrome PWAs)
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({
-            files: [file],
-            title: 'Copia de Seguridad Cifrada',
-            text: 'Copia de seguridad de Bóveda Segura',
-          });
-          showToast('Copia de seguridad exportada con éxito', 'success');
-          return;
-        } catch (shareErr: any) {
-          // If they cancel the share sheet, do not throw error
-          if (shareErr.name === 'AbortError') {
-            showToast('Exportación cancelada por el usuario', 'info');
-            return;
-          }
-          console.warn('Native share failed, falling back to download:', shareErr);
-        }
-      }
+      // 1. Guardar copia interna en IndexedDB de inmediato
+      await saveInternalBackup(blob, filename, finalCount);
 
-      // Fallback for Desktop/unsupported browsers
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      // Wait 120 seconds (2 minutes) before revoking URL.
-      // This prevents empty/truncated 0-byte downloads on Android where the system 
-      // download manager processes downloads in the background asynchronously.
-      setTimeout(() => URL.revokeObjectURL(url), 120000);
-      showToast('Copia de seguridad cifrada descargada con éxito', 'success');
+      // 2. Descargar al dispositivo
+      await downloadBackupToDevice(blob, filename);
+
+      showToast('Copia de seguridad guardada y descargada con éxito', 'success');
     } catch (err: any) {
       console.error('Error exporting backup:', err);
       showToast(`Error al exportar copia de seguridad: ${err?.message || 'Error desconocido'}`, 'error');

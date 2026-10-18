@@ -34,6 +34,10 @@ import { NeonSwitch } from './NeonSwitch';
 import { themeService, VaultTheme, VAULT_THEMES } from '../services/themeService';
 import { flipToLockService } from '../services/flipToLockService';
 import {
+  saveInternalBackup,
+  downloadBackupToDevice,
+} from '../services/backupStorageService';
+import {
   exportEncryptedBackupBlob,
   importEncryptedBackupBlobStream,
   BackupHeaderInfo,
@@ -279,6 +283,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     const ts = localStorage.getItem('nullvault_last_backup_timestamp');
     return ts ? Number(ts) : null;
   });
+
 
   // Data wiping states
   const [showWipeConfirmModal, setShowWipeConfirmModal] = useState(false);
@@ -571,44 +576,18 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     setIsExporting(true);
     setExportProgress({ current: 0, total: 1 });
     try {
+      let finalCount = 0;
       const backupBlob = await exportEncryptedBackupBlob((current, total) => {
+        finalCount = total;
         setExportProgress({ current, total });
       });
 
       const dateStr = new Date().toISOString().split('T')[0];
-      const fileName = `Boveda_Respaldo_${dateStr}.json`;
+      const timeStr = new Date().toTimeString().slice(0, 5).replace(':', '-');
+      const fileName = `Boveda_Respaldo_${dateStr}_${timeStr}.json`;
 
-      let sharedSuccessfully = false;
-      try {
-        const backupFile = new File([backupBlob], fileName, { type: 'application/json' });
-        if (navigator.canShare && navigator.canShare({ files: [backupFile] })) {
-          await navigator.share({
-            files: [backupFile],
-            title: fileName,
-            text: 'Copia de seguridad cifrada de Mi Bóveda',
-          });
-          sharedSuccessfully = true;
-        }
-      } catch (shareErr) {
-        console.log('Mobile share dismissed or unavailable:', shareErr);
-      }
-
-      if (!sharedSuccessfully) {
-        const url = URL.createObjectURL(backupBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        // Retener URL activa durante 3 minutos para que Android Download Manager no falle
-        setTimeout(() => {
-          try {
-            URL.revokeObjectURL(url);
-          } catch {}
-        }, 180000);
-      }
+      // 1. Guardar de forma garantizada en la memoria interna de la aplicación (IndexedDB aislado)
+      await saveInternalBackup(backupBlob, fileName, finalCount);
 
       const now = Date.now();
       localStorage.setItem('nullvault_last_backup_timestamp', now.toString());
@@ -618,7 +597,10 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       window.dispatchEvent(new Event('nullvault_backup_updated'));
       window.dispatchEvent(new Event('vault_backup_updated'));
 
-      showToast('Copia de seguridad descargada con éxito', 'success');
+      // 2. Guardar/descargar directamente en el almacenamiento del dispositivo
+      await downloadBackupToDevice(backupBlob, fileName);
+
+      showToast('Copia de seguridad guardada en tu dispositivo', 'success');
     } catch (err) {
       console.error('Export error:', err);
       showToast('Error al exportar copia de seguridad', 'error');
