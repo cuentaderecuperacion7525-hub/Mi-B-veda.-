@@ -250,10 +250,10 @@
 [data-theme="light"] [class*="from-blue-"],
 [data-theme="light"] [class*="from-blue-"] *,
 [data-theme="light"] [class*="bg-gradient-"] *,
-[data-theme="light"] button[class*="bg-rose-"],
-[data-theme="light"] button[class*="bg-rose-"] *,
-[data-theme="light"] button[class*="bg-red-"],
-[data-theme="light"] button[class*="bg-red-"] *,
+[data-theme="light"] button[class*="bg-rose-"]:not(.grid button),
+[data-theme="light"] button[class*="bg-rose-"]:not(.grid button) *,
+[data-theme="light"] button[class*="bg-red-"]:not(.grid button),
+[data-theme="light"] button[class*="bg-red-"]:not(.grid button) *,
 [data-theme="light"] button[class*="bg-emerald-"],
 [data-theme="light"] button[class*="bg-emerald-"] *,
 [data-theme="light"] button[class*="bg-blue-"],
@@ -340,19 +340,46 @@
 }
 
 /* 10. Light Keypad Buttons & Digits */
-[data-theme="light"] .grid button[class*="bg-slate-800"] {
+[data-theme="light"] .grid button[class*="bg-slate-800"],
+[data-theme="light"] .grid button.keypad-btn-backspace {
   background-color: #ffffff !important;
-  border: 1px solid #e2e8f0 !important;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.06) !important;
 }
-[data-theme="light"] .grid button[class*="bg-slate-800"]:hover {
+[data-theme="light"] .grid button[class*="bg-slate-800"]:hover,
+[data-theme="light"] .grid button.keypad-btn-backspace:hover {
   background-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
 }
 [data-theme="light"] .grid button[class*="bg-slate-800"] span:first-child {
   color: #0f172a !important;
 }
 [data-theme="light"] .grid button[class*="bg-slate-800"] span:last-child {
   color: #64748b !important;
+}
+[data-theme="light"] .grid button svg,
+[data-theme="light"] .grid button.keypad-btn-backspace svg,
+[data-theme="light"] .keypad-backspace-icon {
+  color: #0f172a !important;
+  stroke: #0f172a !important;
+}
+[data-theme="light"] .grid button[class*="bg-slate-800"]:disabled,
+[data-theme="light"] .grid button.keypad-btn-backspace:disabled {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  opacity: 1 !important;
+}
+[data-theme="light"] .grid button[class*="bg-slate-800"]:disabled svg,
+[data-theme="light"] .grid button.keypad-btn-backspace:disabled svg,
+[data-theme="light"] .grid button:disabled .keypad-backspace-icon {
+  color: #64748b !important;
+  stroke: #64748b !important;
+  opacity: 1 !important;
+}
+[data-theme="light"] .grid button[class*="bg-slate-800"] svg.text-\[\#00e5ff\],
+[data-theme="light"] .grid button[class*="bg-slate-800"] svg[class*="text-[#00e5ff]"] {
+  color: #0284c7 !important;
+  stroke: #0284c7 !important;
 }
 
 /* Empty PIN indicator dots in Light mode */

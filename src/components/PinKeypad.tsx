@@ -108,9 +108,18 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({
                 onClick={handleDelete}
                 disabled={disabled || pin.length === 0}
                 aria-label={keyItem.ariaLabel}
-                className="h-15 sm:h-16 rounded-2xl flex flex-col items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 active:scale-95 active:bg-rose-500/20 active:text-rose-400 border border-transparent hover:border-slate-700/60 transition-all cursor-pointer disabled:opacity-20 disabled:pointer-events-none"
+                className="keypad-btn-backspace group h-15 sm:h-16 rounded-2xl bg-slate-800/50 hover:bg-slate-800/85 active:scale-95 border border-slate-700/60 hover:border-slate-600 transition-all flex flex-col items-center justify-center shadow-sm cursor-pointer disabled:cursor-not-allowed text-slate-300 hover:text-white"
+                style={{
+                  color: 'var(--theme-text-main, #ffffff)',
+                }}
               >
-                <Delete className="w-5 h-5 stroke-[2]" />
+                <Delete
+                  className="w-5.5 h-5.5 stroke-[2] transition-transform group-hover:scale-110 keypad-backspace-icon"
+                  style={{
+                    color: pin.length > 0 ? 'var(--theme-text-main, #ffffff)' : 'var(--theme-text-muted, #94a3b8)',
+                    stroke: 'currentColor',
+                  }}
+                />
               </button>
             );
           }
@@ -128,31 +137,20 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({
                     ? 'Toca para escanear huella digital'
                     : 'Toca para activar sensor de huella'
                 }
-                style={{
-                  color: isBiometricsEnrolled ? 'var(--theme-primary, #00e5ff)' : undefined,
-                  borderColor: isBiometricsEnrolled ? 'var(--theme-primary, #00e5ff)' : undefined,
-                  boxShadow: isBiometricsEnrolled ? '0 0 16px var(--theme-glow)' : undefined,
-                }}
-                className={`h-15 sm:h-16 rounded-2xl flex items-center justify-center relative transition-all active:scale-95 group cursor-pointer ${
-                  isBiometricsEnrolled
-                    ? 'border'
-                    : 'bg-slate-800/40 hover:bg-slate-800/70 border border-slate-700/50 text-slate-400 hover:text-white'
-                } disabled:opacity-30 disabled:pointer-events-none`}
+                className="group h-15 sm:h-16 rounded-2xl bg-slate-800/50 hover:bg-slate-800/85 active:scale-95 active:bg-[#00e5ff]/20 active:border-[#00e5ff]/50 border border-slate-700/60 hover:border-slate-600 transition-all flex flex-col items-center justify-center shadow-sm cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
               >
                 {isBiometricsLoading ? (
                   <div className="relative flex items-center justify-center">
                     <span
-                      className="absolute w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-                      style={{ borderColor: 'var(--theme-primary, #00e5ff)' }}
+                      className="absolute w-8 h-8 rounded-full border-2 border-t-transparent animate-spin border-[#00e5ff]"
                     />
-                    <Fingerprint className="w-6 h-6 animate-pulse" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
+                    <Fingerprint className="w-6 h-6 animate-pulse text-[#00e5ff]" />
                   </div>
                 ) : (
                   <Fingerprint
-                    className="w-6.5 h-6.5 transition-transform group-hover:scale-110"
-                    style={{
-                      color: isBiometricsEnrolled ? 'var(--theme-primary, #00e5ff)' : undefined,
-                    }}
+                    className={`w-6.5 h-6.5 transition-transform group-hover:scale-110 ${
+                      isBiometricsEnrolled ? 'text-[#00e5ff]' : 'text-slate-400 group-hover:text-white'
+                    }`}
                   />
                 )}
               </button>
