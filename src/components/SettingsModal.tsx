@@ -53,6 +53,7 @@ import {
 import {
   saveInternalBackup,
   downloadBackupToDevice,
+  createBackupDownloadUrl,
 } from '../services/backupStorageService';
 import {
   deriveKeyFromPin,
@@ -132,6 +133,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [isVerifyingBackupPin, setIsVerifyingBackupPin] = useState(false);
   const [showPasteInput, setShowPasteInput] = useState(false);
   const [pastedBackupText, setPastedBackupText] = useState('');
+  const [generatedBackup, setGeneratedBackup] = useState<{
+    blobUrl: string;
+    fileName: string;
+    sizeBytes: number;
+    itemCount: number;
+  } | null>(null);
 
   // Reset confirmation
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -287,10 +294,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       // 1. Guardar copia interna en IndexedDB de inmediato
       await saveInternalBackup(blob, filename, finalCount);
 
-      // 2. Descargar al dispositivo
-      await downloadBackupToDevice(blob, filename);
+      // 2. Preparar URL descargable directa
+      const blobUrl = createBackupDownloadUrl(blob);
+      setGeneratedBackup({
+        blobUrl,
+        fileName: filename,
+        sizeBytes: blob.size,
+        itemCount: finalCount,
+      });
 
-      showToast('Copia de seguridad guardada y descargada con éxito', 'success');
+      // 3. Descargar al dispositivo
+      const dlRes = await downloadBackupToDevice(blob, filename);
+      if (dlRes.success && dlRes.method !== 'cancelled') {
+        showToast('Copia de seguridad guardada y descargada con éxito', 'success');
+      } else {
+        showToast('Copia lista. Pulsa el botón para guardarla en tu celular', 'info');
+      }
     } catch (err: any) {
       console.error('Error exporting backup:', err);
       showToast(`Error al exportar copia de seguridad: ${err?.message || 'Error desconocido'}`, 'error');
@@ -943,6 +962,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 )}
 
+                {generatedBackup && (
+                  <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2.5 animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span className="text-xs font-bold text-emerald-400">¡Copia de seguridad lista!</span>
+                      </div>
+                      <span className="text-[10px] text-emerald-300 font-mono bg-emerald-500/20 px-2 py-0.5 rounded-full">
+                        {generatedBackup.itemCount} archivos • {formatFileSize(generatedBackup.sizeBytes)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 break-all font-mono">
+                      {generatedBackup.fileName}
+                    </p>
+                    <a
+                      href={generatedBackup.blobUrl}
+                      download={generatedBackup.fileName}
+                      onClick={() => {
+                        showToast('Guardando archivo en Descargas de tu dispositivo...', 'success');
+                      }}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-98"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Guardar / Descargar en este Dispositivo</span>
+                    </a>
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={handleExportBackup}
@@ -950,7 +997,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="w-full py-2.5 bg-indigo-600/90 hover:bg-indigo-600 text-white rounded-xl text-xs font-medium transition-colors flex items-center justify-center gap-2"
                 >
                   <Download className="w-4 h-4" />
-                  <span>{isExporting ? 'Generando copia...' : 'Descargar Copia de Seguridad (.json)'}</span>
+                  <span>{isExporting ? 'Generando copia...' : 'Generar y Descargar Copia (.json)'}</span>
                 </button>
               </div>
 

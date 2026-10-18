@@ -172,9 +172,21 @@ async function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /**
+ * Creates an object URL with application/json MIME type for direct anchor downloads.
+ */
+export function createBackupDownloadUrl(blob: Blob): string {
+  const jsonBlob = blob.type === 'application/json'
+    ? blob
+    : new Blob([blob], { type: 'application/json;charset=utf-8' });
+  return URL.createObjectURL(jsonBlob);
+}
+
+/**
  * Triggers a direct download to the user's device.
- * Tries modern File System Access API first, then Capacitor native filesystem if available,
- * and falls back to standard DOM download.
+ * Priority order:
+ * 1. Capacitor Native Filesystem (if wrapped in Android/iOS native app)
+ * 2. Modern File System Access API (Desktop Chrome / Edge)
+ * 3. Standard Blob URL anchor download (Android Chrome, Brave, Samsung Internet, PWA, Safari)
  */
 export async function downloadBackupToDevice(
   blob: Blob,
@@ -192,11 +204,11 @@ export async function downloadBackupToDevice(
       });
       return { success: true, method: 'capacitor_filesystem' };
     } catch (capErr) {
-      console.warn('Capacitor filesystem write failed, falling back:', capErr);
+      console.warn('Capacitor filesystem write failed, falling back to browser download:', capErr);
     }
   }
 
-  // Method 2: Modern File System Access API (User chooses folder/file in Android Chrome / Edge)
+  // Method 2: Modern File System Access API (Desktop Chrome / Edge user dialog)
   if (typeof (window as any).showSaveFilePicker === 'function') {
     try {
       const handle = await (window as any).showSaveFilePicker({
@@ -214,53 +226,54 @@ export async function downloadBackupToDevice(
       return { success: true, method: 'save_file_picker' };
     } catch (pickerErr: any) {
       if (pickerErr?.name === 'AbortError') {
-        // User cancelled the picker
+        // User deliberately cancelled the picker dialog
         return { success: false, method: 'cancelled' };
       }
-      console.warn('showSaveFilePicker failed or unpermitted, falling back:', pickerErr);
+      console.warn('showSaveFilePicker failed or was rejected, falling back:', pickerErr);
     }
   }
 
-  // Method 3: Base64 Data URI download for Android PWA / Mobile (bypasses blob URL restrictions in Android DownloadManager)
+  // Method 3: Standard Object URL anchor download
+  // NEVER use data: URIs on Android/Chromium because Chromium security blocks anchor downloads from data: URLs!
   try {
-    const base64Data = await blobToBase64(blob);
-    const dataUri = `data:application/octet-stream;charset=utf-8;base64,${base64Data}`;
+    const jsonBlob = blob.type === 'application/json'
+      ? blob
+      : new Blob([blob], { type: 'application/json;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(jsonBlob);
+
     const a = document.createElement('a');
-    a.href = dataUri;
+    a.href = blobUrl;
     a.download = fileName;
-    a.style.display = 'none';
+    a.rel = 'noopener noreferrer';
+    a.style.position = 'fixed';
+    a.style.top = '-9999px';
+    a.style.left = '-9999px';
+    a.style.opacity = '0';
     document.body.appendChild(a);
+
+    // Trigger click on anchor
     a.click();
+
+    // Clean up DOM node quickly, but leave blobUrl alive for 3 minutes so
+    // Android DownloadManager or browser background process finishes writing to disk
     setTimeout(() => {
       try {
-        document.body.removeChild(a);
+        if (a.parentNode) {
+          document.body.removeChild(a);
+        }
       } catch {}
     }, 1500);
 
-    return { success: true, method: 'data_uri_download' };
-  } catch (dataErr) {
-    console.warn('Data URI download failed, trying standard blob download:', dataErr);
-    try {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+    setTimeout(() => {
+      try {
+        URL.revokeObjectURL(blobUrl);
+      } catch {}
+    }, 180000); // 3 minutes
 
-      setTimeout(() => {
-        try {
-          URL.revokeObjectURL(url);
-        } catch {}
-      }, 120000);
-
-      return { success: true, method: 'anchor_download' };
-    } catch (domErr) {
-      console.error('All download methods failed:', domErr);
-      return { success: false, method: 'failed' };
-    }
+    return { success: true, method: 'blob_download' };
+  } catch (domErr) {
+    console.error('All download methods failed:', domErr);
+    return { success: false, method: 'failed' };
   }
 }
 
