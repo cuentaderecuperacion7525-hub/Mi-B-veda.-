@@ -49,6 +49,15 @@ export interface NativeVaultMediaPlugin {
     mimeType?: string;
     category?: string;
   }): Promise<{ success: boolean; uri?: string; path?: string; message?: string }>;
+
+  /**
+   * Guarda una copia de seguridad (.json) directamente en la carpeta pública "Descargas" (Downloads) del teléfono
+   */
+  saveBackupToDownloads(options: {
+    base64Data: string;
+    filename: string;
+    mimeType?: string;
+  }): Promise<{ success: boolean; path?: string; folder?: string; filename?: string; message?: string }>;
 }
 
 // Registro del plugin nativo de Capacitor (se enlaza en Android con VaultMediaPlugin.java)

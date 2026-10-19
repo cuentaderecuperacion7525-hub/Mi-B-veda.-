@@ -26,6 +26,7 @@ import {
   RotateCcw,
   Undo2,
   ShieldCheck,
+  FolderDown,
 } from 'lucide-react';
 import { updateService, UpdateCheckResult } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
@@ -419,10 +420,12 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
   const [localBackups, setLocalBackups] = useState<StoredBackupMetadata[]>([]);
   const [isLoadingLocalBackups, setIsLoadingLocalBackups] = useState(false);
   const [generatedBackup, setGeneratedBackup] = useState<{
+    blob?: Blob;
     blobUrl: string;
     fileName: string;
     sizeBytes: number;
     itemCount: number;
+    savedPath?: string;
   } | null>(null);
 
   // Back button registrations para retroceder con teclas de navegación o botón físico
@@ -648,17 +651,20 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
 
       // 2. Preparar enlace de descarga directa en pantalla
       const blobUrl = createBackupDownloadUrl(backupBlob);
+
+      // 3. Descargar al almacenamiento del dispositivo
+      const dlResult = await downloadBackupToDevice(backupBlob, fileName);
       setGeneratedBackup({
+        blob: backupBlob,
         blobUrl,
         fileName,
         sizeBytes: backupBlob.size,
         itemCount: finalCount,
+        savedPath: dlResult.path || 'Descargas (Downloads)',
       });
 
-      // 3. Descargar al almacenamiento del dispositivo
-      const dlResult = await downloadBackupToDevice(backupBlob, fileName);
       if (dlResult.success && dlResult.method !== 'cancelled') {
-        showToast('Copia de seguridad guardada en tu dispositivo', 'success');
+        showToast('Copia guardada con éxito en la carpeta Descargas de tu teléfono', 'success');
       } else {
         showToast('Copia lista. Pulsa el botón para guardarla en tu celular', 'info');
       }
@@ -668,6 +674,32 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     } finally {
       setIsExporting(false);
       setExportProgress(null);
+    }
+  };
+
+  const handleDirectSaveBackup = async () => {
+    if (!generatedBackup) return;
+    try {
+      if (generatedBackup.blob) {
+        const res = await downloadBackupToDevice(generatedBackup.blob, generatedBackup.fileName);
+        if (res.success) {
+          showToast('Copia guardada en la carpeta Descargas de tu teléfono', 'success');
+          return;
+        }
+      }
+      const a = document.createElement('a');
+      a.href = generatedBackup.blobUrl;
+      a.download = generatedBackup.fileName;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        try {
+          document.body.removeChild(a);
+        } catch {}
+      }, 1000);
+      showToast('Descargando archivo a tu dispositivo...', 'info');
+    } catch (err: any) {
+      showToast('Error al descargar: ' + (err?.message || 'Error desconocido'), 'error');
     }
   };
 
@@ -1524,34 +1556,6 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 </div>
               )}
 
-              {generatedBackup && (
-                <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2.5 animate-in fade-in">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span className="text-xs font-bold text-emerald-400">¡Copia de seguridad lista!</span>
-                    </div>
-                    <span className="text-[10px] text-emerald-300 font-mono bg-emerald-500/20 px-2 py-0.5 rounded-full">
-                      {generatedBackup.itemCount} archivos • {formatFileSize(generatedBackup.sizeBytes)}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-300 break-all font-mono">
-                    {generatedBackup.fileName}
-                  </p>
-                  <a
-                    href={generatedBackup.blobUrl}
-                    download={generatedBackup.fileName}
-                    onClick={() => {
-                      showToast('Guardando archivo en la carpeta Descargas de tu dispositivo...', 'success');
-                    }}
-                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-98"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Guardar / Descargar en este Dispositivo</span>
-                  </a>
-                </div>
-              )}
-
               <button
                 type="button"
                 onClick={handleExportBackup}
@@ -1559,7 +1563,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-2 border border-slate-700 active:scale-98"
               >
                 <Download className="w-4 h-4 text-[#00e5ff]" />
-                <span>{isExporting ? 'Generando copia...' : 'Generar y Descargar Copia (.json)'}</span>
+                <span>{isExporting ? 'Generando copia...' : 'Descargar Copia de Seguridad (.json)'}</span>
               </button>
             </div>
 
@@ -1571,67 +1575,10 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 <div>
                   <h5 className="text-xs font-semibold text-slate-200">Restaurar Copia</h5>
                   <p className="text-[11px] text-slate-400">
-                    Recupera tus fotos, videos y notas desde copias guardadas en el dispositivo o archivos .json.
+                    Importa un archivo .json generado previamente para restaurar archivos a tu bóveda.
                   </p>
                 </div>
               </div>
-
-              {/* Copias locales almacenadas en el dispositivo */}
-              {localBackups.length > 0 && (
-                <div className="space-y-2 pt-1 border-b border-slate-800/80 pb-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#00e5ff]" />
-                      Copias Guardadas en este Dispositivo ({localBackups.length})
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {localBackups.map((b) => (
-                      <div
-                        key={b.id}
-                        className="p-3 bg-[#101b2d] border border-slate-700/80 rounded-2xl flex flex-col gap-2 shadow-md"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold text-white truncate">{b.fileName}</p>
-                            <p className="text-[10px] text-slate-400">
-                              {new Date(b.timestamp).toLocaleString()} • {b.itemCount} archivos • {formatFileSize(b.sizeBytes)}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteStoredBackup(b.id)}
-                            className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors"
-                            title="Eliminar esta copia"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-2 pt-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleRestoreInternalBackup(b.id, b.fileName)}
-                            disabled={isImporting}
-                            className="flex-1 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-98"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                            <span>Restaurar Esta Copia</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDownloadStoredBackup(b.id, b.fileName)}
-                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 active:scale-98"
-                            title="Descargar archivo al celular"
-                          >
-                            <Download className="w-3.5 h-3.5 text-[#00e5ff]" />
-                            <span>Descargar</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {selectedBackupInfo && (
                 <div className="bg-[#101b2d] border border-slate-700/80 rounded-2xl p-4 space-y-3 shadow-lg animate-in fade-in">
@@ -1676,9 +1623,9 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 </div>
               )}
 
-              <label className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-98">
-                <Upload className="w-4 h-4 text-[#00e5ff]" />
-                <span>{isImporting ? 'Restaurando archivo...' : 'Buscar Archivo .json en el Celular'}</span>
+              <label className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/20 active:scale-98">
+                <Upload className="w-4 h-4" />
+                <span>{isImporting ? 'Restaurando archivo...' : 'Seleccionar Archivo de Respaldo (.json)'}</span>
                 <input
                   type="file"
                   accept=".json"

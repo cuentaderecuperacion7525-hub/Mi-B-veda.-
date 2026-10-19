@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { NativeVaultMedia } from './nativeVaultBridge';
 
 export interface StoredBackupMetadata {
   id: string;
@@ -191,18 +192,63 @@ export function createBackupDownloadUrl(blob: Blob): string {
 export async function downloadBackupToDevice(
   blob: Blob,
   fileName: string
-): Promise<{ success: boolean; method: string }> {
-  // Method 1: Capacitor Native Platform (Android / iOS app)
+): Promise<{ success: boolean; method: string; path?: string }> {
+  // Method 1: Capacitor Native Platform (Android / iOS native app)
+  // Guarda el archivo DIRECTAMENTE en la carpeta pública "Descargas" (Downloads) del teléfono
+  // para que el usuario pueda verlo desde "Mis Archivos", "Files de Google" o cualquier explorador.
   if (Capacitor.isNativePlatform()) {
     try {
       const base64Data = await blobToBase64(blob);
-      await Filesystem.writeFile({
-        path: fileName,
-        data: base64Data,
-        directory: Directory.Documents,
-        recursive: true,
-      });
-      return { success: true, method: 'capacitor_filesystem' };
+
+      // 1a. Intentar guardar en la carpeta pública DESCARGAS usando NativeVaultMedia (MediaStore.Downloads)
+      try {
+        const nativeRes = await NativeVaultMedia.saveBackupToDownloads({
+          base64Data,
+          filename: fileName,
+          mimeType: 'application/json',
+        });
+        if (nativeRes && nativeRes.success) {
+          return {
+            success: true,
+            method: 'native_downloads',
+            path: nativeRes.path || 'Descargas',
+          };
+        }
+      } catch (nativeErr) {
+        console.warn('NativeVaultMedia.saveBackupToDownloads failed, trying exportMediaToDevice:', nativeErr);
+      }
+
+      // 1b. Intentar con exportMediaToDevice (MediaStore Downloads)
+      try {
+        const nativeRes2 = await NativeVaultMedia.exportMediaToDevice({
+          base64Data,
+          filename: fileName,
+          mimeType: 'application/json',
+          category: 'backup',
+        });
+        if (nativeRes2 && nativeRes2.success) {
+          return {
+            success: true,
+            method: 'native_export_media',
+            path: nativeRes2.path || nativeRes2.uri || 'Descargas',
+          };
+        }
+      } catch (mediaErr) {
+        console.warn('Native exportMediaToDevice failed:', mediaErr);
+      }
+
+      // 1c. Si falla MediaStore, intentar Filesystem
+      try {
+        await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: Directory.Documents,
+          recursive: true,
+        });
+        return { success: true, method: 'capacitor_filesystem' };
+      } catch (fsErr) {
+        console.warn('Filesystem.writeFile failed:', fsErr);
+      }
     } catch (capErr) {
       console.warn('Capacitor filesystem write failed, falling back to browser download:', capErr);
     }

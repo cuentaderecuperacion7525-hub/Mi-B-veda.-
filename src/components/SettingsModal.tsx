@@ -962,33 +962,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 )}
 
-                {generatedBackup && (
-                  <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2.5 animate-in fade-in">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span className="text-xs font-bold text-emerald-400">¡Copia de seguridad lista!</span>
-                      </div>
-                      <span className="text-[10px] text-emerald-300 font-mono bg-emerald-500/20 px-2 py-0.5 rounded-full">
-                        {generatedBackup.itemCount} archivos • {formatFileSize(generatedBackup.sizeBytes)}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 break-all font-mono">
-                      {generatedBackup.fileName}
-                    </p>
-                    <a
-                      href={generatedBackup.blobUrl}
-                      download={generatedBackup.fileName}
-                      onClick={() => {
-                        showToast('Guardando archivo en Descargas de tu dispositivo...', 'success');
-                      }}
-                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-98"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>Guardar / Descargar en este Dispositivo</span>
-                    </a>
-                  </div>
-                )}
+
 
                 <button
                   type="button"

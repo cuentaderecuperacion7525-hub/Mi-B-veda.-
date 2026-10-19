@@ -33,13 +33,31 @@ public class MainActivity extends BridgeActivity {
         // Solicitar permisos necesarios desde el inicio (Cámara + Acceso Multimedia para MediaStore)
         checkAndRequestAppPermissions();
 
-        // Concesión automática de permisos de cámara al WebView interno
+        // Concesión automática de permisos de cámara al WebView interno y soporte para descargas
         if (getBridge() != null && getBridge().getWebView() != null) {
             getBridge().getWebView().setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
                 @Override
                 public void onPermissionRequest(final PermissionRequest request) {
                     request.grant(request.getResources());
                 }
+            });
+
+            getBridge().getWebView().setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+                try {
+                    android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(android.net.Uri.parse(url));
+                    request.setMimeType(mimetype != null ? mimetype : "application/json");
+                    request.addRequestHeader("User-Agent", userAgent);
+                    request.setDescription("Descargando copia de seguridad...");
+                    String fileName = android.webkit.URLUtil.guessFileName(url, contentDisposition, mimetype);
+                    request.setTitle(fileName);
+                    request.allowScanningByMediaScanner();
+                    request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                    request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName);
+                    android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                    if (dm != null) {
+                        dm.enqueue(request);
+                    }
+                } catch (Exception ignored) {}
             });
         }
     }
