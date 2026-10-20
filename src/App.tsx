@@ -19,6 +19,7 @@ import { updateService, UpdateCheckResult } from './services/updateService';
 import { flipToLockService } from './services/flipToLockService';
 import { themeService } from './services/themeService';
 import { userProfileService } from './services/userProfileService';
+import { testFirestoreConnection } from './services/firebase';
 import { UpdateNotificationModal } from './components/UpdateNotificationModal';
 import { CURRENT_APP_VERSION } from './version';
 
@@ -163,6 +164,7 @@ export default function App() {
         }
         // Auto-limpieza en segundo plano de la papelera (elementos mayores a 30 días)
         autoPurgeTrash(30).catch(() => {});
+        testFirestoreConnection().catch(() => {});
       } catch (err) {
         console.error('Initialization error:', err);
         setVaultStatus('setup');

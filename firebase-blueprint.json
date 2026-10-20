@@ -1,0 +1,55 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account and profile data for Bóveda Segura",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique user ID (auth UID)"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name"
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name"
+        },
+        "birthDate": {
+          "type": "string",
+          "description": "Birth date DD/MM/YYYY"
+        },
+        "age": {
+          "type": "number",
+          "description": "Calculated age in years"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address"
+        },
+        "emailVerified": {
+          "type": "boolean",
+          "description": "Whether email is verified"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of registration"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of last profile update"
+        }
+      },
+      "required": ["id", "firstName", "lastName", "birthDate", "age", "email", "emailVerified", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile records indexed by auth UID"
+    }
+  }
+}

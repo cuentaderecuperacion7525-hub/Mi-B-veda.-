@@ -19,7 +19,12 @@ import {
   Grid,
   Info,
 } from 'lucide-react';
-import { userProfileService, UserProfile } from '../services/userProfileService';
+import {
+  userProfileService,
+  UserProfile,
+  calculateAgeFromBirthDate,
+  formatBirthDateMask,
+} from '../services/userProfileService';
 import { CURRENT_APP_VERSION } from '../version';
 
 interface ProfileVaultViewProps {
@@ -47,7 +52,8 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editFirst, setEditFirst] = useState('');
   const [editLast, setEditLast] = useState('');
-  const [editAge, setEditAge] = useState('');
+  const [editBirthDate, setEditBirthDate] = useState('');
+  const [editCalculatedAge, setEditCalculatedAge] = useState<number | null>(null);
   const [editEmail, setEditEmail] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -64,23 +70,36 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     if (profile) {
       setEditFirst(profile.firstName);
       setEditLast(profile.lastName);
-      setEditAge(profile.age ? profile.age.toString() : '');
+      setEditBirthDate(profile.birthDate || '');
+      setEditCalculatedAge(profile.age || (profile.birthDate ? calculateAgeFromBirthDate(profile.birthDate) : null));
       setEditEmail(profile.email);
     } else {
       setEditFirst('');
       setEditLast('');
-      setEditAge('');
+      setEditBirthDate('');
+      setEditCalculatedAge(null);
       setEditEmail('');
     }
     setEditError(null);
     setIsEditing(true);
   };
 
+  const handleBirthDateEdit = (val: string) => {
+    const masked = formatBirthDateMask(val);
+    setEditBirthDate(masked);
+    setEditError(null);
+    if (masked.length === 10) {
+      const a = calculateAgeFromBirthDate(masked);
+      setEditCalculatedAge(a);
+    } else {
+      setEditCalculatedAge(null);
+    }
+  };
+
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanFirst = editFirst.trim();
     const cleanLast = editLast.trim();
-    const cleanAge = parseInt(editAge.trim(), 10);
     const cleanEmail = editEmail.trim();
 
     if (!cleanFirst) {
@@ -91,10 +110,20 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       setEditError('Ingresa tus apellidos.');
       return;
     }
-    if (isNaN(cleanAge) || cleanAge <= 0 || cleanAge > 120) {
-      setEditError('Ingresa una edad válida en números.');
-      return;
+
+    let age = editCalculatedAge;
+    if (editBirthDate) {
+      if (editBirthDate.length !== 10) {
+        setEditError('La fecha de nacimiento debe tener el formato DD/MM/AAAA.');
+        return;
+      }
+      age = calculateAgeFromBirthDate(editBirthDate);
+      if (age === null || age < 1 || age > 120) {
+        setEditError('Por favor, ingresa una fecha de nacimiento válida.');
+        return;
+      }
     }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!cleanEmail || !emailRegex.test(cleanEmail)) {
       setEditError('Ingresa un correo electrónico válido.');
@@ -104,8 +133,10 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     userProfileService.saveUserProfile({
       firstName: cleanFirst,
       lastName: cleanLast,
-      age: cleanAge,
+      birthDate: editBirthDate,
+      age: age || profile?.age || 0,
       email: cleanEmail,
+      emailVerified: profile?.emailVerified !== undefined ? profile.emailVerified : true,
     });
 
     setIsEditing(false);
@@ -196,7 +227,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                 >
                   {profile ? `${profile.firstName} ${profile.lastName}` : 'Usuario de la Bóveda'}
                 </h2>
-                <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-1.5">
                   <span
                     className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full border"
                     style={{
@@ -208,16 +239,29 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                     <User className="w-3 h-3" />
                     <span>{profile?.age ? `${profile.age} años` : 'Edad no configurada'}</span>
                   </span>
+                  {profile?.birthDate && (
+                    <span
+                      className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border"
+                      style={{
+                        backgroundColor: 'var(--theme-bg-secondary)',
+                        borderColor: 'var(--theme-border)',
+                        color: 'var(--theme-text-muted)',
+                      }}
+                    >
+                      <Calendar className="w-3 h-3" />
+                      <span>{profile.birthDate}</span>
+                    </span>
+                  )}
                   <span
                     className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border"
                     style={{
-                      backgroundColor: 'var(--theme-bg-secondary)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-muted)',
+                      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                      borderColor: 'rgba(16, 185, 129, 0.25)',
+                      color: '#059669',
                     }}
                   >
-                    <Lock className="w-2.5 h-2.5 text-emerald-500" />
-                    <span>Perfil Cifrado</span>
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                    <span>Correo Verificado</span>
                   </span>
                 </div>
               </div>
@@ -602,43 +646,55 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
-                <div className="col-span-1">
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
-                    Edad
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold" style={{ color: 'var(--theme-text-main)' }}>
+                    Fecha de Nacimiento
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="120"
-                    value={editAge}
-                    onChange={(e) => setEditAge(e.target.value)}
-                    required
-                    className="w-full rounded-xl px-3 py-2.5 text-xs font-medium border text-center outline-none focus:ring-1"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
-                  />
+                  {editCalculatedAge !== null && (
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full border text-emerald-600"
+                      style={{
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderColor: 'rgba(16, 185, 129, 0.25)',
+                      }}
+                    >
+                      {editCalculatedAge} años
+                    </span>
+                  )}
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
-                    Correo Electrónico
-                  </label>
-                  <input
-                    type="email"
-                    value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
-                    required
-                    className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
-                  />
-                </div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={editBirthDate}
+                  onChange={(e) => handleBirthDateEdit(e.target.value)}
+                  placeholder="DD/MM/AAAA"
+                  maxLength={10}
+                  className="w-full rounded-xl px-3.5 py-2.5 text-xs font-mono font-medium border outline-none focus:ring-1"
+                  style={{
+                    backgroundColor: 'var(--theme-bg-input)',
+                    borderColor: 'var(--theme-border)',
+                    color: 'var(--theme-text-main)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
+                  Correo Electrónico
+                </label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  required
+                  className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
+                  style={{
+                    backgroundColor: 'var(--theme-bg-input)',
+                    borderColor: 'var(--theme-border)',
+                    color: 'var(--theme-text-main)',
+                  }}
+                />
               </div>
 
               {editError && (
