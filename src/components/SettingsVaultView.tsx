@@ -1634,42 +1634,6 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   onChange={handleFileRestore}
                 />
               </label>
-
-              {/* Pegar texto directo */}
-              <div className="border-t border-slate-800/80 pt-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-slate-400">¿Problemas al abrir el archivo?</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowPasteInput(!showPasteInput)}
-                    className="text-xs text-[#00e5ff] hover:underline font-medium"
-                  >
-                    {showPasteInput ? 'Ocultar' : 'Pegar texto directo'}
-                  </button>
-                </div>
-
-                {showPasteInput && (
-                  <div className="mt-2.5 space-y-2 animate-in fade-in">
-                    <textarea
-                      rows={3}
-                      value={pastedBackupText}
-                      onChange={(e) => setPastedBackupText(e.target.value)}
-                      placeholder="Pega aquí el contenido JSON del archivo..."
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-[#00e5ff] resize-none"
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        disabled={!pastedBackupText.trim() || isImporting}
-                        onClick={handlePasteRestore}
-                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-xl text-xs font-semibold"
-                      >
-                        Restaurar desde texto
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         )}
@@ -1877,14 +1841,35 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         {activeSubMenu === 'theme' && (
           <div className="space-y-4 animate-in fade-in duration-200">
             {/* Encabezado */}
-            <div className="bg-[#0a121d] p-4 rounded-3xl border border-slate-800/90 shadow-xl space-y-2">
+            <div
+              className="p-4 rounded-3xl border shadow-xl space-y-2 transition-colors"
+              style={{
+                backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.9))',
+              }}
+            >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400 shrink-0">
+                <div
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 14%, var(--theme-bg-secondary, #0f172a))',
+                    borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 30%, transparent)',
+                    color: 'var(--theme-primary, #00e5ff)',
+                  }}
+                >
                   <Palette className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Temas de la Bóveda</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <h3
+                    className="text-sm font-bold"
+                    style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                  >
+                    Temas de la Bóveda
+                  </h3>
+                  <p
+                    className="text-xs mt-0.5"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  >
                     Alterna entre el tema tecnológico original Cian Neón o el Tema Claro.
                   </p>
                 </div>
@@ -1900,14 +1885,12 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   <div
                     key={themeDef.id}
                     onClick={() => handleSelectTheme(themeDef.id)}
-                    className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] ${
-                      isSelected
-                        ? 'bg-[#0a121d] border-2 shadow-lg'
-                        : 'bg-[#0a121d] border-slate-800/90 hover:border-slate-700'
-                    }`}
+                    className="p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] shadow-sm"
                     style={{
-                      borderColor: isSelected ? themeDef.primaryColor : undefined,
+                      backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                      borderColor: isSelected ? themeDef.primaryColor : 'var(--theme-border, rgba(51, 65, 85, 0.75))',
                       boxShadow: isSelected ? `0 0 16px ${themeDef.glowColor}` : undefined,
+                      borderWidth: isSelected ? '2px' : '1px',
                     }}
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -1928,21 +1911,28 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                       </div>
 
                       <div className="min-w-0">
-                        <h4 className="text-sm font-bold text-white truncate">{themeDef.name}</h4>
-                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{themeDef.tagline}</p>
+                        <h4
+                          className="text-sm font-bold truncate"
+                          style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                        >
+                          {themeDef.name}
+                        </h4>
+                        <p
+                          className="text-[11px] truncate mt-0.5"
+                          style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                        >
+                          {themeDef.tagline}
+                        </p>
                       </div>
                     </div>
 
                     {/* Radio/Check button indicator */}
                     <div
-                      className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                        isSelected
-                          ? 'text-white font-bold shadow-sm'
-                          : 'border border-slate-700 bg-slate-800/60 text-transparent'
-                      }`}
+                      className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all border"
                       style={{
-                        backgroundColor: isSelected ? themeDef.primaryColor : undefined,
-                        color: isSelected ? '#ffffff' : undefined,
+                        backgroundColor: isSelected ? themeDef.primaryColor : 'var(--theme-bg-secondary, #0f172a)',
+                        borderColor: isSelected ? themeDef.primaryColor : 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                        color: '#ffffff',
                       }}
                     >
                       {isSelected && <Check className="w-3.5 h-3.5 stroke-[3] text-white" />}

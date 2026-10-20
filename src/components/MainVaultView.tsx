@@ -40,6 +40,8 @@ import {
   AlertTriangle,
   ShieldAlert,
   Maximize2,
+  LayoutList,
+  Rows3,
 } from 'lucide-react';
 import {
   EncryptedVaultItem,
@@ -74,6 +76,7 @@ import { SettingsVaultView } from './SettingsVaultView';
 import { registerBackHandler, triggerBackAction } from '../services/backButtonService';
 import { updateService, UpdateCheckResult } from '../services/updateService';
 import { UpdateNotificationBanner } from './UpdateNotificationModal';
+import { themeService, VaultTheme } from '../services/themeService';
 
 export interface Carpeta {
   id: string;
@@ -159,6 +162,30 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   const [aspectMode, setAspectMode] = useState<'real' | 'square'>(() => {
     return (localStorage.getItem('vault_aspect_mode') as 'real' | 'square') || 'real';
   });
+
+  // Formato de vista de categorías: 'grid' (cuadrícula 2x2) o 'line' (en línea / lista estilo imagen 2)
+  const [categoryLayout, setCategoryLayout] = useState<'grid' | 'line'>(() => {
+    return (localStorage.getItem('vault_category_layout') as 'grid' | 'line') || 'line';
+  });
+
+  const handleSetCategoryLayout = (layout: 'grid' | 'line') => {
+    setCategoryLayout(layout);
+    localStorage.setItem('vault_category_layout', layout);
+    showToast(
+      layout === 'line'
+        ? 'Vista de categorías: En línea'
+        : 'Vista de categorías: Cuadrícula',
+      'info'
+    );
+  };
+
+  // Suscripción al tema activo para sincronización instantánea al cambiar de tema
+  const [currentTheme, setCurrentTheme] = useState<VaultTheme>(() => themeService.getTheme());
+  useEffect(() => {
+    return themeService.subscribe((newTheme) => {
+      setCurrentTheme(newTheme);
+    });
+  }, []);
 
   const toggleAspectMode = () => {
     const next = aspectMode === 'real' ? 'square' : 'real';
@@ -1255,7 +1282,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     }
   };
 
-  // Counts by category
+  const formatSize = (bytes: number) => {
+    if (!bytes) return '0 KB';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  // Counts and sizes by category
   const counts = useMemo(() => {
     let photos = 0;
     let videos = 0;
@@ -1263,13 +1296,27 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     let apps = 0;
     let favs = 0;
     let totalBytes = 0;
+    let photoBytes = 0;
+    let videoBytes = 0;
+    let audioBytes = 0;
+    let appBytes = 0;
 
     items.forEach((item) => {
-      totalBytes += item.record.size || 0;
-      if (item.record.category === 'photo') photos++;
-      else if (item.record.category === 'video') videos++;
-      else if (item.record.category === 'audio') audios++;
-      else apps++;
+      const sz = item.record.size || 0;
+      totalBytes += sz;
+      if (item.record.category === 'photo') {
+        photos++;
+        photoBytes += sz;
+      } else if (item.record.category === 'video') {
+        videos++;
+        videoBytes += sz;
+      } else if (item.record.category === 'audio') {
+        audios++;
+        audioBytes += sz;
+      } else {
+        apps++;
+        appBytes += sz;
+      }
 
       if (item.record.isFavorite) favs++;
     });
@@ -1282,6 +1329,10 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       favs,
       totalBytes,
       totalMB: (totalBytes / (1024 * 1024)).toFixed(1),
+      photoSize: formatSize(photoBytes),
+      videoSize: formatSize(videoBytes),
+      audioSize: formatSize(audioBytes),
+      appSize: formatSize(appBytes),
     };
   }, [items]);
 
@@ -1311,12 +1362,6 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       return true;
     });
   }, [items, activeTab, activeSubfolder, searchQuery]);
-
-  const formatSize = (bytes: number) => {
-    if (!bytes) return '0 KB';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  };
 
   return (
     <div
@@ -1450,20 +1495,27 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
             />
           )}
 
-          {/* Card: BÓVEDA SELLADA (Real Data) - Compact sleek card */}
-          <div className="bg-[#0a121d] border border-slate-800/90 rounded-2xl p-2.5 sm:p-3 mb-2.5 shadow-xl flex items-center justify-between">
+          {/* Card: BÓVEDA SELLADA (Real Data) - Adaptada dinámicamente al tema */}
+          <div
+            className="border rounded-2xl p-2.5 sm:p-3 mb-3 shadow-lg flex items-center justify-between transition-colors"
+            style={{
+              backgroundColor: 'var(--theme-bg-card, #0a121d)',
+              borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.8))',
+            }}
+          >
             {/* Circular Progress Gauge */}
             <div className="relative w-11 h-11 shrink-0 flex items-center justify-center">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
                 <path
-                  className="text-slate-800"
+                  style={{ color: 'var(--theme-bg-secondary, #1e293b)' }}
                   strokeWidth="3.5"
                   stroke="currentColor"
                   fill="none"
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 />
                 <path
-                  className="text-[#00e5ff] transition-all duration-500"
+                  style={{ color: 'var(--theme-primary, #00e5ff)' }}
+                  className="transition-all duration-500"
                   strokeDasharray={`${storagePercent}, 100`}
                   strokeLinecap="round"
                   strokeWidth="3.5"
@@ -1472,20 +1524,32 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 />
               </svg>
-              <span className="absolute text-[11px] font-bold text-white font-mono">
+              <span
+                className="absolute text-[11px] font-bold font-mono"
+                style={{ color: 'var(--theme-text-main, #ffffff)' }}
+              >
                 {storagePercent}%
               </span>
             </div>
 
             {/* Info */}
             <div className="flex-1 min-w-0 px-2.5">
-              <p className="text-[9px] font-bold text-[#00e5ff] tracking-widest uppercase">
+              <p
+                className="text-[9px] font-bold tracking-widest uppercase"
+                style={{ color: 'var(--theme-primary, #00e5ff)' }}
+              >
                 BÓVEDA SELLADA
               </p>
-              <h3 className="text-xs sm:text-sm font-bold text-white truncate">
+              <h3
+                className="text-xs sm:text-sm font-bold truncate"
+                style={{ color: 'var(--theme-text-main, #ffffff)' }}
+              >
                 {items.length} {items.length === 1 ? 'archivo cifrado' : 'archivos cifrados'}
               </h3>
-              <p className="text-[10px] text-slate-400 truncate">
+              <p
+                className="text-[10px] truncate"
+                style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+              >
                 {items.length > 0
                   ? `${formatSize(totalStorageBytes)} usados · Hoy ${lastAccessTime}`
                   : `Último acceso: hoy ${lastAccessTime}`}
@@ -1493,97 +1557,514 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
             </div>
 
             {/* Shield with lock icon */}
-            <div className="w-8 h-8 rounded-xl bg-[#00e5ff]/10 border border-[#00e5ff]/30 text-[#00e5ff] flex items-center justify-center shrink-0 shadow-md shadow-cyan-500/10">
+            <div
+              className="w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 shadow-md"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 12%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 30%, transparent)',
+                color: 'var(--theme-primary, #00e5ff)',
+              }}
+            >
               <Shield className="w-3.5 h-3.5" />
             </div>
           </div>
 
-          {/* 4 Category Cards in 2x2 Grid (Compact & Sleek) */}
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            {/* Fotos */}
-            <button
-              type="button"
-              onClick={() => openCategory('photo')}
-              className="bg-[#0a121d] border border-slate-800/80 hover:border-[#00e5ff]/40 rounded-xl p-2.5 flex flex-col justify-between text-left transition-all active:scale-[0.98] group shadow-md cursor-pointer"
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <ImageIcon className="w-5 h-5 text-[#00e5ff]" />
-                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-[#00e5ff] transition-colors" />
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 font-medium">Fotos</p>
-                <h4 className="text-lg font-bold text-white mt-0.5 leading-tight">
-                  {counts.photos}
-                </h4>
-              </div>
-            </button>
+          {/* Encabezado de Categorías con Selector Cuadrícula / Línea */}
+          <div className="flex items-center justify-between px-1 mb-2.5">
+            <div className="flex items-center gap-1.5">
+              <Folder className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
+              <h3
+                className="text-xs font-bold tracking-wider uppercase"
+                style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+              >
+                CATEGORÍAS
+              </h3>
+            </div>
 
-            {/* Videos */}
-            <button
-              type="button"
-              onClick={() => openCategory('video')}
-              className="bg-[#0a121d] border border-slate-800/80 hover:border-[#00e5ff]/40 rounded-xl p-2.5 flex flex-col justify-between text-left transition-all active:scale-[0.98] group shadow-md cursor-pointer"
+            {/* Selector de visualización: Cuadrícula (2x2) o En Línea (estilo Imagen 2) */}
+            <div
+              className="inline-flex items-center p-0.5 rounded-xl border text-xs"
+              style={{
+                backgroundColor: 'var(--theme-bg-secondary, #0f172a)',
+                borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+              }}
             >
-              <div className="flex items-center justify-between mb-1.5">
-                <Video className="w-5 h-5 text-[#00e5ff]" />
-                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-[#00e5ff] transition-colors" />
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 font-medium">Videos</p>
-                <h4 className="text-lg font-bold text-white mt-0.5 leading-tight">
-                  {counts.videos}
-                </h4>
-              </div>
-            </button>
-
-            {/* Audio */}
-            <button
-              type="button"
-              onClick={() => openCategory('audio')}
-              className="bg-[#0a121d] border border-slate-800/80 hover:border-[#00e5ff]/40 rounded-xl p-2.5 flex flex-col justify-between text-left transition-all active:scale-[0.98] group shadow-md cursor-pointer"
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <Music className="w-5 h-5 text-[#00e5ff]" />
-                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-[#00e5ff] transition-colors" />
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 font-medium">Audio</p>
-                <h4 className="text-lg font-bold text-white mt-0.5 leading-tight">
-                  {counts.audios}
-                </h4>
-              </div>
-            </button>
-
-            {/* Apps */}
-            <button
-              type="button"
-              onClick={() => openCategory('app')}
-              className="bg-[#0a121d] border border-slate-800/80 hover:border-[#00e5ff]/40 rounded-xl p-2.5 flex flex-col justify-between text-left transition-all active:scale-[0.98] group shadow-md cursor-pointer"
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <LayoutGrid className="w-5 h-5 text-[#00e5ff]" />
-                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-[#00e5ff] transition-colors" />
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 font-medium">Apps</p>
-                <h4 className="text-lg font-bold text-white mt-0.5 leading-tight">
-                  {counts.apps}
-                </h4>
-              </div>
-            </button>
+              <button
+                type="button"
+                onClick={() => handleSetCategoryLayout('grid')}
+                title="Vista en Cuadrícula"
+                aria-label="Vista en Cuadrícula"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer active:scale-95"
+                style={{
+                  backgroundColor: categoryLayout === 'grid' ? 'var(--theme-bg-card, #0a121d)' : 'transparent',
+                  color: categoryLayout === 'grid' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
+                  boxShadow: categoryLayout === 'grid' ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
+                }}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Cuadrícula</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetCategoryLayout('line')}
+                title="Vista en Línea"
+                aria-label="Vista en Línea"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer active:scale-95"
+                style={{
+                  backgroundColor: categoryLayout === 'line' ? 'var(--theme-bg-card, #0a121d)' : 'transparent',
+                  color: categoryLayout === 'line' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
+                  boxShadow: categoryLayout === 'line' ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
+                }}
+              >
+                <LayoutList className="w-3.5 h-3.5" />
+                <span>Línea</span>
+              </button>
+            </div>
           </div>
 
-          {/* Section: ARCHIVOS RECIENTES (Real User Files) */}
+          {/* VISTA 1: EN LÍNEA (Estilo Imagen 2 - Tarjetas amplias horizontales con icono, metadata detallada y flecha) */}
+          {categoryLayout === 'line' ? (
+            <div className="space-y-2 mb-3.5 animate-in fade-in duration-200">
+              {/* Fotos */}
+              <button
+                type="button"
+                onClick={() => openCategory('photo')}
+                className="w-full border rounded-2xl p-3 sm:p-3.5 flex items-center justify-between text-left transition-all active:scale-[0.99] group shadow-sm hover:shadow-md cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                }}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border transition-transform group-hover:scale-105"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 14%, var(--theme-bg-secondary, #0f172a))',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 35%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                      boxShadow: '0 0 12px color-mix(in srgb, var(--theme-primary, #00e5ff) 20%, transparent)',
+                    }}
+                  >
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4
+                      className="text-sm sm:text-base font-bold tracking-tight truncate group-hover:text-[var(--theme-primary)] transition-colors"
+                      style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                    >
+                      Fotos
+                    </h4>
+                    <p
+                      className="text-[11px] sm:text-xs truncate mt-0.5"
+                      style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                    >
+                      {counts.photos} {counts.photos === 1 ? 'foto cifrada' : 'fotos cifradas'} · {counts.photoSize}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-3">
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono border"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 12%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 30%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                    }}
+                  >
+                    {counts.photos}
+                  </span>
+                  <ChevronRight
+                    className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  />
+                </div>
+              </button>
+
+              {/* Videos */}
+              <button
+                type="button"
+                onClick={() => openCategory('video')}
+                className="w-full border rounded-2xl p-3 sm:p-3.5 flex items-center justify-between text-left transition-all active:scale-[0.99] group shadow-sm hover:shadow-md cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                }}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border transition-transform group-hover:scale-105"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 14%, var(--theme-bg-secondary, #0f172a))',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 35%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                      boxShadow: '0 0 12px color-mix(in srgb, var(--theme-primary, #00e5ff) 20%, transparent)',
+                    }}
+                  >
+                    <Video className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4
+                      className="text-sm sm:text-base font-bold tracking-tight truncate group-hover:text-[var(--theme-primary)] transition-colors"
+                      style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                    >
+                      Videos
+                    </h4>
+                    <p
+                      className="text-[11px] sm:text-xs truncate mt-0.5"
+                      style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                    >
+                      {counts.videos} {counts.videos === 1 ? 'video cifrado' : 'videos cifrados'} · {counts.videoSize}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-3">
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono border"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 12%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 30%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                    }}
+                  >
+                    {counts.videos}
+                  </span>
+                  <ChevronRight
+                    className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  />
+                </div>
+              </button>
+
+              {/* Audio */}
+              <button
+                type="button"
+                onClick={() => openCategory('audio')}
+                className="w-full border rounded-2xl p-3 sm:p-3.5 flex items-center justify-between text-left transition-all active:scale-[0.99] group shadow-sm hover:shadow-md cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                }}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border transition-transform group-hover:scale-105"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 14%, var(--theme-bg-secondary, #0f172a))',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 35%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                      boxShadow: '0 0 12px color-mix(in srgb, var(--theme-primary, #00e5ff) 20%, transparent)',
+                    }}
+                  >
+                    <Music className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4
+                      className="text-sm sm:text-base font-bold tracking-tight truncate group-hover:text-[var(--theme-primary)] transition-colors"
+                      style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                    >
+                      Audio
+                    </h4>
+                    <p
+                      className="text-[11px] sm:text-xs truncate mt-0.5"
+                      style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                    >
+                      {counts.audios} {counts.audios === 1 ? 'audio cifrado' : 'audios cifrados'} · {counts.audioSize}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-3">
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono border"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 12%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 30%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                    }}
+                  >
+                    {counts.audios}
+                  </span>
+                  <ChevronRight
+                    className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  />
+                </div>
+              </button>
+
+              {/* Apps */}
+              <button
+                type="button"
+                onClick={() => openCategory('app')}
+                className="w-full border rounded-2xl p-3 sm:p-3.5 flex items-center justify-between text-left transition-all active:scale-[0.99] group shadow-sm hover:shadow-md cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                }}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border transition-transform group-hover:scale-105"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 14%, var(--theme-bg-secondary, #0f172a))',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 35%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                      boxShadow: '0 0 12px color-mix(in srgb, var(--theme-primary, #00e5ff) 20%, transparent)',
+                    }}
+                  >
+                    <LayoutGrid className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4
+                      className="text-sm sm:text-base font-bold tracking-tight truncate group-hover:text-[var(--theme-primary)] transition-colors"
+                      style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                    >
+                      Aplicaciones (APKs)
+                    </h4>
+                    <p
+                      className="text-[11px] sm:text-xs truncate mt-0.5"
+                      style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                    >
+                      {counts.apps} {counts.apps === 1 ? 'app protegida' : 'apps protegidas'} · {counts.appSize}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-3">
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono border"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 12%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 30%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                    }}
+                  >
+                    {counts.apps}
+                  </span>
+                  <ChevronRight
+                    className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  />
+                </div>
+              </button>
+            </div>
+          ) : (
+            /* VISTA 2: CUADRÍCULA (Estilo 2x2 elegante y compacto, adaptado al tema activo) */
+            <div className="grid grid-cols-2 gap-2.5 mb-3.5 animate-in fade-in duration-200">
+              {/* Fotos */}
+              <button
+                type="button"
+                onClick={() => openCategory('photo')}
+                className="border rounded-2xl p-3 flex flex-col justify-between text-left transition-all active:scale-[0.98] group shadow-sm hover:shadow-md cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center border transition-transform group-hover:scale-105"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 12%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 25%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                    }}
+                  >
+                    <ImageIcon className="w-4.5 h-4.5" />
+                  </div>
+                  <ChevronRight
+                    className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  />
+                </div>
+                <div>
+                  <p
+                    className="text-[11px] font-medium"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  >
+                    Fotos
+                  </p>
+                  <div className="flex items-baseline justify-between mt-0.5">
+                    <h4
+                      className="text-lg font-bold leading-tight"
+                      style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                    >
+                      {counts.photos}
+                    </h4>
+                    <span
+                      className="text-[10px] font-mono"
+                      style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                    >
+                      {counts.photoSize}
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Videos */}
+              <button
+                type="button"
+                onClick={() => openCategory('video')}
+                className="border rounded-2xl p-3 flex flex-col justify-between text-left transition-all active:scale-[0.98] group shadow-sm hover:shadow-md cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center border transition-transform group-hover:scale-105"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 12%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 25%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                    }}
+                  >
+                    <Video className="w-4.5 h-4.5" />
+                  </div>
+                  <ChevronRight
+                    className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  />
+                </div>
+                <div>
+                  <p
+                    className="text-[11px] font-medium"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  >
+                    Videos
+                  </p>
+                  <div className="flex items-baseline justify-between mt-0.5">
+                    <h4
+                      className="text-lg font-bold leading-tight"
+                      style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                    >
+                      {counts.videos}
+                    </h4>
+                    <span
+                      className="text-[10px] font-mono"
+                      style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                    >
+                      {counts.videoSize}
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Audio */}
+              <button
+                type="button"
+                onClick={() => openCategory('audio')}
+                className="border rounded-2xl p-3 flex flex-col justify-between text-left transition-all active:scale-[0.98] group shadow-sm hover:shadow-md cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center border transition-transform group-hover:scale-105"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 12%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 25%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                    }}
+                  >
+                    <Music className="w-4.5 h-4.5" />
+                  </div>
+                  <ChevronRight
+                    className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  />
+                </div>
+                <div>
+                  <p
+                    className="text-[11px] font-medium"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  >
+                    Audio
+                  </p>
+                  <div className="flex items-baseline justify-between mt-0.5">
+                    <h4
+                      className="text-lg font-bold leading-tight"
+                      style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                    >
+                      {counts.audios}
+                    </h4>
+                    <span
+                      className="text-[10px] font-mono"
+                      style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                    >
+                      {counts.audioSize}
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Apps */}
+              <button
+                type="button"
+                onClick={() => openCategory('app')}
+                className="border rounded-2xl p-3 flex flex-col justify-between text-left transition-all active:scale-[0.98] group shadow-sm hover:shadow-md cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center border transition-transform group-hover:scale-105"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 12%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 25%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                    }}
+                  >
+                    <LayoutGrid className="w-4.5 h-4.5" />
+                  </div>
+                  <ChevronRight
+                    className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  />
+                </div>
+                <div>
+                  <p
+                    className="text-[11px] font-medium"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  >
+                    Apps
+                  </p>
+                  <div className="flex items-baseline justify-between mt-0.5">
+                    <h4
+                      className="text-lg font-bold leading-tight"
+                      style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                    >
+                      {counts.apps}
+                    </h4>
+                    <span
+                      className="text-[10px] font-mono"
+                      style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                    >
+                      {counts.appSize}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            </div>
+          )}
+
+          {/* Section: ARCHIVOS RECIENTES (Adaptado al tema activo) */}
           <div className="mb-4">
             <div className="flex items-center justify-between px-1 mb-2">
-              <h3 className="text-xs font-bold text-slate-400 tracking-wider uppercase">
+              <h3
+                className="text-xs font-bold tracking-wider uppercase"
+                style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+              >
                 ARCHIVOS RECIENTES
               </h3>
               {recentList.length > 0 && (
                 <button
                   type="button"
                   onClick={() => openCategory('photo')}
-                  className="text-xs font-bold text-[#00e5ff] hover:underline cursor-pointer"
+                  className="text-xs font-bold hover:underline cursor-pointer"
+                  style={{ color: 'var(--theme-primary, #00e5ff)' }}
                 >
                   VER TODO
                 </button>
@@ -1600,10 +2081,20 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                         setActiveViewerItem(item.realItem);
                       }
                     }}
-                    className="flex items-center justify-between p-2 rounded-xl bg-[#0a121d]/70 hover:bg-[#0a121d] border border-slate-800/70 hover:border-slate-700 cursor-pointer transition-all active:scale-[0.99] group shadow-sm"
+                    className="flex items-center justify-between p-2 rounded-xl border cursor-pointer transition-all active:scale-[0.99] group shadow-sm hover:shadow-md"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                      borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.7))',
+                    }}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-10 h-10 rounded-lg overflow-hidden relative bg-slate-900 border border-slate-800 shrink-0">
+                      <div
+                        className="w-10 h-10 rounded-lg overflow-hidden relative border shrink-0"
+                        style={{
+                          backgroundColor: 'var(--theme-bg-secondary, #0f172a)',
+                          borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.8))',
+                        }}
+                      >
                         {item.previewUrl ? (
                           <img
                             src={item.previewUrl}
@@ -1611,7 +2102,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-slate-800 text-[#00e5ff]">
+                          <div
+                            className="w-full h-full flex items-center justify-center"
+                            style={{
+                              backgroundColor: 'var(--theme-bg-secondary, #0f172a)',
+                              color: 'var(--theme-primary, #00e5ff)',
+                            }}
+                          >
                             {item.category === 'audio' ? (
                               <Music className="w-4 h-4" />
                             ) : item.category === 'app' ? (
@@ -1627,31 +2124,63 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                       </div>
 
                       <div className="min-w-0">
-                        <h4 className="text-xs font-semibold text-white truncate group-hover:text-[#00e5ff] transition-colors">
+                        <h4
+                          className="text-xs font-semibold truncate transition-colors group-hover:text-[var(--theme-primary)]"
+                          style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                        >
                           {item.name}
                         </h4>
-                        <p className="text-[10px] text-slate-400">
+                        <p
+                          className="text-[10px]"
+                          style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                        >
                           {item.size}
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                      <span className="text-[10px] text-slate-400 font-mono">
+                      <span
+                        className="text-[10px] font-mono"
+                        style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                      >
                         {item.time}
                       </span>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-400 transition-colors" />
+                      <ChevronRight
+                        className="w-3.5 h-3.5 transition-colors group-hover:text-[var(--theme-primary)]"
+                        style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                      />
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="py-6 px-4 rounded-2xl bg-[#0a121d]/60 border border-dashed border-slate-800 text-center flex flex-col items-center justify-center">
-                <div className="w-10 h-10 rounded-xl bg-slate-800/80 text-slate-400 flex items-center justify-center mb-2">
-                  <Clock className="w-4 h-4 text-[#00e5ff]" />
+              <div
+                className="py-6 px-4 rounded-2xl border border-dashed text-center flex flex-col items-center justify-center"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.6))',
+                }}
+              >
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-2"
+                  style={{
+                    backgroundColor: 'var(--theme-bg-secondary, #0f172a)',
+                    color: 'var(--theme-primary, #00e5ff)',
+                  }}
+                >
+                  <Clock className="w-4 h-4" />
                 </div>
-                <h4 className="text-xs font-bold text-white">No hay archivos recientes</h4>
-                <p className="text-[11px] text-slate-400 max-w-xs mt-0.5">
+                <h4
+                  className="text-xs font-bold"
+                  style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                >
+                  No hay archivos recientes
+                </h4>
+                <p
+                  className="text-[11px] max-w-xs mt-0.5"
+                  style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                >
                   Guarda fotos, videos, audios o documentos para verlos cifrados aquí.
                 </p>
               </div>

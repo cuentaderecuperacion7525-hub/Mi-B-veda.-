@@ -1084,38 +1084,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className="hidden"
                   />
                 </label>
-
-                <div className="pt-2 text-center border-t border-slate-800/40">
-                  <button
-                    type="button"
-                    onClick={() => setShowPasteInput(!showPasteInput)}
-                    className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold transition-colors"
-                  >
-                    {showPasteInput ? 'Ocultar entrada de texto' : 'Restaurar pegando texto directamente'}
-                  </button>
-                </div>
-
-                {showPasteInput && (
-                  <form onSubmit={handleImportPastedText} className="space-y-3 pt-2">
-                    <p className="text-[10px] text-slate-400">
-                      Abre tu copia de seguridad (.json) con cualquier lector de archivos o editor de texto, copia todo el contenido y pégalo aquí:
-                    </p>
-                    <textarea
-                      value={pastedBackupText}
-                      onChange={(e) => setPastedBackupText(e.target.value)}
-                      placeholder='{ "version": 3, "appName": "Bóveda Segura", ... }'
-                      className="w-full h-32 bg-[#162238] border border-slate-800 focus:border-indigo-500 rounded-xl p-3 text-[10px] font-mono text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isImporting || !pastedBackupText.trim()}
-                      className="w-full py-2 bg-emerald-600/90 hover:bg-emerald-500 disabled:opacity-40 text-white font-medium rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/10"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{isImporting ? 'Restaurando elementos...' : 'Restaurar Copia desde Texto'}</span>
-                    </button>
-                  </form>
-                )}
               </div>
             </div>
           )}
