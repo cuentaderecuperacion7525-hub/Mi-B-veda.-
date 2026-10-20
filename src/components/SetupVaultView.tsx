@@ -350,17 +350,21 @@ export const SetupVaultView: React.FC<SetupVaultViewProps> = ({
               type="button"
               onClick={finalizeSetup}
               disabled={isProcessing || (!savedConfirmed && !copiedKey && !downloadedKey)}
-              className="w-full py-3.5 bg-gradient-to-r from-[#00e5ff] to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 cursor-pointer active:scale-95"
+              className="w-full py-3.5 text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
+                boxShadow: '0 4px 14px -2px var(--theme-glow)',
+              }}
             >
               {isProcessing ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Inicializando bóveda segura...</span>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span className="text-white font-bold">Inicializando bóveda segura...</span>
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Finalizar y Entrar a la Bóveda</span>
+                  <CheckCircle2 className="w-4 h-4 text-white" />
+                  <span className="text-white font-bold">Finalizar y Entrar a la Bóveda</span>
                 </>
               )}
             </button>

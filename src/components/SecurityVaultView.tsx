@@ -942,9 +942,24 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
       {/* Modal Clave de Respaldo Maestra */}
       {showRecoveryModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-[#131c2e] border border-slate-800 rounded-3xl p-6 shadow-2xl text-slate-200">
+          <div
+            className="w-full max-w-sm rounded-3xl p-6 shadow-2xl transition-all border"
+            style={{
+              backgroundColor: 'var(--theme-bg-card)',
+              borderColor: 'var(--theme-border)',
+              color: 'var(--theme-text-main)',
+            }}
+          >
             <div className="flex justify-between items-center mb-3">
-              <div className="w-12 h-12 bg-[#00e5ff]/10 border border-[#00e5ff]/20 rounded-2xl flex items-center justify-center text-[#00e5ff]">
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center transition-colors"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--theme-primary) 14%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--theme-primary) 30%, transparent)',
+                  borderWidth: 1,
+                  color: 'var(--theme-primary)',
+                }}
+              >
                 <KeyRound className="w-6 h-6" />
               </div>
               <button
@@ -955,27 +970,52 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                   setPinForNewKey('');
                   setPinKeyError(null);
                 }}
-                className="text-slate-400 hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-800 cursor-pointer"
+                className="p-1.5 rounded-lg cursor-pointer transition-colors hover:opacity-80"
+                style={{ color: 'var(--theme-text-muted)' }}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <h3 className="text-base font-bold text-white mb-1">
+            <h3
+              className="text-base font-bold mb-1"
+              style={{ color: 'var(--theme-text-main)' }}
+            >
               Clave de Respaldo Maestra
             </h3>
-            <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-              Esta clave de 16 caracteres te permite recuperar tu bóveda y crear un nuevo PIN si alguna vez lo olvidas, <strong>sin perder ningún archivo</strong>.
+            <p
+              className="text-xs mb-4 leading-relaxed"
+              style={{ color: 'var(--theme-text-muted)' }}
+            >
+              Esta clave de 16 caracteres te permite recuperar tu bóveda y crear un nuevo PIN si alguna vez lo olvidas, <strong style={{ color: 'var(--theme-text-main)' }}>sin perder ningún archivo</strong>.
             </p>
 
             {newGeneratedKey ? (
               <div className="space-y-3.5 text-left">
-                <div className="bg-[#0b101d] border-2 border-[#00e5ff]/40 rounded-2xl p-4 shadow-xl shadow-cyan-500/10 text-center">
-                  <p className="text-[10px] uppercase font-bold tracking-widest text-[#00e5ff] mb-1.5">
+                <div
+                  className="rounded-2xl p-4 shadow-xl text-center border-2 transition-colors"
+                  style={{
+                    backgroundColor: 'var(--theme-bg-secondary)',
+                    borderColor: 'var(--theme-primary)',
+                  }}
+                >
+                  <p
+                    className="text-[10px] uppercase font-bold tracking-widest mb-1.5"
+                    style={{ color: 'var(--theme-primary)' }}
+                  >
                     Tu Nueva Clave de Respaldo
                   </p>
-                  <div className="py-2 px-3 bg-black/60 rounded-xl border border-slate-800">
-                    <span className="text-lg font-black font-mono tracking-widest text-white selection:bg-[#00e5ff] selection:text-black">
+                  <div
+                    className="py-2.5 px-3 rounded-xl border select-all"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-input)',
+                      borderColor: 'var(--theme-border)',
+                    }}
+                  >
+                    <span
+                      className="text-lg font-black font-mono tracking-widest"
+                      style={{ color: 'var(--theme-primary)' }}
+                    >
                       {formatRecoveryKeyDisplay(newGeneratedKey)}
                     </span>
                   </div>
@@ -991,9 +1031,14 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                           setTimeout(() => setCopiedKey(false), 2500);
                         } catch {}
                       }}
-                      className="flex items-center justify-center gap-1.5 py-2 px-3 bg-[#00e5ff]/20 hover:bg-[#00e5ff]/30 text-[#00e5ff] text-xs font-semibold rounded-xl border border-[#00e5ff]/40 transition-colors cursor-pointer"
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold rounded-xl border transition-colors cursor-pointer"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--theme-primary) 12%, transparent)',
+                        borderColor: 'color-mix(in srgb, var(--theme-primary) 35%, transparent)',
+                        color: 'var(--theme-primary)',
+                      }}
                     >
-                      {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                       <span>{copiedKey ? 'Copiada' : 'Copiar'}</span>
                     </button>
 
@@ -1006,7 +1051,12 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                           showToast('Archivo de respaldo descargado', 'success');
                         } catch {}
                       }}
-                      className="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition-colors cursor-pointer"
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold rounded-xl border transition-colors cursor-pointer"
+                      style={{
+                        backgroundColor: 'var(--theme-bg-card)',
+                        borderColor: 'var(--theme-border)',
+                        color: 'var(--theme-text-main)',
+                      }}
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Descargar .txt</span>
@@ -1014,8 +1064,15 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                   </div>
                 </div>
 
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-300 flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
+                <div
+                  className="p-3 rounded-xl text-xs flex items-start gap-2 border"
+                  style={{
+                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                    borderColor: 'rgba(16, 185, 129, 0.25)',
+                    color: 'var(--theme-text-main)',
+                  }}
+                >
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500 mt-0.5" />
                   <span>Esta clave ya quedó activada y vinculada a tu bóveda. Guárdala en tus notas o lugar seguro.</span>
                 </div>
 
@@ -1026,9 +1083,14 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                     setNewGeneratedKey(null);
                     setPinForNewKey('');
                   }}
-                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#00e5ff] to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+                  className="w-full py-2.5 rounded-xl font-bold text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
+                    color: '#ffffff',
+                    boxShadow: '0 4px 14px -2px var(--theme-glow)',
+                  }}
                 >
-                  Entendido y Guardado
+                  <span className="text-white font-bold">Entendido y Guardado</span>
                 </button>
               </div>
             ) : (
@@ -1075,15 +1137,24 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                 }}
                 className="space-y-3.5 text-left"
               >
-                <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-1">
-                  <p className="font-semibold text-white">¿Deseas generar una nueva clave?</p>
-                  <p className="text-slate-400 text-[11px]">
+                <div
+                  className="p-3 rounded-xl border text-xs space-y-1"
+                  style={{
+                    backgroundColor: 'var(--theme-bg-secondary)',
+                    borderColor: 'var(--theme-border)',
+                  }}
+                >
+                  <p className="font-semibold" style={{ color: 'var(--theme-text-main)' }}>¿Deseas generar una nueva clave?</p>
+                  <p className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
                     Por seguridad, introduce tu PIN actual para generar y respaldar tu clave maestra:
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label
+                    className="block text-xs font-semibold mb-1"
+                    style={{ color: 'var(--theme-text-main)' }}
+                  >
                     PIN Maestro Actual
                   </label>
                   <input
@@ -1098,12 +1169,24 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                     required
                     autoFocus
                     disabled={isGeneratingKey}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-center text-lg font-mono tracking-widest text-white placeholder:text-slate-500 focus:outline-none focus:border-[#00e5ff]"
+                    className="w-full rounded-xl px-3.5 py-2.5 text-center text-lg font-mono tracking-widest border transition-colors outline-none focus:ring-2"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-input)',
+                      borderColor: 'var(--theme-border)',
+                      color: 'var(--theme-text-main)',
+                    }}
                   />
                 </div>
 
                 {pinKeyError && (
-                  <div className="text-rose-400 text-xs bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20 flex items-center gap-1.5">
+                  <div
+                    className="text-xs p-2.5 rounded-xl border flex items-center gap-1.5"
+                    style={{
+                      backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                      borderColor: 'rgba(244, 63, 94, 0.3)',
+                      color: '#e11d48',
+                    }}
+                  >
                     <ShieldAlert className="w-4 h-4 shrink-0" />
                     <span>{pinKeyError}</span>
                   </div>
@@ -1117,24 +1200,34 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                       setPinForNewKey('');
                       setPinKeyError(null);
                     }}
-                    className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
+                    className="flex-1 py-2.5 rounded-xl border font-semibold text-xs transition-colors cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-secondary)',
+                      borderColor: 'var(--theme-border)',
+                      color: 'var(--theme-text-main)',
+                    }}
                   >
                     Cerrar
                   </button>
                   <button
                     type="submit"
                     disabled={isGeneratingKey || pinForNewKey.length < 4}
-                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#00e5ff] to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-cyan-500/20 cursor-pointer"
+                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-40"
+                    style={{
+                      background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
+                      color: '#ffffff',
+                      boxShadow: '0 4px 14px -2px var(--theme-glow)',
+                    }}
                   >
                     {isGeneratingKey ? (
                       <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Generando...</span>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                        <span className="text-white font-bold">Generando...</span>
                       </>
                     ) : (
                       <>
-                        <KeyRound className="w-3.5 h-3.5" />
-                        <span>Generar Clave</span>
+                        <KeyRound className="w-3.5 h-3.5 text-white" />
+                        <span className="text-white font-bold">Generar Clave</span>
                       </>
                     )}
                   </button>

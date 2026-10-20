@@ -9,6 +9,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { SetupVaultView } from './components/SetupVaultView';
 import { LockVaultView } from './components/LockVaultView';
 import { MainVaultView } from './components/MainVaultView';
+import { InitialRegisterView } from './components/InitialRegisterView';
 import { SettingsModal } from './components/SettingsModal';
 import { ToastContainer, ToastData } from './components/Toast';
 import { openVaultDatabase, clearVaultDatabase, autoPurgeTrash } from './db/vaultDb';
@@ -17,11 +18,12 @@ import { initBackButtonListener } from './services/backButtonService';
 import { updateService, UpdateCheckResult } from './services/updateService';
 import { flipToLockService } from './services/flipToLockService';
 import { themeService } from './services/themeService';
+import { userProfileService } from './services/userProfileService';
 import { UpdateNotificationModal } from './components/UpdateNotificationModal';
 import { CURRENT_APP_VERSION } from './version';
 
 export default function App() {
-  const [vaultStatus, setVaultStatus] = useState<'checking' | 'setup' | 'locked' | 'unlocked'>('checking');
+  const [vaultStatus, setVaultStatus] = useState<'checking' | 'register' | 'setup' | 'locked' | 'unlocked'>('checking');
   const [masterKey, setMasterKey] = useState<CryptoKey | null>(null);
   const [sessionPin, setSessionPin] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastData[]>([]);
@@ -147,11 +149,16 @@ export default function App() {
         const saltHex = localStorage.getItem('vault_salt');
         const testIvHex = localStorage.getItem('vault_test_iv');
         const testCipherHex = localStorage.getItem('vault_test_cipher');
+        const isRegistered = userProfileService.isUserRegistered();
 
         if (isInit === 'true' && saltHex && testIvHex && testCipherHex) {
-          // Siempre requerir PIN o Huella al abrir o reabrir la aplicación
+          // Ya existen datos y la bóveda está inicializada: salta directo a la pantalla de Autenticación
           setVaultStatus('locked');
+        } else if (!isRegistered) {
+          // Primera vez que se abre la app (no existen datos guardados): muestra Registro Inicial / Bienvenido
+          setVaultStatus('register');
         } else {
+          // Usuario registrado pero pendiente de configurar PIN o clave
           setVaultStatus('setup');
         }
         // Auto-limpieza en segundo plano de la papelera (elementos mayores a 30 días)
@@ -493,6 +500,13 @@ export default function App() {
         <div className="min-h-screen flex items-center justify-center">
           <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
         </div>
+      )}
+
+      {vaultStatus === 'register' && (
+        <InitialRegisterView
+          onComplete={() => setVaultStatus('setup')}
+          showToast={showToast}
+        />
       )}
 
       {vaultStatus === 'setup' && (

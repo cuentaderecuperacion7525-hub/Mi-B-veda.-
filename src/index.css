@@ -271,6 +271,21 @@
 [data-theme="light"] .bg-\[\#00e5ff\] *,
 [data-theme="light"] button.bg-\[\#00e5ff\] {
   color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* Secondary cancel/close buttons in light mode */
+[data-theme="light"] button[class*="bg-slate-800"]:not(.grid button),
+[data-theme="light"] button[class*="bg-slate-700"]:not(.grid button),
+[data-theme="light"] button[class*="bg-zinc-800"]:not(.grid button) {
+  background-color: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #1e293b !important;
+}
+[data-theme="light"] button[class*="bg-slate-800"]:not(.grid button):hover,
+[data-theme="light"] button[class*="bg-slate-700"]:not(.grid button):hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
 }
 
 /* Convert text-white on regular content to dark slate #0f172a */
@@ -299,6 +314,54 @@
 [data-theme="light"] [class*="text-zinc-500"],
 [data-theme="light"] [class*="text-slate-600"] {
   color: #64748b !important;
+}
+
+/* Status alerts and chips - deep legible colors in light mode */
+[data-theme="light"] [class*="text-emerald-300"],
+[data-theme="light"] [class*="text-emerald-400"] {
+  color: #047857 !important;
+}
+[data-theme="light"] [class*="bg-emerald-500/10"],
+[data-theme="light"] [class*="bg-emerald-500/15"],
+[data-theme="light"] [class*="bg-emerald-500/20"] {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #065f46 !important;
+}
+
+[data-theme="light"] [class*="text-rose-300"],
+[data-theme="light"] [class*="text-rose-400"] {
+  color: #be123c !important;
+}
+[data-theme="light"] [class*="bg-rose-500/10"],
+[data-theme="light"] [class*="bg-rose-500/15"],
+[data-theme="light"] [class*="bg-rose-500/20"] {
+  background-color: #fff1f2 !important;
+  border-color: #fecdd3 !important;
+  color: #9f1239 !important;
+}
+
+[data-theme="light"] [class*="text-amber-300"],
+[data-theme="light"] [class*="text-amber-400"] {
+  color: #b45309 !important;
+}
+[data-theme="light"] [class*="bg-amber-500/10"],
+[data-theme="light"] [class*="bg-amber-500/15"],
+[data-theme="light"] [class*="bg-amber-500/20"] {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
+  color: #92400e !important;
+}
+
+/* Key display boxes and code containers inside modals */
+[data-theme="light"] div[class*="bg-black/60"],
+[data-theme="light"] div[class*="bg-black/80"],
+[data-theme="light"] div[class*="bg-slate-900/60"],
+[data-theme="light"] div[class*="bg-slate-900/90"],
+[data-theme="light"] [class*="bg-[#0b101d]"] {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
 }
 
 /* 9. Cyan Accents in Light Mode -> Deep Sapphire Cyan (#0284c7) for great readability */
@@ -334,9 +397,34 @@
   border-color: rgba(2, 132, 199, 0.35) !important;
 }
 
+/* Gradient Action Buttons (from-[#00e5ff] to-blue-600) in Light Mode */
+[data-theme="light"] [class*="bg-gradient-"][class*="from-[#00e5ff]"],
+[data-theme="light"] button[class*="from-[#00e5ff]"],
+[data-theme="light"] button[class*="from-cyan-"],
 [data-theme="light"] [class*="from-[#00e5ff]"] {
-  --tw-gradient-from: #0284c7 var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: #0369a1 var(--tw-gradient-to-position) !important;
+  background-image: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px -2px rgba(2, 132, 199, 0.35) !important;
+}
+
+[data-theme="light"] [class*="bg-gradient-"][class*="from-[#00e5ff]"] *,
+[data-theme="light"] button[class*="from-[#00e5ff]"] *,
+[data-theme="light"] button[class*="from-cyan-"] *,
+[data-theme="light"] [class*="from-[#00e5ff]"] * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+[data-theme="light"] button[class*="from-[#00e5ff]"]:hover,
+[data-theme="light"] button[class*="from-cyan-"]:hover {
+  background-image: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%) !important;
+}
+
+[data-theme="light"] button[class*="from-[#00e5ff]"]:disabled,
+[data-theme="light"] button[class*="from-[#00e5ff]"][disabled] {
+  opacity: 0.55 !important;
+  background-image: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+  color: #ffffff !important;
 }
 
 /* 10. Light Keypad Buttons & Digits */

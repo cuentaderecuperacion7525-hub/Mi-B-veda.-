@@ -42,6 +42,7 @@ import {
   Maximize2,
   LayoutList,
   Rows3,
+  User,
 } from 'lucide-react';
 import {
   EncryptedVaultItem,
@@ -73,6 +74,7 @@ import { isNativeApp, requestNativeBatchGalleryDeletion, exportVaultItemToDevice
 import { ImportVaultView } from './ImportVaultView';
 import { SecurityVaultView } from './SecurityVaultView';
 import { SettingsVaultView } from './SettingsVaultView';
+import { ProfileVaultView } from './ProfileVaultView';
 import { registerBackHandler, triggerBackAction } from '../services/backButtonService';
 import { updateService, UpdateCheckResult } from '../services/updateService';
 import { UpdateNotificationBanner } from './UpdateNotificationModal';
@@ -153,7 +155,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'all' | 'photo' | 'video' | 'audio' | 'app' | 'favorites'>('all');
-  const [activeNavTab, setActiveNavTab] = useState<'vault' | 'import' | 'security' | 'settings'>('vault');
+  const [activeNavTab, setActiveNavTab] = useState<'vault' | 'import' | 'security' | 'profile' | 'settings'>('vault');
   const [activeCategory, setActiveCategory] = useState<'photo' | 'video' | 'audio' | 'app' | null>(null);
   const [lastAccessTime] = useState<string>(() => {
     return localStorage.getItem('nullvault_last_access') || '21:14';
@@ -808,7 +810,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   const activeCategoryRef = useRef(activeCategory);
   activeCategoryRef.current = activeCategory;
 
-  const navigateToTab = (tab: 'vault' | 'import' | 'security' | 'settings') => {
+  const navigateToTab = (tab: 'vault' | 'import' | 'security' | 'profile' | 'settings') => {
     if (tab !== activeNavTab) {
       window.history.pushState({ vaultNav: tab }, '');
       setActiveNavTab(tab);
@@ -1447,6 +1449,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           onPhotosUpdated={loadVaultItems}
           onResetVault={onResetVault || (() => {})}
           showToast={showToast}
+        />
+      ) : activeNavTab === 'profile' ? (
+        /* Screen 5: Pestaña Yo (Mi Perfil) */
+        <ProfileVaultView
+          counts={counts}
+          showToast={showToast}
+          onOpenSettings={() => navigateToTab('settings')}
         />
       ) : activeCategory === null ? (
         <div className="max-w-md mx-auto w-full px-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+4.5rem),4.75rem)] flex flex-col animate-in fade-in duration-200">
@@ -2866,7 +2875,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           {/* Reflejo especular superior fino tipo iOS */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
-          <div className="max-w-md mx-auto w-full px-6 flex items-center justify-around">
+          <div className="max-w-md mx-auto w-full px-2 sm:px-4 flex items-center justify-around">
             {/* Botón 1: Mi Bóveda */}
             <button
               type="button"
@@ -2877,7 +2886,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               style={{
                 color: activeNavTab === 'vault' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
               }}
-              className="flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 group"
+              className="flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group"
             >
               <Home
                 className="w-5 h-5 transition-transform"
@@ -2902,7 +2911,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               style={{
                 color: activeNavTab === 'security' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
               }}
-              className="flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 group"
+              className="flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group"
             >
               <Shield
                 className="w-5 h-5 transition-transform"
@@ -2917,7 +2926,32 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               </span>
             </button>
 
-            {/* Botón 3: Configuración */}
+            {/* Botón 3: Yo (Mi Perfil) */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategory(null);
+                navigateToTab('profile');
+              }}
+              style={{
+                color: activeNavTab === 'profile' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
+              }}
+              className="flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group"
+            >
+              <User
+                className="w-5 h-5 transition-transform"
+                style={{
+                  transform: activeNavTab === 'profile' ? 'scale(1.1)' : undefined,
+                  filter: activeNavTab === 'profile' ? 'drop-shadow(0 0 6px var(--theme-glow))' : undefined,
+                }}
+                strokeWidth={1.5}
+              />
+              <span className={`text-[10px] sm:text-[11px] tracking-tight ${activeNavTab === 'profile' ? 'font-bold' : 'font-medium'}`}>
+                Yo
+              </span>
+            </button>
+
+            {/* Botón 4: Configuración */}
             <button
               type="button"
               onClick={() => {
@@ -2927,7 +2961,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               style={{
                 color: activeNavTab === 'settings' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
               }}
-              className="flex flex-col items-center gap-1 py-1 px-4 transition-all duration-200 cursor-pointer active:scale-95 group"
+              className="flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group"
             >
               <div className="relative">
                 <Settings
@@ -2949,7 +2983,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 )}
               </div>
               <span className={`text-[10px] sm:text-[11px] tracking-tight ${activeNavTab === 'settings' ? 'font-bold' : 'font-medium'}`}>
-                Configuración
+                Ajustes
               </span>
             </button>
           </div>

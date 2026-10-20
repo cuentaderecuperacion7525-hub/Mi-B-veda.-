@@ -1454,10 +1454,14 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 <button
                   type="submit"
                   disabled={isChangingPin || !currentPin || !newPin || !confirmNewPin}
-                  className="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-slate-950 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
+                  className="w-full py-2.5 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-40"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
+                    boxShadow: '0 4px 14px -2px var(--theme-glow)',
+                  }}
                 >
-                  <KeyRound className="w-3.5 h-3.5" />
-                  <span>{isChangingPin ? 'Re-cifrando bóveda...' : 'Actualizar PIN'}</span>
+                  <KeyRound className="w-3.5 h-3.5 text-white" />
+                  <span className="text-white font-bold">{isChangingPin ? 'Re-cifrando bóveda...' : 'Actualizar PIN'}</span>
                 </button>
               </form>
             </div>

@@ -589,17 +589,21 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   <button
                     type="submit"
                     disabled={isForgotLoading || normalizeRecoveryKey(forgotKey).length !== 16}
-                    className="w-full py-3 bg-gradient-to-r from-[#00e5ff] to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 cursor-pointer active:scale-95"
+                    className="w-full py-3 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 disabled:opacity-40"
+                    style={{
+                      background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
+                      boxShadow: '0 4px 14px -2px var(--theme-glow)',
+                    }}
                   >
                     {isForgotLoading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Verificando clave...</span>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span className="text-white">Verificando clave...</span>
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Verificar Clave de Respaldo</span>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                        <span className="text-white">Verificar Clave de Respaldo</span>
                       </>
                     )}
                   </button>
@@ -696,17 +700,21 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   <button
                     type="submit"
                     disabled={isForgotLoading || newPinInput.length < 4 || newPinInput !== confirmNewPinInput}
-                    className="w-full py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer active:scale-95"
+                    className="w-full py-3 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 disabled:opacity-40"
+                    style={{
+                      background: 'linear-gradient(135deg, #059669, #0284c7)',
+                      boxShadow: '0 4px 14px -2px rgba(5, 150, 105, 0.3)',
+                    }}
                   >
                     {isForgotLoading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Restableciendo PIN y bóveda...</span>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span className="text-white">Restableciendo PIN y bóveda...</span>
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>Guardar Nuevo PIN y Acceder</span>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                        <span className="text-white">Guardar Nuevo PIN y Acceder</span>
                       </>
                     )}
                   </button>
