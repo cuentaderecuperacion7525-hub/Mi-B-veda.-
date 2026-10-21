@@ -1,6 +1,8 @@
 import {
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithCredential,
+  browserPopupRedirectResolver,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
@@ -12,8 +14,90 @@ import { auth, db } from './firebase';
 import { userProfileService, UserProfile } from './userProfileService';
 
 /**
+ * Decodes a Google ID Token JWT payload without external libraries.
+ */
+export function decodeGoogleJwt(token: string): {
+  sub?: string;
+  name?: string;
+  given_name?: string;
+  family_name?: string;
+  email?: string;
+  picture?: string;
+  email_verified?: boolean;
+} | null {
+  try {
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (err) {
+    console.warn('Failed to parse Google JWT:', err);
+    return null;
+  }
+}
+
+/**
+ * Signs in using a Google ID token credential obtained from Google Identity Services (GSI).
+ * This is 100% immune to popup blockers and mobile browser redirect errors.
+ */
+export async function signInWithGoogleCredential(idToken: string): Promise<{
+  success: boolean;
+  profile?: UserProfile;
+  error?: string;
+}> {
+  try {
+    const credential = GoogleAuthProvider.credential(idToken);
+    const userCredential = await signInWithCredential(auth, credential);
+    const user = userCredential.user;
+
+    const payload = decodeGoogleJwt(idToken);
+    const firstName = payload?.given_name || user.displayName?.split(' ')[0] || 'Usuario';
+    const lastName = payload?.family_name || user.displayName?.split(' ').slice(1).join(' ') || '';
+    const email = payload?.email || user.email || '';
+    const photoURL = payload?.picture || user.photoURL || undefined;
+
+    // 1. Save profile locally
+    const profile = userProfileService.saveUserProfile({
+      firstName,
+      lastName,
+      email,
+      emailVerified: true,
+      photoURL,
+      authProvider: 'google.com',
+    });
+
+    // 2. Persist in Firestore
+    await syncUserProfile(user.uid, {
+      firstName,
+      lastName,
+      email,
+      emailVerified: true,
+      photoURL,
+      authProvider: 'google.com',
+    });
+
+    return {
+      success: true,
+      profile,
+    };
+  } catch (err: any) {
+    console.error('Google Credential Sign-In Error:', err);
+    return {
+      success: false,
+      error: err.message || 'Error al autenticar con credencial de Google.',
+    };
+  }
+}
+
+/**
  * Sign In / Register with Google using official GoogleAuthProvider and signInWithPopup.
- * Google accounts guarantee verified email, name, and profile picture in a single step.
+ * Includes browserPopupRedirectResolver to prevent "The requested action is invalid" errors.
  */
 export async function signInWithGoogle(): Promise<{
   success: boolean;
@@ -26,7 +110,8 @@ export async function signInWithGoogle(): Promise<{
       prompt: 'select_account',
     });
 
-    const result = await signInWithPopup(auth, provider);
+    // Use browserPopupRedirectResolver as 3rd parameter to stabilize popups on Chrome/Android
+    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
     const user = result.user;
 
     const fullName = user.displayName || 'Usuario de la Bóveda';
@@ -119,7 +204,7 @@ export interface FirebaseRegisterResult {
 export async function sendFirebaseVerification(
   email: string,
   firstName: string,
-  lastName: string,
+  lastName?: string,
   birthDate?: string,
   age?: number
 ): Promise<FirebaseRegisterResult> {
@@ -179,7 +264,7 @@ export async function sendFirebaseVerification(
     } else if (err.code === 'auth/too-many-requests') {
       errorMsg = 'Demasiados intentos. Espera unos momentos antes de solicitar otro correo.';
     } else if (err.code === 'auth/operation-not-allowed') {
-      errorMsg = 'El inicio por correo no está habilitado en Firebase. Te recomendamos usar el botón "Continuar con Google".';
+      errorMsg = 'El registro manual por correo está deshabilitado. Usa el botón "Continuar con Google".';
     } else if (err.code === 'auth/network-request-failed') {
       errorMsg = 'Error de conexión. Verifica tu conexión a internet.';
     } else if (err.message) {
