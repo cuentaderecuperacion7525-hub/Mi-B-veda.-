@@ -337,23 +337,6 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                   <Edit3 className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary)' }} />
                   <span>Editar</span>
                 </button>
-
-                {profile?.authProvider !== 'google.com' && (
-                  <button
-                    type="button"
-                    onClick={handleConnectGoogle}
-                    disabled={isSyncingGoogle}
-                    className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer active:scale-95 shadow-sm"
-                    style={{
-                      backgroundColor: '#ffffff',
-                      color: '#1f2937',
-                      borderColor: '#e5e7eb',
-                    }}
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingGoogle ? 'animate-spin' : ''}`} />
-                    <span>Conectar Google</span>
-                  </button>
-                )}
               </div>
             </div>
 
