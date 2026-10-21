@@ -11,7 +11,7 @@
         },
         "firstName": {
           "type": "string",
-          "description": "First name"
+          "description": "First name or display name"
         },
         "lastName": {
           "type": "string",
@@ -19,11 +19,11 @@
         },
         "birthDate": {
           "type": "string",
-          "description": "Birth date DD/MM/YYYY"
+          "description": "Birth date DD/MM/YYYY (optional)"
         },
         "age": {
           "type": "number",
-          "description": "Calculated age in years"
+          "description": "Calculated age in years (optional)"
         },
         "email": {
           "type": "string",
@@ -34,6 +34,14 @@
           "type": "boolean",
           "description": "Whether email is verified"
         },
+        "photoURL": {
+          "type": "string",
+          "description": "Google profile photo URL"
+        },
+        "authProvider": {
+          "type": "string",
+          "description": "Provider used to authenticate (e.g. google.com)"
+        },
         "createdAt": {
           "type": "string",
           "description": "Timestamp of registration"
@@ -43,7 +51,7 @@
           "description": "Timestamp of last profile update"
         }
       },
-      "required": ["id", "firstName", "lastName", "birthDate", "age", "email", "emailVerified", "createdAt"]
+      "required": ["id", "firstName", "email", "emailVerified", "createdAt"]
     }
   },
   "firestore": {

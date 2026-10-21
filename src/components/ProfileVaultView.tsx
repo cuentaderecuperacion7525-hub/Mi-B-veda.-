@@ -9,7 +9,6 @@ import {
   FileText,
   LifeBuoy,
   CheckCircle2,
-  Lock,
   ChevronRight,
   X,
   Save,
@@ -18,6 +17,8 @@ import {
   Music,
   Grid,
   Info,
+  LogOut,
+  RefreshCw,
 } from 'lucide-react';
 import {
   userProfileService,
@@ -25,6 +26,7 @@ import {
   calculateAgeFromBirthDate,
   formatBirthDateMask,
 } from '../services/userProfileService';
+import { signInWithGoogle, signOutFromFirebase } from '../services/firebaseAuthService';
 import { CURRENT_APP_VERSION } from '../version';
 
 interface ProfileVaultViewProps {
@@ -50,6 +52,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(() => userProfileService.getUserProfile());
   const [isEditing, setIsEditing] = useState(false);
+  const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
   const [editFirst, setEditFirst] = useState('');
   const [editLast, setEditLast] = useState('');
   const [editBirthDate, setEditBirthDate] = useState('');
@@ -69,7 +72,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   const openEditModal = () => {
     if (profile) {
       setEditFirst(profile.firstName);
-      setEditLast(profile.lastName);
+      setEditLast(profile.lastName || '');
       setEditBirthDate(profile.birthDate || '');
       setEditCalculatedAge(profile.age || (profile.birthDate ? calculateAgeFromBirthDate(profile.birthDate) : null));
       setEditEmail(profile.email);
@@ -106,22 +109,19 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       setEditError('Ingresa tu(s) nombre(s).');
       return;
     }
-    if (!cleanLast) {
-      setEditError('Ingresa tus apellidos.');
-      return;
-    }
 
-    let age = editCalculatedAge;
+    let age: number | undefined = undefined;
     if (editBirthDate) {
       if (editBirthDate.length !== 10) {
         setEditError('La fecha de nacimiento debe tener el formato DD/MM/AAAA.');
         return;
       }
-      age = calculateAgeFromBirthDate(editBirthDate);
-      if (age === null || age < 1 || age > 120) {
+      const calc = calculateAgeFromBirthDate(editBirthDate);
+      if (calc === null || calc < 1 || calc > 120) {
         setEditError('Por favor, ingresa una fecha de nacimiento válida.');
         return;
       }
+      age = calc;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -133,14 +133,32 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     userProfileService.saveUserProfile({
       firstName: cleanFirst,
       lastName: cleanLast,
-      birthDate: editBirthDate,
-      age: age || profile?.age || 0,
+      birthDate: editBirthDate || undefined,
+      age: age ?? profile?.age,
       email: cleanEmail,
       emailVerified: profile?.emailVerified !== undefined ? profile.emailVerified : true,
+      photoURL: profile?.photoURL,
+      authProvider: profile?.authProvider,
     });
 
     setIsEditing(false);
     showToast('Perfil actualizado correctamente', 'success');
+  };
+
+  const handleConnectGoogle = async () => {
+    setIsSyncingGoogle(true);
+    try {
+      const res = await signInWithGoogle();
+      if (res.success && res.profile) {
+        showToast('Cuenta de Google vinculada con éxito', 'success');
+      } else {
+        showToast(res.error || 'No se pudo vincular la cuenta de Google', 'error');
+      }
+    } catch {
+      showToast('Error al conectar con Google', 'error');
+    } finally {
+      setIsSyncingGoogle(false);
+    }
   };
 
   const formatSize = (bytes: number) => {
@@ -179,7 +197,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       {/* Spacer */}
       <div className="safe-top-header-spacer shrink-0 w-full mb-3" />
 
-      {/* 1. ENCABEZADO DE PERFIL */}
+      {/* 1. ENCABEZADO DE PERFIL CON AVATAR DE GOOGLE */}
       <div
         className="rounded-3xl p-5 sm:p-6 shadow-xl border transition-colors relative overflow-hidden"
         style={{
@@ -194,18 +212,31 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
         />
 
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 relative z-10 text-center sm:text-left">
-          {/* Avatar / Icono de Usuario con Iniciales */}
+          {/* Avatar / Foto de Google o Iniciales */}
           <div className="relative group">
-            <div
-              className="w-20 h-20 sm:w-22 sm:h-22 rounded-3xl flex items-center justify-center text-white text-2xl font-black shadow-xl tracking-wider select-none border-2"
-              style={{
-                background: profile?.avatarColor || 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                borderColor: 'var(--theme-border)',
-                boxShadow: '0 8px 24px -4px var(--theme-glow)',
-              }}
-            >
-              {initials}
-            </div>
+            {profile?.photoURL ? (
+              <img
+                src={profile.photoURL}
+                alt={profile.firstName}
+                className="w-20 h-20 sm:w-22 sm:h-22 rounded-3xl object-cover shadow-xl border-2"
+                style={{
+                  borderColor: 'var(--theme-border)',
+                  boxShadow: '0 8px 24px -4px var(--theme-glow)',
+                }}
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div
+                className="w-20 h-20 sm:w-22 sm:h-22 rounded-3xl flex items-center justify-center text-white text-2xl font-black shadow-xl tracking-wider select-none border-2"
+                style={{
+                  background: profile?.avatarColor || 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
+                  borderColor: 'var(--theme-border)',
+                  boxShadow: '0 8px 24px -4px var(--theme-glow)',
+                }}
+              >
+                {initials}
+              </div>
+            )}
             <div
               className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center border-2 shadow-sm"
               style={{
@@ -225,21 +256,57 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                   className="text-xl sm:text-2xl font-black tracking-tight"
                   style={{ color: 'var(--theme-text-main)' }}
                 >
-                  {profile ? `${profile.firstName} ${profile.lastName}` : 'Usuario de la Bóveda'}
+                  {profile ? `${profile.firstName} ${profile.lastName || ''}`.trim() : 'Usuario de la Bóveda'}
                 </h2>
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-1.5">
-                  <span
-                    className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full border"
-                    style={{
-                      backgroundColor: 'color-mix(in srgb, var(--theme-primary) 12%, transparent)',
-                      borderColor: 'color-mix(in srgb, var(--theme-primary) 30%, transparent)',
-                      color: 'var(--theme-primary)',
-                    }}
-                  >
-                    <User className="w-3 h-3" />
-                    <span>{profile?.age ? `${profile.age} años` : 'Edad no configurada'}</span>
-                  </span>
-                  {profile?.birthDate && (
+                  {/* Google Badge */}
+                  {profile?.authProvider === 'google.com' ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border shadow-sm"
+                      style={{
+                        backgroundColor: 'rgba(66, 133, 244, 0.1)',
+                        borderColor: 'rgba(66, 133, 244, 0.3)',
+                        color: '#3b82f6',
+                      }}
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                        <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                        <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                        <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                      </svg>
+                      <span>Google Verificado</span>
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border"
+                      style={{
+                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                        borderColor: 'rgba(16, 185, 129, 0.25)',
+                        color: '#059669',
+                      }}
+                    >
+                      <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                      <span>Correo Verificado</span>
+                    </span>
+                  )}
+
+                  {/* Age Badge (only if user provided birth date) */}
+                  {profile?.age && profile.age > 0 ? (
+                    <span
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full border"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--theme-primary) 12%, transparent)',
+                        borderColor: 'color-mix(in srgb, var(--theme-primary) 30%, transparent)',
+                        color: 'var(--theme-primary)',
+                      }}
+                    >
+                      <User className="w-3 h-3" />
+                      <span>{profile.age} años</span>
+                    </span>
+                  ) : null}
+
+                  {profile?.birthDate ? (
                     <span
                       className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border"
                       style={{
@@ -251,35 +318,43 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                       <Calendar className="w-3 h-3" />
                       <span>{profile.birthDate}</span>
                     </span>
-                  )}
-                  <span
-                    className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border"
-                    style={{
-                      backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                      borderColor: 'rgba(16, 185, 129, 0.25)',
-                      color: '#059669',
-                    }}
-                  >
-                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                    <span>Correo Verificado</span>
-                  </span>
+                  ) : null}
                 </div>
               </div>
 
-              {/* Botón Editar Perfil */}
-              <button
-                type="button"
-                onClick={openEditModal}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer active:scale-95 shadow-sm mx-auto sm:mx-0"
-                style={{
-                  backgroundColor: 'var(--theme-bg-secondary)',
-                  borderColor: 'var(--theme-border)',
-                  color: 'var(--theme-text-main)',
-                }}
-              >
-                <Edit3 className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary)' }} />
-                <span>Editar Perfil</span>
-              </button>
+              {/* Botones de Acción */}
+              <div className="flex items-center gap-2 mx-auto sm:mx-0">
+                <button
+                  type="button"
+                  onClick={openEditModal}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer active:scale-95 shadow-sm"
+                  style={{
+                    backgroundColor: 'var(--theme-bg-secondary)',
+                    borderColor: 'var(--theme-border)',
+                    color: 'var(--theme-text-main)',
+                  }}
+                >
+                  <Edit3 className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary)' }} />
+                  <span>Editar</span>
+                </button>
+
+                {profile?.authProvider !== 'google.com' && (
+                  <button
+                    type="button"
+                    onClick={handleConnectGoogle}
+                    disabled={isSyncingGoogle}
+                    className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer active:scale-95 shadow-sm"
+                    style={{
+                      backgroundColor: '#ffffff',
+                      color: '#1f2937',
+                      borderColor: '#e5e7eb',
+                    }}
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingGoogle ? 'animate-spin' : ''}`} />
+                    <span>Conectar Google</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Correo Electrónico */}
@@ -483,7 +558,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                   Privacidad y Cero Rastreo
                 </p>
                 <p className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>
-                  100% fuera de línea sin servidores externos
+                  Cifrado militar local en tu dispositivo
                 </p>
               </div>
             </div>
@@ -612,7 +687,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
             <form onSubmit={handleSaveEdit} className="space-y-3.5 text-left">
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
-                  Nombre(s)
+                  Nombre(s) <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -630,13 +705,12 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
-                  Apellidos
+                  Apellidos (Opcional)
                 </label>
                 <input
                   type="text"
                   value={editLast}
                   onChange={(e) => setEditLast(e.target.value)}
-                  required
                   className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
                   style={{
                     backgroundColor: 'var(--theme-bg-input)',
@@ -649,7 +723,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-semibold" style={{ color: 'var(--theme-text-main)' }}>
-                    Fecha de Nacimiento
+                    Fecha de Nacimiento (Opcional)
                   </label>
                   {editCalculatedAge !== null && (
                     <span
@@ -681,7 +755,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
-                  Correo Electrónico
+                  Correo Electrónico <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="email"

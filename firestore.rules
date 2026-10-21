@@ -11,20 +11,23 @@ service cloud.firestore {
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['id', 'firstName', 'lastName', 'birthDate', 'age', 'email', 'emailVerified', 'createdAt'])
-        && data.keys().hasOnly(['id', 'firstName', 'lastName', 'birthDate', 'age', 'email', 'emailVerified', 'createdAt', 'updatedAt'])
+      return data.keys().hasAll(['id', 'firstName', 'email', 'emailVerified', 'createdAt'])
+        && data.keys().hasOnly(['id', 'firstName', 'lastName', 'birthDate', 'age', 'email', 'emailVerified', 'photoURL', 'authProvider', 'createdAt', 'updatedAt'])
         && data.id is string
+        && data.id.size() <= 128
         && data.firstName is string
         && data.firstName.size() >= 1
-        && data.lastName is string
-        && data.lastName.size() >= 1
-        && data.birthDate is string
-        && data.birthDate.size() == 10
-        && data.age is number
-        && data.age >= 0
+        && data.firstName.size() <= 100
         && data.email is string
+        && data.email.size() <= 150
         && data.emailVerified is bool
-        && data.createdAt is string;
+        && data.createdAt is string
+        && (!('lastName' in data) || (data.lastName is string && data.lastName.size() <= 100))
+        && (!('birthDate' in data) || (data.birthDate is string && data.birthDate.size() <= 20))
+        && (!('age' in data) || (data.age is number && data.age >= 0 && data.age <= 130))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 2048))
+        && (!('authProvider' in data) || (data.authProvider is string && data.authProvider.size() <= 50))
+        && (!('updatedAt' in data) || data.updatedAt is string);
     }
 
     match /users/{userId} {

@@ -1,17 +1,99 @@
 import {
+  GoogleAuthProvider,
+  signInWithPopup,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
   applyActionCode,
+  signOut as firebaseSignOut,
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { userProfileService } from './userProfileService';
+import { userProfileService, UserProfile } from './userProfileService';
 
 /**
- * Generates a stable deterministic authentication token for the local vault device.
- * This allows passwordless-like registration with Firebase Auth without burdening
- * the user with an extra password before they configure their Master Vault PIN.
+ * Sign In / Register with Google using official GoogleAuthProvider and signInWithPopup.
+ * Google accounts guarantee verified email, name, and profile picture in a single step.
+ */
+export async function signInWithGoogle(): Promise<{
+  success: boolean;
+  profile?: UserProfile;
+  error?: string;
+}> {
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({
+      prompt: 'select_account',
+    });
+
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+
+    const fullName = user.displayName || 'Usuario de la Bóveda';
+    const nameParts = fullName.trim().split(' ');
+    const firstName = nameParts[0] || 'Usuario';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    const email = user.email || '';
+    const photoURL = user.photoURL || undefined;
+
+    // 1. Save profile locally
+    const profile = userProfileService.saveUserProfile({
+      firstName,
+      lastName,
+      email,
+      emailVerified: user.emailVerified,
+      photoURL,
+      authProvider: 'google.com',
+    });
+
+    // 2. Persist in Firestore
+    await syncUserProfile(user.uid, {
+      firstName,
+      lastName,
+      email,
+      emailVerified: user.emailVerified,
+      photoURL,
+      authProvider: 'google.com',
+    });
+
+    return {
+      success: true,
+      profile,
+    };
+  } catch (err: any) {
+    console.error('Google Sign-In Error:', err);
+    let errorMsg = 'Error al iniciar sesión con Google.';
+    if (err.code === 'auth/popup-closed-by-user') {
+      errorMsg = 'Ventana de inicio cerrada. Vuelve a intentarlo.';
+    } else if (err.code === 'auth/cancelled-popup-request') {
+      errorMsg = 'Operación cancelada.';
+    } else if (err.code === 'auth/popup-blocked') {
+      errorMsg = 'El navegador bloqueó la ventana emergente. Por favor, permítela.';
+    } else if (err.code === 'auth/network-request-failed') {
+      errorMsg = 'Error de conexión. Verifica tu conexión a internet.';
+    } else if (err.message) {
+      errorMsg = err.message;
+    }
+    return {
+      success: false,
+      error: errorMsg,
+    };
+  }
+}
+
+/**
+ * Sign out from Firebase Auth
+ */
+export async function signOutFromFirebase(): Promise<void> {
+  try {
+    await firebaseSignOut(auth);
+  } catch (err) {
+    console.error('Error signing out:', err);
+  }
+}
+
+/**
+ * Generates a stable deterministic authentication token for local fallback.
  */
 function getDeterministicVaultKey(email: string): string {
   const clean = email.trim().toLowerCase();
@@ -32,15 +114,14 @@ export interface FirebaseRegisterResult {
 }
 
 /**
- * Registers the user in Firebase Auth and immediately sends a real official
- * verification email from Google Firebase to the user's real email inbox.
+ * Fallback: Registers the user with Email and sends a verification link via Firebase Auth.
  */
 export async function sendFirebaseVerification(
   email: string,
   firstName: string,
   lastName: string,
-  birthDate: string,
-  age: number
+  birthDate?: string,
+  age?: number
 ): Promise<FirebaseRegisterResult> {
   const cleanEmail = email.trim().toLowerCase();
   const password = getDeterministicVaultKey(cleanEmail);
@@ -49,11 +130,9 @@ export async function sendFirebaseVerification(
     let userCredential;
 
     try {
-      // Attempt to create user with email and deterministic vault key
       userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
     } catch (createErr: any) {
       if (createErr.code === 'auth/email-already-in-use') {
-        // If already exists, sign in to reuse current account
         userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
       } else {
         throw createErr;
@@ -61,11 +140,9 @@ export async function sendFirebaseVerification(
     }
 
     const user = userCredential.user;
-
-    // Check if already verified
     await user.reload();
+
     if (user.emailVerified) {
-      // Save profile locally and in Firestore
       await syncUserProfile(user.uid, {
         firstName,
         lastName,
@@ -73,6 +150,7 @@ export async function sendFirebaseVerification(
         age,
         email: cleanEmail,
         emailVerified: true,
+        authProvider: 'password',
       });
 
       return {
@@ -83,7 +161,6 @@ export async function sendFirebaseVerification(
       };
     }
 
-    // Send real verification email via Firebase / Google
     await sendEmailVerification(user, {
       url: window.location.origin,
       handleCodeInApp: false,
@@ -101,6 +178,8 @@ export async function sendFirebaseVerification(
       errorMsg = 'El formato del correo electrónico no es válido.';
     } else if (err.code === 'auth/too-many-requests') {
       errorMsg = 'Demasiados intentos. Espera unos momentos antes de solicitar otro correo.';
+    } else if (err.code === 'auth/operation-not-allowed') {
+      errorMsg = 'El inicio por correo no está habilitado en Firebase. Te recomendamos usar el botón "Continuar con Google".';
     } else if (err.code === 'auth/network-request-failed') {
       errorMsg = 'Error de conexión. Verifica tu conexión a internet.';
     } else if (err.message) {
@@ -142,21 +221,20 @@ export async function resendFirebaseVerificationEmail(): Promise<{ success: bool
 }
 
 /**
- * Checks whether the user has clicked and verified the link in their real email.
+ * Checks whether the user has verified the link in their real email.
  */
 export async function checkFirebaseEmailVerification(
   profileData: {
     firstName: string;
-    lastName: string;
-    birthDate: string;
-    age: number;
+    lastName?: string;
+    birthDate?: string;
+    age?: number;
     email: string;
   }
 ): Promise<{ verified: boolean; error?: string }> {
   try {
     const user = auth.currentUser;
     if (!user) {
-      // Try to re-authenticate with the deterministic key
       const cleanEmail = profileData.email.trim().toLowerCase();
       const password = getDeterministicVaultKey(cleanEmail);
       const cred = await signInWithEmailAndPassword(auth, cleanEmail, password);
@@ -165,6 +243,7 @@ export async function checkFirebaseEmailVerification(
         await syncUserProfile(cred.user.uid, {
           ...profileData,
           emailVerified: true,
+          authProvider: 'password',
         });
         return { verified: true };
       }
@@ -177,6 +256,7 @@ export async function checkFirebaseEmailVerification(
       await syncUserProfile(user.uid, {
         ...profileData,
         emailVerified: true,
+        authProvider: 'password',
       });
       return { verified: true };
     }
@@ -195,9 +275,9 @@ export async function verifyWithActionCode(
   actionCode: string,
   profileData: {
     firstName: string;
-    lastName: string;
-    birthDate: string;
-    age: number;
+    lastName?: string;
+    birthDate?: string;
+    age?: number;
     email: string;
   }
 ): Promise<{ success: boolean; error?: string }> {
@@ -209,6 +289,7 @@ export async function verifyWithActionCode(
       await syncUserProfile(user.uid, {
         ...profileData,
         emailVerified: true,
+        authProvider: 'password',
       });
     }
     return { success: true };
@@ -227,11 +308,13 @@ async function syncUserProfile(
   uid: string,
   profile: {
     firstName: string;
-    lastName: string;
-    birthDate: string;
-    age: number;
+    lastName?: string;
+    birthDate?: string;
+    age?: number;
     email: string;
     emailVerified: boolean;
+    photoURL?: string;
+    authProvider?: string;
   }
 ) {
   // 1. Save locally with standard service
@@ -242,27 +325,40 @@ async function syncUserProfile(
     age: profile.age,
     email: profile.email,
     emailVerified: profile.emailVerified,
+    photoURL: profile.photoURL,
+    authProvider: profile.authProvider,
   });
 
-  // 2. Persist in Firestore for backup/sync
+  // 2. Persist in Firestore
   try {
     const userRef = doc(db, 'users', uid);
     const now = new Date().toISOString();
-    await setDoc(
-      userRef,
-      {
-        id: uid,
-        firstName: profile.firstName.trim(),
-        lastName: profile.lastName.trim(),
-        birthDate: profile.birthDate.trim(),
-        age: profile.age,
-        email: profile.email.trim().toLowerCase(),
-        emailVerified: profile.emailVerified,
-        createdAt: now,
-        updatedAt: now,
-      },
-      { merge: true }
-    );
+    const docData: Record<string, any> = {
+      id: uid,
+      firstName: profile.firstName.trim(),
+      email: profile.email.trim().toLowerCase(),
+      emailVerified: profile.emailVerified,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    if (profile.lastName?.trim()) {
+      docData.lastName = profile.lastName.trim();
+    }
+    if (profile.birthDate?.trim()) {
+      docData.birthDate = profile.birthDate.trim();
+    }
+    if (profile.age !== undefined && profile.age >= 0) {
+      docData.age = profile.age;
+    }
+    if (profile.photoURL) {
+      docData.photoURL = profile.photoURL;
+    }
+    if (profile.authProvider) {
+      docData.authProvider = profile.authProvider;
+    }
+
+    await setDoc(userRef, docData, { merge: true });
   } catch (err) {
     console.warn('Firestore user profile sync warning (offline or permissions):', err);
   }

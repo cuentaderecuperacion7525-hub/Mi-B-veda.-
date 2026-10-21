@@ -1,16 +1,18 @@
 /**
  * User Profile Service for Bóveda Segura.
- * Manages local user data (Name, Last Name, BirthDate, Calculated Age, Verified Email)
+ * Manages local user data (Name, Last Name, BirthDate, Age, Verified Email, Google Avatar)
  * and registration flag 'USUARIO_REGISTRADO'.
  */
 
 export interface UserProfile {
   firstName: string;
-  lastName: string;
-  birthDate: string; // DD/MM/AAAA
-  age: number;
+  lastName?: string;
+  birthDate?: string; // DD/MM/AAAA (opcional)
+  age?: number; // (opcional)
   email: string;
   emailVerified: boolean;
+  photoURL?: string;
+  authProvider?: string; // 'google.com' | 'password' | 'pin'
   registeredAt: number;
   avatarColor?: string;
 }
@@ -30,7 +32,8 @@ const AVATAR_COLORS = [
  * Calculates exact age from a DD/MM/AAAA date string.
  * Returns null if invalid or date in future.
  */
-export function calculateAgeFromBirthDate(dateStr: string): number | null {
+export function calculateAgeFromBirthDate(dateStr?: string): number | null {
+  if (!dateStr) return null;
   const parts = dateStr.trim().split('/');
   if (parts.length !== 3) return null;
 
@@ -44,7 +47,6 @@ export function calculateAgeFromBirthDate(dateStr: string): number | null {
   if (year < 1900 || year > new Date().getFullYear()) return null;
 
   const birth = new Date(year, month - 1, day);
-  // Verify date validity (e.g. Feb 31 -> invalid)
   if (birth.getFullYear() !== year || birth.getMonth() !== month - 1 || birth.getDate() !== day) {
     return null;
   }
@@ -66,7 +68,6 @@ export function calculateAgeFromBirthDate(dateStr: string): number | null {
  * Automatically masks an input string into DD/MM/AAAA format.
  */
 export function formatBirthDateMask(value: string): string {
-  // Only keep digits
   const clean = value.replace(/\D/g, '').slice(0, 8);
 
   if (clean.length <= 2) {
@@ -86,7 +87,7 @@ class UserProfileService {
       const flag = localStorage.getItem(REGISTERED_FLAG_KEY);
       if (flag === 'true') return true;
       const profile = this.getUserProfile();
-      return profile !== null && !!profile.firstName.trim();
+      return profile !== null && (!!profile.firstName?.trim() || !!profile.email?.trim());
     } catch {
       return false;
     }
@@ -105,23 +106,36 @@ class UserProfileService {
 
   public saveUserProfile(data: {
     firstName: string;
-    lastName: string;
+    lastName?: string;
     birthDate?: string;
-    age: number | string;
+    age?: number | string;
     email: string;
     emailVerified?: boolean;
+    photoURL?: string;
+    authProvider?: string;
     avatarColor?: string;
   }): UserProfile {
-    const numAge = typeof data.age === 'number' ? data.age : parseInt(data.age, 10) || 0;
     const existing = this.getUserProfile();
+
+    let numAge: number | undefined = undefined;
+    if (data.age !== undefined && data.age !== null && data.age !== '') {
+      numAge = typeof data.age === 'number' ? data.age : parseInt(String(data.age), 10);
+      if (isNaN(numAge)) numAge = undefined;
+    } else if (data.birthDate) {
+      numAge = calculateAgeFromBirthDate(data.birthDate) ?? undefined;
+    } else {
+      numAge = existing?.age;
+    }
 
     const profile: UserProfile = {
       firstName: data.firstName.trim(),
-      lastName: data.lastName.trim(),
-      birthDate: data.birthDate?.trim() || existing?.birthDate || '',
+      lastName: data.lastName ? data.lastName.trim() : existing?.lastName || '',
+      birthDate: data.birthDate !== undefined ? data.birthDate.trim() : existing?.birthDate,
       age: numAge,
       email: data.email.trim().toLowerCase(),
       emailVerified: data.emailVerified !== undefined ? data.emailVerified : true,
+      photoURL: data.photoURL || existing?.photoURL,
+      authProvider: data.authProvider || existing?.authProvider || 'google.com',
       registeredAt: existing?.registeredAt || Date.now(),
       avatarColor:
         data.avatarColor ||
@@ -168,7 +182,9 @@ class UserProfileService {
     const f = profile.firstName?.[0] || '';
     const l = profile.lastName?.[0] || '';
     const combined = `${f}${l}`.toUpperCase();
-    return combined || 'YO';
+    if (combined) return combined;
+    if (profile.email) return profile.email.slice(0, 2).toUpperCase();
+    return 'YO';
   }
 }
 

@@ -2,28 +2,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   User,
   Mail,
-  Calendar,
   ArrowRight,
   ShieldCheck,
   Sparkles,
   Lock,
   CheckCircle,
-  KeyRound,
   RotateCcw,
   Loader2,
   AlertCircle,
   Edit2,
-  CheckCircle2,
-  ExternalLink,
-  Flame,
   Radio,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import { userProfileService } from '../services/userProfileService';
 import {
-  userProfileService,
-  calculateAgeFromBirthDate,
-  formatBirthDateMask,
-} from '../services/userProfileService';
-import {
+  signInWithGoogle,
   sendFirebaseVerification,
   checkFirebaseEmailVerification,
   resendFirebaseVerificationEmail,
@@ -40,20 +34,25 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   onComplete,
   showToast,
 }) => {
-  // Step: 'form' (personal data) | 'verify' (email verification)
-  const [step, setStep] = useState<'form' | 'verify'>('form');
+  // Step: 'choose' | 'verify_email'
+  const [step, setStep] = useState<'choose' | 'verify_email'>('choose');
 
-  // Form Fields
+  // Manual form expansion toggle
+  const [showManualForm, setShowManualForm] = useState(false);
+
+  // Manual Form Fields (No birth date or age needed)
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [calculatedAge, setCalculatedAge] = useState<number | null>(null);
   const [email, setEmail] = useState('');
 
-  // Verification mode: 'firebase' (official link/auto-verify) | 'pin' (4-digit code)
-  const [verifyMode, setVerifyMode] = useState<'firebase' | 'pin'>('firebase');
+  // Loading states
+  const [isSigningWithGoogle, setIsSigningWithGoogle] = useState(false);
+  const [isSendingManualCode, setIsSendingManualCode] = useState(false);
+  const [isCheckingVerify, setIsCheckingVerify] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
 
   // Verification step state
+  const [verifyMode, setVerifyMode] = useState<'firebase' | 'pin'>('firebase');
   const [pinDigits, setPinDigits] = useState(['', '', '', '']);
   const pinInputRefs = [
     useRef<HTMLInputElement>(null),
@@ -66,16 +65,12 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
 
   const [countdown, setCountdown] = useState<number>(60);
   const [canResend, setCanResend] = useState(false);
-  const [isSendingCode, setIsSendingCode] = useState(false);
-  const [isCheckingVerify, setIsCheckingVerify] = useState(false);
-  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isAutoChecking, setIsAutoChecking] = useState(false);
 
-  // Countdown timer for resend
+  // Countdown timer for resending email
   useEffect(() => {
     let timer: any = null;
-    if (step === 'verify' && countdown > 0) {
+    if (step === 'verify_email' && countdown > 0) {
       setCanResend(false);
       timer = setInterval(() => {
         setCountdown((prev) => {
@@ -92,29 +87,24 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     };
   }, [step, countdown]);
 
-  // Real-time automatic polling when in Firebase verification mode
+  // Real-time automatic polling when in Firebase link verification mode
   useEffect(() => {
     let checkInterval: any = null;
 
-    if (step === 'verify' && verifyMode === 'firebase') {
-      setIsAutoChecking(true);
-
+    if (step === 'verify_email' && verifyMode === 'firebase') {
       checkInterval = setInterval(async () => {
-        const age = calculateAgeFromBirthDate(birthDate) || 0;
         const result = await checkFirebaseEmailVerification({
           firstName: firstName.trim(),
           lastName: lastName.trim(),
-          birthDate: birthDate.trim(),
-          age,
           email: email.trim().toLowerCase(),
         });
 
         if (result.verified) {
           clearInterval(checkInterval);
-          showToast('¡Correo verificado con éxito en Firebase!', 'success');
+          showToast('¡Correo verificado con éxito!', 'success');
           setTimeout(() => {
             onComplete();
-          }, 500);
+          }, 400);
         }
       }, 3500);
     }
@@ -122,26 +112,34 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     return () => {
       if (checkInterval) clearInterval(checkInterval);
     };
-  }, [step, verifyMode, birthDate, email, firstName, lastName, onComplete, showToast]);
+  }, [step, verifyMode, email, firstName, lastName, onComplete, showToast]);
 
-  // Handle BirthDate Mask and Real-time Age Calculation
-  const handleBirthDateChange = (val: string) => {
-    const masked = formatBirthDateMask(val);
-    setBirthDate(masked);
+  // GOOGLE SIGN-IN HANDLER (1-TAP, NO BIRTHDATE/AGE REQUIRED)
+  const handleGoogleSignIn = async () => {
     setError(null);
+    setIsSigningWithGoogle(true);
 
-    if (masked.length === 10) {
-      const age = calculateAgeFromBirthDate(masked);
-      setCalculatedAge(age);
-    } else {
-      setCalculatedAge(null);
+    try {
+      const res = await signInWithGoogle();
+      if (res.success && res.profile) {
+        showToast(`¡Bienvenido, ${res.profile.firstName}! Cuenta verificada con Google`, 'success');
+        setTimeout(() => {
+          onComplete();
+        }, 350);
+      } else {
+        setError(res.error || 'No se pudo completar el acceso con Google.');
+      }
+    } catch (err: any) {
+      console.error('Google sign in error:', err);
+      setError('Ocurrió un error inesperado al conectar con Google.');
+    } finally {
+      setIsSigningWithGoogle(false);
     }
   };
 
-  // Submit Form: Register and Send Real Verification via Firebase Auth
-  const handleSendVerification = async (e: React.FormEvent) => {
+  // MANUAL REGISTRATION HANDLER
+  const handleManualRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-
     const cleanFirst = firstName.trim();
     const cleanLast = lastName.trim();
     const cleanEmail = email.trim().toLowerCase();
@@ -150,21 +148,6 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       setError('Por favor, ingresa tu(s) nombre(s).');
       return;
     }
-    if (!cleanLast) {
-      setError('Por favor, ingresa tus apellidos.');
-      return;
-    }
-    if (birthDate.length !== 10) {
-      setError('Ingresa tu fecha de nacimiento completa (DD/MM/AAAA).');
-      return;
-    }
-
-    const age = calculateAgeFromBirthDate(birthDate);
-    if (age === null || age < 1 || age > 120) {
-      setError('Por favor, ingresa una fecha de nacimiento válida.');
-      return;
-    }
-
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!cleanEmail || !emailRegex.test(cleanEmail)) {
       setError('Ingresa un correo electrónico válido (ej. usuario@gmail.com).');
@@ -172,51 +155,47 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     }
 
     setError(null);
-    setIsSendingCode(true);
+    setIsSendingManualCode(true);
 
     try {
-      // 1. Send official Firebase Auth verification to the user's real email
-      const res = await sendFirebaseVerification(cleanEmail, cleanFirst, cleanLast, birthDate, age);
+      const res = await sendFirebaseVerification(cleanEmail, cleanFirst, cleanLast);
 
       if (!res.success) {
+        // If email password fails with operation-not-allowed, suggest Google
         setError(res.error || 'No se pudo enviar el correo de verificación.');
-        setIsSendingCode(false);
+        setIsSendingManualCode(false);
         return;
       }
 
       if (res.isAlreadyVerified) {
-        showToast('¡Tu correo ya está verificado oficialmente!', 'success');
+        showToast('¡Tu correo ya está verificado!', 'success');
         setTimeout(() => {
           onComplete();
         }, 400);
         return;
       }
 
-      setStep('verify');
+      setStep('verify_email');
       setVerifyMode('firebase');
       setCountdown(60);
       setCanResend(false);
-      showToast(`Correo de verificación oficial enviado a ${cleanEmail}`, 'success');
-    } catch (err: any) {
-      console.error('Error sending verification code:', err);
-      setError('Error al conectar con los servicios de autenticación.');
+      showToast(`Correo de verificación enviado a ${cleanEmail}`, 'success');
+    } catch {
+      setError('Error al procesar el registro con el servidor.');
     } finally {
-      setIsSendingCode(false);
+      setIsSendingManualCode(false);
     }
   };
 
-  // Manual Check Button for Firebase Link Verification
+  // Check Firebase email verification status
   const handleManualCheckVerification = async () => {
     setIsCheckingVerify(true);
     setError(null);
 
     try {
-      const age = calculateAgeFromBirthDate(birthDate) || 0;
       const res = await checkFirebaseEmailVerification({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        birthDate: birthDate.trim(),
-        age,
         email: email.trim().toLowerCase(),
       });
 
@@ -226,20 +205,19 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           onComplete();
         }, 400);
       } else {
-        setError('Aún no hemos detectado la confirmación. Por favor, abre el correo y pulsa el enlace.');
+        setError('Aún no detectamos la confirmación. Por favor, abre el correo y pulsa el enlace.');
       }
     } catch {
-      setError('Error al comprobar la verificación. Inténtalo de nuevo.');
+      setError('Error al comprobar la verificación.');
     } finally {
       setIsCheckingVerify(false);
     }
   };
 
-  // Resend Verification Email (Firebase Auth)
+  // Resend verification email
   const handleResendFirebaseEmail = async () => {
-    if (!canResend || isSendingCode) return;
-
-    setIsSendingCode(true);
+    if (!canResend || isSendingManualCode) return;
+    setIsSendingManualCode(true);
     setError(null);
 
     try {
@@ -252,13 +230,13 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
         setError(res.error || 'No se pudo reenviar el correo.');
       }
     } catch {
-      setError('Error de conexión al reenviar el correo.');
+      setError('Error de conexión al reenviar.');
     } finally {
-      setIsSendingCode(false);
+      setIsSendingManualCode(false);
     }
   };
 
-  // Direct Code / Link Verification (if user copied from email)
+  // Verify direct code / link
   const handleVerifyDirectCode = async (e: React.FormEvent) => {
     e.preventDefault();
     const raw = directCodeInput.trim();
@@ -268,29 +246,25 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     setError(null);
 
     try {
-      // Extract oobCode if user pasted full URL
       let actionCode = raw;
       if (raw.includes('oobCode=')) {
         const url = new URL(raw);
         actionCode = url.searchParams.get('oobCode') || raw;
       }
 
-      const age = calculateAgeFromBirthDate(birthDate) || 0;
       const res = await verifyWithActionCode(actionCode, {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        birthDate: birthDate.trim(),
-        age,
         email: email.trim().toLowerCase(),
       });
 
       if (res.success) {
-        showToast('¡Código de Firebase verificado con éxito!', 'success');
+        showToast('¡Verificación exitosa!', 'success');
         setTimeout(() => {
           onComplete();
         }, 400);
       } else {
-        setError(res.error || 'Código de verificación no válido.');
+        setError(res.error || 'Código de verificación inválido o expirado.');
       }
     } catch {
       setError('Error al validar el código.');
@@ -299,10 +273,10 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     }
   };
 
-  // Switch to PIN mode and request 4-digit PIN
+  // Switch to PIN mode
   const handleSwitchToPinMode = async () => {
     setVerifyMode('pin');
-    setIsSendingCode(true);
+    setIsSendingManualCode(true);
     setError(null);
 
     try {
@@ -322,11 +296,11 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     } catch {
       setError('Error al generar código PIN.');
     } finally {
-      setIsSendingCode(false);
+      setIsSendingManualCode(false);
     }
   };
 
-  // Handle single digit input in the 4-digit PIN fields
+  // Pin input handling
   const handleDigitChange = (index: number, val: string) => {
     const clean = val.replace(/\D/g, '').slice(-1);
     const updated = [...pinDigits];
@@ -368,7 +342,6 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     }
   };
 
-  // Perform Final Verification with 4-digit PIN
   const performPinVerification = async (pinCode?: string) => {
     const code = pinCode || pinDigits.join('');
     if (code.length !== 4) {
@@ -377,8 +350,6 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const age = calculateAgeFromBirthDate(birthDate) || 0;
-
     setIsVerifyingCode(true);
     setError(null);
 
@@ -394,19 +365,16 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       userProfileService.saveUserProfile({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        birthDate: birthDate.trim(),
-        age,
         email: cleanEmail,
         emailVerified: true,
       });
 
       showToast('¡PIN verificado con éxito!', 'success');
-
       setTimeout(() => {
         onComplete();
       }, 400);
     } catch {
-      setError('Error al verificar el código con el servidor.');
+      setError('Error al verificar el PIN con el servidor.');
       setIsVerifyingCode(false);
     }
   };
@@ -423,19 +391,19 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
         {/* Header Icon & Welcome Badge */}
         <div className="text-center mb-6">
           <div
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl mx-auto mb-4 flex items-center justify-center shadow-2xl relative transition-transform hover:scale-105"
+            className="w-18 h-18 sm:w-20 sm:h-20 rounded-3xl mx-auto mb-4 flex items-center justify-center shadow-2xl relative transition-transform hover:scale-105"
             style={{
               background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
               boxShadow: '0 8px 30px -4px var(--theme-glow)',
             }}
           >
-            {step === 'form' ? (
-              <ShieldCheck className="w-9 h-9 sm:w-11 sm:h-11 text-white stroke-[2.2]" />
+            {step === 'choose' ? (
+              <ShieldCheck className="w-10 h-10 sm:w-11 sm:h-11 text-white stroke-[2.2]" />
             ) : (
-              <Mail className="w-9 h-9 sm:w-11 sm:h-11 text-white stroke-[2.2]" />
+              <Mail className="w-10 h-10 sm:w-11 sm:h-11 text-white stroke-[2.2]" />
             )}
             <div
-              className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center border-2"
+              className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center border-2 shadow-sm"
               style={{
                 backgroundColor: 'var(--theme-bg-main)',
                 borderColor: 'var(--theme-primary)',
@@ -453,255 +421,257 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               color: 'var(--theme-primary)',
             }}
           >
-            <Flame className="w-3 h-3 text-amber-500 fill-amber-500" />
-            <span>{step === 'form' ? 'Bienvenido a tu Bóveda Privada' : 'Verificación Firebase Auth'}</span>
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>{step === 'choose' ? 'Acceso Seguro y Cifrado' : 'Verificación de Correo'}</span>
           </div>
 
           <h1
             className="text-2xl sm:text-3xl font-extrabold tracking-tight"
             style={{ color: 'var(--theme-text-main)' }}
           >
-            {step === 'form' ? 'Registro Inicial' : 'Verifica tu Correo'}
+            {step === 'choose' ? 'Bienvenido a tu Bóveda' : 'Confirma tu Correo'}
           </h1>
           <p
             className="text-xs sm:text-sm mt-1.5 max-w-xs mx-auto leading-relaxed"
             style={{ color: 'var(--theme-text-muted)' }}
           >
-            {step === 'form'
-              ? 'Ingresa tus datos personales para activar tu perfil y vincular tu cuenta con Firebase.'
+            {step === 'choose'
+              ? 'Regístrate en un instante con tu cuenta de Google para verificar tu identidad y proteger tus archivos.'
               : `Correo de verificación enviado a ${email}`}
           </p>
         </div>
 
-        {/* STEP 1: FORM VIEW */}
-        {step === 'form' && (
+        {/* STEP 1: CHOOSE REGISTRATION METHOD */}
+        {step === 'choose' && (
           <div
-            className="rounded-3xl p-5 sm:p-7 shadow-2xl border transition-colors backdrop-blur-sm"
+            className="rounded-3xl p-5 sm:p-7 shadow-2xl border transition-colors backdrop-blur-sm space-y-4"
             style={{
               backgroundColor: 'var(--theme-bg-card)',
               borderColor: 'var(--theme-border)',
             }}
           >
-            <form onSubmit={handleSendVerification} className="space-y-4">
-              {/* Nombre(s) */}
-              <div>
-                <label
-                  className="block text-xs font-bold uppercase tracking-wider mb-1.5"
-                  style={{ color: 'var(--theme-text-main)' }}
-                >
-                  Nombre(s) <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <div
-                    className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
-                    style={{ color: 'var(--theme-text-muted)' }}
-                  >
-                    <User className="w-4 h-4" />
-                  </div>
-                  <input
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => {
-                      setFirstName(e.target.value);
-                      if (error) setError(null);
-                    }}
-                    placeholder="Ej. Juan Carlos"
-                    required
-                    autoFocus
-                    disabled={isSendingCode}
-                    className="w-full rounded-2xl pl-10 pr-4 py-3 text-sm font-medium border transition-all outline-none focus:ring-2"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Apellidos */}
-              <div>
-                <label
-                  className="block text-xs font-bold uppercase tracking-wider mb-1.5"
-                  style={{ color: 'var(--theme-text-main)' }}
-                >
-                  Apellidos <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <div
-                    className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
-                    style={{ color: 'var(--theme-text-muted)' }}
-                  >
-                    <User className="w-4 h-4" />
-                  </div>
-                  <input
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => {
-                      setLastName(e.target.value);
-                      if (error) setError(null);
-                    }}
-                    placeholder="Ej. Gómez Pérez"
-                    required
-                    disabled={isSendingCode}
-                    className="w-full rounded-2xl pl-10 pr-4 py-3 text-sm font-medium border transition-all outline-none focus:ring-2"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Fecha de Nacimiento con máscara automática DD/MM/AAAA */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label
-                    className="block text-xs font-bold uppercase tracking-wider"
-                    style={{ color: 'var(--theme-text-main)' }}
-                  >
-                    Fecha de Nacimiento <span className="text-rose-500">*</span>
-                  </label>
-                  {calculatedAge !== null && (
-                    <span
-                      className="text-[11px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 animate-in fade-in"
-                      style={{
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        borderColor: 'rgba(16, 185, 129, 0.3)',
-                        color: '#059669',
-                      }}
-                    >
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>{calculatedAge} años cumplidos</span>
-                    </span>
-                  )}
-                </div>
-                <div className="relative">
-                  <div
-                    className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
-                    style={{ color: 'var(--theme-text-muted)' }}
-                  >
-                    <Calendar className="w-4 h-4" />
-                  </div>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={birthDate}
-                    onChange={(e) => handleBirthDateChange(e.target.value)}
-                    placeholder="DD/MM/AAAA"
-                    maxLength={10}
-                    required
-                    disabled={isSendingCode}
-                    className="w-full rounded-2xl pl-10 pr-4 py-3 text-sm font-mono font-medium border transition-all outline-none focus:ring-2"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
-                  />
-                </div>
-                <p className="text-[10px] mt-1 px-1" style={{ color: 'var(--theme-text-subtle)' }}>
-                  Ejemplo: 25/08/1998 (las barras &quot;/&quot; se añaden automáticamente).
-                </p>
-              </div>
-
-              {/* Correo Electrónico Real */}
-              <div>
-                <label
-                  className="block text-xs font-bold uppercase tracking-wider mb-1.5"
-                  style={{ color: 'var(--theme-text-main)' }}
-                >
-                  Correo Electrónico Real <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <div
-                    className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
-                    style={{ color: 'var(--theme-text-muted)' }}
-                  >
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <input
-                    type="email"
-                    inputMode="email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (error) setError(null);
-                    }}
-                    placeholder="ejemplo@correo.com"
-                    required
-                    disabled={isSendingCode}
-                    className="w-full rounded-2xl pl-10 pr-4 py-3 text-sm font-medium border transition-all outline-none focus:ring-2"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
-                  />
-                </div>
-                <p className="text-[10px] mt-1 px-1" style={{ color: 'var(--theme-text-subtle)' }}>
-                  Te enviaremos un correo de verificación oficial de Firebase para confirmar tu identidad.
-                </p>
-              </div>
-
-              {/* Error Message */}
-              {error && (
-                <div
-                  className="p-3 rounded-2xl text-xs font-medium border flex items-center gap-2 animate-in fade-in"
-                  style={{
-                    backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                    borderColor: 'rgba(244, 63, 94, 0.3)',
-                    color: '#e11d48',
-                  }}
-                >
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {/* Privacy Notice */}
+            {/* Error Message */}
+            {error && (
               <div
-                className="p-3 rounded-2xl border text-xs flex items-start gap-2.5 transition-colors"
+                className="p-3 rounded-2xl text-xs font-medium border flex items-center gap-2 animate-in fade-in"
                 style={{
-                  backgroundColor: 'var(--theme-bg-secondary)',
-                  borderColor: 'var(--theme-border)',
+                  backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                  borderColor: 'rgba(244, 63, 94, 0.3)',
+                  color: '#e11d48',
                 }}
               >
-                <Lock className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--theme-primary)' }} />
-                <div className="leading-relaxed text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
-                  <strong style={{ color: 'var(--theme-text-main)' }}>100% Seguro:</strong> Cifrado militar AES-256 local y verificación oficial de Google Firebase.
-                </div>
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span className="leading-snug">{error}</span>
               </div>
+            )}
 
-              {/* Action Button: Enviar Verificación */}
+            {/* BOTÓN PRINCIPAL RECOMENDADO: CONTINUAR CON GOOGLE */}
+            <div className="space-y-2">
               <button
-                type="submit"
-                disabled={isSendingCode}
-                className="w-full py-3.5 rounded-2xl text-white font-bold text-sm transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50"
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={isSigningWithGoogle}
+                className="w-full py-4 px-4 rounded-2xl border font-bold text-sm transition-all shadow-lg flex items-center justify-center gap-3 cursor-pointer active:scale-98 disabled:opacity-50 relative group"
                 style={{
-                  background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                  boxShadow: '0 8px 24px -4px var(--theme-glow)',
+                  backgroundColor: '#ffffff',
+                  color: '#1f2937',
+                  borderColor: '#e5e7eb',
                 }}
               >
-                {isSendingCode ? (
+                {isSigningWithGoogle ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Conectando con Firebase...</span>
+                    <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                    <span>Conectando con Google...</span>
                   </>
                 ) : (
                   <>
-                    <span>Enviar Correo de Verificación</span>
-                    <ArrowRight className="w-4 h-4 text-white" />
+                    {/* SVG oficial del logo de Google */}
+                    <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                      />
+                    </svg>
+                    <span className="text-[14px] font-semibold text-gray-800">
+                      Continuar con Google
+                    </span>
                   </>
                 )}
               </button>
-            </form>
+
+              <p className="text-[11px] text-center px-2 leading-relaxed" style={{ color: 'var(--theme-text-muted)' }}>
+                ✨ <strong>Registro en 1 toque:</strong> Vincula tu cuenta de Google con verificación instantánea sin necesidad de códigos ni datos adicionales.
+              </p>
+            </div>
+
+            {/* Separador */}
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t" style={{ borderColor: 'var(--theme-border)' }} />
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
+                <span
+                  className="px-3"
+                  style={{
+                    backgroundColor: 'var(--theme-bg-card)',
+                    color: 'var(--theme-text-subtle)',
+                  }}
+                >
+                  o también puedes
+                </span>
+              </div>
+            </div>
+
+            {/* OPCIÓN SECUNDARIA: REGISTRO CON CORREO MANUAL */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowManualForm(!showManualForm)}
+                className="w-full py-2.5 px-3 rounded-2xl border text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors"
+                style={{
+                  backgroundColor: 'var(--theme-bg-secondary)',
+                  borderColor: 'var(--theme-border)',
+                  color: 'var(--theme-text-main)',
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" style={{ color: 'var(--theme-primary)' }} />
+                  <span>Registrarme con correo electrónico</span>
+                </div>
+                {showManualForm ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+
+              {showManualForm && (
+                <form onSubmit={handleManualRegister} className="space-y-3.5 pt-3 animate-in fade-in">
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: 'var(--theme-text-main)' }}>
+                      Nombre(s) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none" style={{ color: 'var(--theme-text-muted)' }}>
+                        <User className="w-3.5 h-3.5" />
+                      </div>
+                      <input
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => {
+                          setFirstName(e.target.value);
+                          if (error) setError(null);
+                        }}
+                        placeholder="Ej. Juan Carlos"
+                        required
+                        disabled={isSendingManualCode}
+                        className="w-full rounded-xl pl-9 pr-3 py-2 text-xs font-medium border outline-none"
+                        style={{
+                          backgroundColor: 'var(--theme-bg-input)',
+                          borderColor: 'var(--theme-border)',
+                          color: 'var(--theme-text-main)',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: 'var(--theme-text-main)' }}>
+                      Apellidos (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Ej. Gómez"
+                      disabled={isSendingManualCode}
+                      className="w-full rounded-xl px-3 py-2 text-xs font-medium border outline-none"
+                      style={{
+                        backgroundColor: 'var(--theme-bg-input)',
+                        borderColor: 'var(--theme-border)',
+                        color: 'var(--theme-text-main)',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: 'var(--theme-text-main)' }}>
+                      Correo Electrónico <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none" style={{ color: 'var(--theme-text-muted)' }}>
+                        <Mail className="w-3.5 h-3.5" />
+                      </div>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (error) setError(null);
+                        }}
+                        placeholder="correo@ejemplo.com"
+                        required
+                        disabled={isSendingManualCode}
+                        className="w-full rounded-xl pl-9 pr-3 py-2 text-xs font-medium border outline-none"
+                        style={{
+                          backgroundColor: 'var(--theme-bg-input)',
+                          borderColor: 'var(--theme-border)',
+                          color: 'var(--theme-text-main)',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSendingManualCode}
+                    className="w-full py-2.5 rounded-xl text-white font-bold text-xs transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    style={{
+                      background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
+                    }}
+                  >
+                    {isSendingManualCode ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Enviando enlace...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Continuar con este correo</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
+            </div>
+
+            {/* Privacy Card */}
+            <div
+              className="p-3 rounded-2xl border text-xs flex items-start gap-2.5 transition-colors"
+              style={{
+                backgroundColor: 'var(--theme-bg-secondary)',
+                borderColor: 'var(--theme-border)',
+              }}
+            >
+              <Lock className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--theme-primary)' }} />
+              <div className="leading-relaxed text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
+                <strong style={{ color: 'var(--theme-text-main)' }}>Privacidad y Seguridad:</strong> Tus archivos y contraseñas se cifran de forma local en tu dispositivo con <strong>AES-256-GCM</strong>.
+              </div>
+            </div>
           </div>
         )}
 
-        {/* STEP 2: VERIFICATION VIEW */}
-        {step === 'verify' && (
+        {/* STEP 2: VERIFICATION VIEW (FOR MANUAL EMAIL REGISTRATION) */}
+        {step === 'verify_email' && (
           <div
             className="rounded-3xl p-5 sm:p-7 shadow-2xl border transition-colors backdrop-blur-sm space-y-5"
             style={{
@@ -728,7 +698,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setStep('form');
+                  setStep('choose');
                   setError(null);
                 }}
                 className="p-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors hover:opacity-80 shrink-0"
@@ -743,15 +713,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               </button>
             </div>
 
-            {/* FIREBASE AUTH MODE */}
+            {/* FIREBASE EMAIL LINK MODE */}
             {verifyMode === 'firebase' && (
               <div className="space-y-4">
-                {/* Real-time status detector */}
                 <div
-                  className="p-4 rounded-2xl border flex items-start gap-3 relative overflow-hidden"
+                  className="p-4 rounded-2xl border flex items-start gap-3"
                   style={{
-                    backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                    borderColor: 'rgba(37, 99, 235, 0.3)',
+                    backgroundColor: 'rgba(37, 99, 255, 0.08)',
+                    borderColor: 'rgba(37, 99, 255, 0.25)',
                   }}
                 >
                   <div className="relative mt-0.5">
@@ -763,12 +732,11 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                       Esperando confirmación en tu correo
                     </p>
                     <p className="text-[11px] leading-relaxed" style={{ color: 'var(--theme-text-muted)' }}>
-                      Revisa tu bandeja de entrada (y la carpeta de spam si es necesario). Haz clic en el enlace de verificación y la aplicación detectará el cambio automáticamente.
+                      Abre tu bandeja de entrada y pulsa el enlace de verificación oficial. La app lo detectará automáticamente.
                     </p>
                   </div>
                 </div>
 
-                {/* Primary Action Button: Comprobar Verificación */}
                 <button
                   type="button"
                   onClick={handleManualCheckVerification}
@@ -782,7 +750,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   {isCheckingVerify ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin text-white" />
-                      <span>Comprobando estado en Firebase...</span>
+                      <span>Comprobando estado...</span>
                     </>
                   ) : (
                     <>
@@ -792,7 +760,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   )}
                 </button>
 
-                {/* Optional: Paste Action Link or Code */}
+                {/* Optional code paste */}
                 <div className="pt-1">
                   {!showCodeInput ? (
                     <button
@@ -810,7 +778,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                           type="text"
                           value={directCodeInput}
                           onChange={(e) => setDirectCodeInput(e.target.value)}
-                          placeholder="Pega el enlace o código de acción aquí"
+                          placeholder="Pega el enlace o código aquí"
                           className="flex-1 rounded-xl px-3 py-2 text-xs border outline-none font-mono"
                           style={{
                             backgroundColor: 'var(--theme-bg-input)',
@@ -882,7 +850,6 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   </div>
                 </div>
 
-                {/* Confirm PIN Action */}
                 <button
                   type="button"
                   onClick={() => performPinVerification()}
@@ -906,7 +873,6 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   )}
                 </button>
 
-                {/* Switch back to Firebase link */}
                 <div className="border-t pt-3" style={{ borderColor: 'var(--theme-border)' }}>
                   <button
                     type="button"
@@ -917,7 +883,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                     className="w-full text-center text-[11px] font-medium transition-colors hover:underline"
                     style={{ color: 'var(--theme-primary)' }}
                   >
-                    Volver a verificación por enlace de Firebase
+                    Volver a verificación por enlace
                   </button>
                 </div>
               </div>
@@ -938,7 +904,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               </div>
             )}
 
-            {/* Countdown Timer & Resend Button */}
+            {/* Countdown / Resend */}
             <div className="text-center pt-1">
               {countdown > 0 ? (
                 <div
@@ -956,7 +922,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                 <button
                   type="button"
                   onClick={handleResendFirebaseEmail}
-                  disabled={isSendingCode}
+                  disabled={isSendingManualCode}
                   className="inline-flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer hover:underline"
                   style={{ color: 'var(--theme-primary)' }}
                 >
@@ -971,7 +937,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
         {/* Footer info */}
         <div className="mt-5 text-center flex items-center justify-center gap-1.5 text-[11px]" style={{ color: 'var(--theme-text-subtle)' }}>
           <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-          <span>Configuración segura con Firebase Authentication y cifrado AES-256</span>
+          <span>Autenticación oficial Google Firebase & Cifrado AES-256</span>
         </div>
       </div>
     </div>
