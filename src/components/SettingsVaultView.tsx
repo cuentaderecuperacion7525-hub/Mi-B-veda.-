@@ -31,7 +31,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { updateService, UpdateCheckResult } from '../services/updateService';
-import { APP_VERSION, CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
+import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
+const APP_VERSION = CURRENT_APP_VERSION;
 import { UpdateNotificationModal } from './UpdateNotificationModal';
 import { BovedaUpdater } from './BovedaUpdater';
 import { NeonSwitch } from './NeonSwitch';

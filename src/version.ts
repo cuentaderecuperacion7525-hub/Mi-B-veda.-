@@ -29,3 +29,6 @@ export const APP_VERSION_METADATA: VersionInfo = {
   changelog: CURRENT_CHANGELOG,
   mandatory: false
 };
+
+export default APP_VERSION;
+

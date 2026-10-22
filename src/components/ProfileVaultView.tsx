@@ -32,7 +32,7 @@ import {
 } from '../services/userProfileService';
 import { signInWithGoogle, signOutFromFirebase } from '../services/firebaseAuthService';
 import { sendEmailPin, verifyEmailPin } from '../services/emailVerificationService';
-import { APP_VERSION } from '../version';
+import { CURRENT_APP_VERSION as APP_VERSION } from '../version';
 import { formatSize } from '../utils/formatUtils';
 
 interface ProfileVaultViewProps {
