@@ -31,11 +31,11 @@ import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
 import { UpdateNotificationModal } from './UpdateNotificationModal';
 
 const formatFileSize = (bytes: number): string => {
-  if (!bytes || bytes <= 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  if (!bytes || bytes <= 0) return '0 Mb';
+  const mb = bytes / (1024 * 1024);
+  if (mb < 0.01) return '< 0.01 Mb';
+  if (mb < 1) return `${mb.toFixed(2)} Mb`;
+  return `${mb.toFixed(1)} Mb`;
 };
 import {
   exportEncryptedBackup,

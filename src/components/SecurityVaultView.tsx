@@ -9,16 +9,24 @@ import {
   X,
   Clock,
   Trash2,
-  Lock,
-  Loader2,
   KeyRound,
-  Copy,
+  Eye,
+  EyeOff,
+  RotateCcw,
   Check,
-  Download,
-  ShieldAlert,
 } from 'lucide-react';
 import { setScreenshotBlockEnabled } from '../services/screenshotBlockService';
-import { deriveKeyFromPin, verifyKey, hexToBuf } from '../crypto/vaultCrypto';
+import {
+  deriveKeyFromPin,
+  verifyKey,
+  hexToBuf,
+  bufToHex,
+  generateSalt,
+  createVerificationPayload,
+  decryptBuffer,
+  encryptBuffer,
+  checkIsUnencryptedMedia,
+} from '../crypto/vaultCrypto';
 import {
   enrollBiometrics,
   disableBiometrics,
@@ -28,22 +36,23 @@ import {
   setBiometricsAutoPromptEnabled,
   authenticateWithBiometrics,
 } from '../services/biometricService';
-import {
-  isRecoveryKeyConfigured,
-  generateRecoveryKey,
-  backupMasterKeyWithRecoveryKey,
-  downloadRecoveryKeyFile,
-  formatRecoveryKeyDisplay,
-  disableRecoveryKey,
-} from '../services/recoveryKeyService';
+import { flipToLockService } from '../services/flipToLockService';
 import { registerBackHandler } from '../services/backButtonService';
 import { PinKeypad } from './PinKeypad';
+import { NeonSwitch } from './NeonSwitch';
+import { getAllEncryptedItems, saveEncryptedItems, EncryptedVaultItem } from '../db/vaultDb';
 
 interface SecurityVaultViewProps {
   onOpenSettings: () => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'alert' | 'error') => void;
   sessionPin?: string | null;
   onLock?: () => void;
+  masterKey?: CryptoKey | null;
+  onMasterKeyUpdated?: (newKey: CryptoKey) => void;
+  autoLockMinutes?: number;
+  onAutoLockChange?: (mins: number) => void;
+  lockOnTabSwitch?: boolean;
+  onLockOnTabSwitchChange?: (enabled: boolean) => void;
 }
 
 interface AccessLogItem {
@@ -58,6 +67,12 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   showToast,
   sessionPin,
   onLock,
+  masterKey,
+  onMasterKeyUpdated,
+  autoLockMinutes = 5,
+  onAutoLockChange,
+  lockOnTabSwitch = true,
+  onLockOnTabSwitchChange,
 }) => {
   // Protection toggles
   const [duressPinActive, setDuressPinActive] = useState<boolean>(() => {
@@ -72,6 +87,123 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   const [isBioPairConfigured, setIsBioPairConfigured] = useState<boolean>(() => {
     return hasBiometricCredentials();
   });
+
+  // Flip to lock state
+  const [flipToLockEnabled, setFlipToLockEnabled] = useState<boolean>(() => flipToLockService.isEnabled());
+
+  const handleToggleFlipToLock = (enabled: boolean) => {
+    setFlipToLockEnabled(enabled);
+    flipToLockService.setEnabled(enabled);
+    showToast(
+      enabled
+        ? 'Bloqueo al voltear boca abajo activado'
+        : 'Bloqueo al voltear desactivado',
+      'info'
+    );
+  };
+
+  // Change PIN states
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmNewPin, setConfirmNewPin] = useState('');
+  const [showCurrentPin, setShowCurrentPin] = useState(false);
+  const [showNewPin, setShowNewPin] = useState(false);
+  const [showConfirmNewPin, setShowConfirmNewPin] = useState(false);
+  const [isChangingPin, setIsChangingPin] = useState(false);
+  const [pinChangeError, setPinChangeError] = useState<string | null>(null);
+  const [pinChangeSuccess, setPinChangeSuccess] = useState(false);
+
+  const handleChangePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinChangeError(null);
+    setPinChangeSuccess(false);
+
+    if (newPin.length < 4) {
+      setPinChangeError('El nuevo PIN debe tener al menos 4 dígitos');
+      return;
+    }
+
+    if (newPin !== confirmNewPin) {
+      setPinChangeError('Los nuevos PINs no coinciden');
+      return;
+    }
+
+    setIsChangingPin(true);
+
+    try {
+      const saltHex = localStorage.getItem('vault_salt');
+      const testIvHex = localStorage.getItem('vault_test_iv');
+      const testCipherHex = localStorage.getItem('vault_test_cipher');
+
+      if (!saltHex || !testIvHex || !testCipherHex) {
+        throw new Error('Datos de verificación de bóveda no encontrados');
+      }
+
+      const salt = hexToBuf(saltHex);
+      const testKey = await deriveKeyFromPin(currentPin, salt);
+      const isValid = await verifyKey(testKey, testIvHex, testCipherHex);
+
+      if (!isValid) {
+        setPinChangeError('El PIN actual es incorrecto');
+        setIsChangingPin(false);
+        return;
+      }
+
+      const newSalt = generateSalt();
+      const newDerivedKey = await deriveKeyFromPin(newPin, newSalt);
+      const newVerification = await createVerificationPayload(newDerivedKey);
+
+      // Re-encrypt all items in IndexedDB from testKey to newDerivedKey
+      try {
+        const allItems = await getAllEncryptedItems();
+        const updatedItems: EncryptedVaultItem[] = [];
+        for (const item of allItems) {
+          try {
+            const isUnencrypted = !item.iv || item.iv.length === 0 || checkIsUnencryptedMedia(item.data);
+            const decrypted = isUnencrypted ? item.data : await decryptBuffer(item.data, item.iv, testKey);
+            const reEncrypted = await encryptBuffer(decrypted, newDerivedKey);
+            updatedItems.push({
+              ...item,
+              iv: reEncrypted.iv,
+              data: reEncrypted.data,
+            });
+          } catch (itemErr) {
+            console.warn(`Could not re-encrypt item ${item.id} during PIN change:`, itemErr);
+            updatedItems.push(item);
+          }
+        }
+        if (updatedItems.length > 0) {
+          await saveEncryptedItems(updatedItems);
+        }
+      } catch (reErr) {
+        console.warn('Error during batch item re-encryption on PIN change:', reErr);
+      }
+
+      localStorage.setItem('vault_salt', bufToHex(newSalt));
+      localStorage.setItem('vault_test_iv', newVerification.ivHex);
+      localStorage.setItem('vault_test_cipher', newVerification.cipherHex);
+      localStorage.setItem('vault_pin_length', newPin.length.toString());
+
+      try {
+        sessionStorage.setItem('vault_session_pin', newPin);
+      } catch {}
+
+      if (onMasterKeyUpdated) {
+        onMasterKeyUpdated(newDerivedKey);
+      }
+
+      setPinChangeSuccess(true);
+      setCurrentPin('');
+      setNewPin('');
+      setConfirmNewPin('');
+      showToast('PIN maestro actualizado con éxito', 'success');
+    } catch (err: any) {
+      console.error('Error changing PIN:', err);
+      setPinChangeError(err?.message || 'Error al cambiar PIN');
+    } finally {
+      setIsChangingPin(false);
+    }
+  };
 
   // Modal de confirmación con PIN para desactivar bloqueo de capturas
   const [showDisableScreenshotModal, setShowDisableScreenshotModal] = useState(false);
@@ -94,29 +226,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
 
   const [showAllLogsModal, setShowAllLogsModal] = useState<boolean>(false);
 
-  // Recovery key states
-  const [hasRecoveryKey, setHasRecoveryKey] = useState<boolean>(() => isRecoveryKeyConfigured());
-  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
-  const [newGeneratedKey, setNewGeneratedKey] = useState<string | null>(null);
-  const [copiedKey, setCopiedKey] = useState(false);
-  const [downloadedKey, setDownloadedKey] = useState(false);
-  const [pinForNewKey, setPinForNewKey] = useState('');
-  const [pinKeyError, setPinKeyError] = useState<string | null>(null);
-  const [isGeneratingKey, setIsGeneratingKey] = useState(false);
-
   // Back button registrations for modals in Security Tab
-  useEffect(() => {
-    if (showRecoveryModal) {
-      try { window.history.pushState({ secModal: 'recovery' }, ''); } catch {}
-      return registerBackHandler('sec_recovery_modal', () => {
-        setShowRecoveryModal(false);
-        setPinForNewKey('');
-        setPinKeyError(null);
-        setNewGeneratedKey(null);
-        return true;
-      }, 85);
-    }
-  }, [showRecoveryModal]);
   useEffect(() => {
     if (showDisableScreenshotModal) {
       try { window.history.pushState({ secModal: 'ss' }, ''); } catch {}
@@ -304,19 +414,6 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
     showToast('Huella desvinculada de este celular', 'info');
   };
 
-  const handleToggleRecoveryKey = () => {
-    if (hasRecoveryKey) {
-      disableRecoveryKey();
-      setHasRecoveryKey(false);
-      showToast('Clave de respaldo desactivada', 'info');
-    } else {
-      setNewGeneratedKey(null);
-      setPinForNewKey('');
-      setPinKeyError(null);
-      setShowRecoveryModal(true);
-    }
-  };
-
   // PIN Verification handlers
   const handleVerifyDisableScreenshotPin = async (enteredPin: string) => {
     setIsVerifyingPin(true);
@@ -407,7 +504,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
               Seguri<span style={{ color: 'var(--theme-primary, #00e5ff)' }}>dad</span>
             </h1>
             <p className="text-[10px] font-semibold tracking-[0.2em] uppercase" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
-              PROTECCIÓN ACTIVA Y REGISTRO DE ACCESOS
+              PROTECCIÓN ACTIVA Y CONTROL DE ACCESO
             </p>
           </div>
         </div>
@@ -543,56 +640,190 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
               />
             </button>
           </div>
-
-          {/* 4. Clave de Respaldo */}
-          <div className="flex items-center justify-between">
-            <div
-              className="flex items-center gap-3.5 flex-1 cursor-pointer group"
-              onClick={() => {
-                if (!hasRecoveryKey) {
-                  handleToggleRecoveryKey();
-                } else {
-                  setNewGeneratedKey(null);
-                  setPinForNewKey('');
-                  setPinKeyError(null);
-                  setShowRecoveryModal(true);
-                }
-              }}
-            >
-              <div className="w-10 h-10 rounded-xl bg-[#00e5ff]/10 border border-[#00e5ff]/20 flex items-center justify-center text-[#00e5ff] shrink-0">
-                <KeyRound className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-white group-hover:text-[#00e5ff] transition-colors">
-                  Clave de respaldo
-                </h4>
-                <p className="text-xs text-slate-400">
-                  {hasRecoveryKey
-                    ? 'Activa · Toca para ver o renovar código'
-                    : 'Inactiva · Toca para generar código'}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleToggleRecoveryKey}
-              aria-label="Toggle Clave de respaldo"
-              className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
-                hasRecoveryKey ? 'bg-[#00e5ff]' : 'bg-slate-800 border border-slate-700'
-              }`}
-            >
-              <div
-                className={`w-5 h-5 rounded-full bg-white shadow-md transition-transform transform absolute top-0.5 ${
-                  hasRecoveryKey ? 'translate-x-6' : 'translate-x-0.5'
-                }`}
-              />
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* Card 2: REGISTRO DE ACCESOS */}
+      {/* Card 2: PIN Y BLOQUEO */}
+      <div className="bg-[#0a121d] border border-slate-800/90 rounded-3xl p-5 mb-4 shadow-xl">
+        <h3 className="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-4">
+          PIN Y BLOQUEO
+        </h3>
+
+        {/* Políticas de Bloqueo */}
+        <div className="space-y-4 mb-5">
+          {/* Timeout */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0 pr-2">
+              <div className="w-10 h-10 rounded-xl bg-[#00e5ff]/10 border border-[#00e5ff]/20 flex items-center justify-center text-[#00e5ff] shrink-0">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-white">Auto-bloqueo por inactividad</h4>
+                <p className="text-xs text-slate-400">Bloquea la bóveda si no hay interacción</p>
+              </div>
+            </div>
+            <select
+              value={autoLockMinutes}
+              onChange={(e) => onAutoLockChange && onAutoLockChange(Number(e.target.value))}
+              className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#00e5ff] cursor-pointer shrink-0"
+            >
+              <option value={0.5}>30 seg</option>
+              <option value={1}>1 min</option>
+              <option value={2}>2 min</option>
+              <option value={5}>5 min</option>
+              <option value={10}>10 min</option>
+              <option value={0}>Desactivado</option>
+            </select>
+          </div>
+
+          {/* Bloquear al cambiar de pestaña */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0 pr-2">
+              <div className="w-10 h-10 rounded-xl bg-[#00e5ff]/10 border border-[#00e5ff]/20 flex items-center justify-center text-[#00e5ff] shrink-0">
+                <EyeOff className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-white">Bloquear al cambiar de pestaña</h4>
+                <p className="text-xs text-slate-400">Protege tu pantalla si sales o minimizas</p>
+              </div>
+            </div>
+            <NeonSwitch
+              checked={lockOnTabSwitch}
+              onChange={(enabled) => onLockOnTabSwitchChange && onLockOnTabSwitchChange(enabled)}
+              ariaLabel="Bloquear al cambiar de pestaña"
+            />
+          </div>
+
+          {/* Bloqueo al Voltear Boca Abajo (Flip to Lock) */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0 pr-2">
+              <div className="w-10 h-10 rounded-xl bg-[#00e5ff]/10 border border-[#00e5ff]/20 flex items-center justify-center text-[#00e5ff] shrink-0">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-white">Bloqueo al voltear boca abajo</h4>
+                <p className="text-xs text-slate-400">Bloquea al colocar el móvil sobre la mesa</p>
+              </div>
+            </div>
+            <NeonSwitch
+              checked={flipToLockEnabled}
+              onChange={handleToggleFlipToLock}
+              ariaLabel="Bloqueo al voltear boca abajo"
+            />
+          </div>
+        </div>
+
+        {/* Separador y Cambiar PIN */}
+        <div className="border-t border-slate-800/80 pt-4">
+          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-2">
+            <KeyRound className="w-3.5 h-3.5 text-[#00e5ff]" />
+            <span>Cambiar PIN Maestro</span>
+          </h4>
+          <p className="text-[11px] text-slate-400 mb-3">
+            Actualiza el código de 4 o más dígitos con el que desbloqueas tu bóveda.
+          </p>
+
+          <form onSubmit={handleChangePin} className="space-y-3">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">PIN Actual</label>
+              <div className="relative flex items-center">
+                <input
+                  type={showCurrentPin ? 'text' : 'password'}
+                  inputMode="numeric"
+                  value={currentPin}
+                  onChange={(e) => setCurrentPin(e.target.value)}
+                  placeholder="••••"
+                  required
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 pr-10 text-sm text-slate-100 focus:outline-none focus:border-[#00e5ff] font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPin(!showCurrentPin)}
+                  className="absolute right-2.5 text-slate-400 hover:text-slate-200 transition-colors p-1 cursor-pointer"
+                  title={showCurrentPin ? 'Ocultar PIN' : 'Ver PIN'}
+                >
+                  {showCurrentPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Nuevo PIN</label>
+                <div className="relative flex items-center">
+                  <input
+                    type={showNewPin ? 'text' : 'password'}
+                    inputMode="numeric"
+                    value={newPin}
+                    onChange={(e) => setNewPin(e.target.value)}
+                    placeholder="••••"
+                    required
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 pr-10 text-sm text-slate-100 focus:outline-none focus:border-[#00e5ff] font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPin(!showNewPin)}
+                    className="absolute right-2.5 text-slate-400 hover:text-slate-200 transition-colors p-1 cursor-pointer"
+                    title={showNewPin ? 'Ocultar PIN' : 'Ver PIN'}
+                  >
+                    {showNewPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Confirmar Nuevo</label>
+                <div className="relative flex items-center">
+                  <input
+                    type={showConfirmNewPin ? 'text' : 'password'}
+                    inputMode="numeric"
+                    value={confirmNewPin}
+                    onChange={(e) => setConfirmNewPin(e.target.value)}
+                    placeholder="••••"
+                    required
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 pr-10 text-sm text-slate-100 focus:outline-none focus:border-[#00e5ff] font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmNewPin(!showConfirmNewPin)}
+                    className="absolute right-2.5 text-slate-400 hover:text-slate-200 transition-colors p-1 cursor-pointer"
+                    title={showConfirmNewPin ? 'Ocultar PIN' : 'Ver PIN'}
+                  >
+                    {showConfirmNewPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {pinChangeError && (
+              <div className="text-rose-400 text-xs bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
+                {pinChangeError}
+              </div>
+            )}
+
+            {pinChangeSuccess && (
+              <div className="text-emerald-400 text-xs bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20 flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5" />
+                <span>PIN actualizado con éxito.</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isChangingPin || !currentPin || !newPin || !confirmNewPin}
+              className="w-full py-2.5 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-40"
+              style={{
+                background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
+                boxShadow: '0 4px 14px -2px var(--theme-glow)',
+              }}
+            >
+              <KeyRound className="w-3.5 h-3.5 text-white" />
+              <span className="text-white font-bold">{isChangingPin ? 'Re-cifrando bóveda...' : 'Actualizar PIN'}</span>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* Card 3: REGISTRO DE ACCESOS */}
       <div className="flex items-center justify-between px-1 mb-2.5">
         <h3 className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
           REGISTRO DE ACCESOS
@@ -938,305 +1169,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
           </div>
         </div>
       )}
-
-      {/* Modal Clave de Respaldo Maestra */}
-      {showRecoveryModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div
-            className="w-full max-w-sm rounded-3xl p-6 shadow-2xl transition-all border"
-            style={{
-              backgroundColor: 'var(--theme-bg-card)',
-              borderColor: 'var(--theme-border)',
-              color: 'var(--theme-text-main)',
-            }}
-          >
-            <div className="flex justify-between items-center mb-3">
-              <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center transition-colors"
-                style={{
-                  backgroundColor: 'color-mix(in srgb, var(--theme-primary) 14%, transparent)',
-                  borderColor: 'color-mix(in srgb, var(--theme-primary) 30%, transparent)',
-                  borderWidth: 1,
-                  color: 'var(--theme-primary)',
-                }}
-              >
-                <KeyRound className="w-6 h-6" />
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowRecoveryModal(false);
-                  setNewGeneratedKey(null);
-                  setPinForNewKey('');
-                  setPinKeyError(null);
-                }}
-                className="p-1.5 rounded-lg cursor-pointer transition-colors hover:opacity-80"
-                style={{ color: 'var(--theme-text-muted)' }}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <h3
-              className="text-base font-bold mb-1"
-              style={{ color: 'var(--theme-text-main)' }}
-            >
-              Clave de Respaldo Maestra
-            </h3>
-            <p
-              className="text-xs mb-4 leading-relaxed"
-              style={{ color: 'var(--theme-text-muted)' }}
-            >
-              Esta clave de 16 caracteres te permite recuperar tu bóveda y crear un nuevo PIN si alguna vez lo olvidas, <strong style={{ color: 'var(--theme-text-main)' }}>sin perder ningún archivo</strong>.
-            </p>
-
-            {newGeneratedKey ? (
-              <div className="space-y-3.5 text-left">
-                <div
-                  className="rounded-2xl p-4 shadow-xl text-center border-2 transition-colors"
-                  style={{
-                    backgroundColor: 'var(--theme-bg-secondary)',
-                    borderColor: 'var(--theme-primary)',
-                  }}
-                >
-                  <p
-                    className="text-[10px] uppercase font-bold tracking-widest mb-1.5"
-                    style={{ color: 'var(--theme-primary)' }}
-                  >
-                    Tu Nueva Clave de Respaldo
-                  </p>
-                  <div
-                    className="py-2.5 px-3 rounded-xl border select-all"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                    }}
-                  >
-                    <span
-                      className="text-lg font-black font-mono tracking-widest"
-                      style={{ color: 'var(--theme-primary)' }}
-                    >
-                      {formatRecoveryKeyDisplay(newGeneratedKey)}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 mt-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        try {
-                          navigator.clipboard.writeText(newGeneratedKey);
-                          setCopiedKey(true);
-                          showToast('¡Clave copiada al portapapeles!', 'success');
-                          setTimeout(() => setCopiedKey(false), 2500);
-                        } catch {}
-                      }}
-                      className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold rounded-xl border transition-colors cursor-pointer"
-                      style={{
-                        backgroundColor: 'color-mix(in srgb, var(--theme-primary) 12%, transparent)',
-                        borderColor: 'color-mix(in srgb, var(--theme-primary) 35%, transparent)',
-                        color: 'var(--theme-primary)',
-                      }}
-                    >
-                      {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedKey ? 'Copiada' : 'Copiar'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        try {
-                          downloadRecoveryKeyFile(newGeneratedKey);
-                          setDownloadedKey(true);
-                          showToast('Archivo de respaldo descargado', 'success');
-                        } catch {}
-                      }}
-                      className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold rounded-xl border transition-colors cursor-pointer"
-                      style={{
-                        backgroundColor: 'var(--theme-bg-card)',
-                        borderColor: 'var(--theme-border)',
-                        color: 'var(--theme-text-main)',
-                      }}
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Descargar .txt</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div
-                  className="p-3 rounded-xl text-xs flex items-start gap-2 border"
-                  style={{
-                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                    borderColor: 'rgba(16, 185, 129, 0.25)',
-                    color: 'var(--theme-text-main)',
-                  }}
-                >
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500 mt-0.5" />
-                  <span>Esta clave ya quedó activada y vinculada a tu bóveda. Guárdala en tus notas o lugar seguro.</span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowRecoveryModal(false);
-                    setNewGeneratedKey(null);
-                    setPinForNewKey('');
-                  }}
-                  className="w-full py-2.5 rounded-xl font-bold text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
-                  style={{
-                    background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                    color: '#ffffff',
-                    boxShadow: '0 4px 14px -2px var(--theme-glow)',
-                  }}
-                >
-                  <span className="text-white font-bold">Entendido y Guardado</span>
-                </button>
-              </div>
-            ) : (
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (pinForNewKey.length < 4) {
-                    setPinKeyError('Ingresa tu PIN actual de al menos 4 dígitos.');
-                    return;
-                  }
-
-                  setIsGeneratingKey(true);
-                  setPinKeyError(null);
-
-                  try {
-                    const saltHex = localStorage.getItem('vault_salt');
-                    const testIvHex = localStorage.getItem('vault_test_iv');
-                    const testCipherHex = localStorage.getItem('vault_test_cipher');
-
-                    if (!saltHex || !testIvHex || !testCipherHex) {
-                      setPinKeyError('Datos de bóveda no encontrados.');
-                      return;
-                    }
-
-                    const salt = hexToBuf(saltHex);
-                    const currentMasterKey = await deriveKeyFromPin(pinForNewKey, salt);
-                    const isValid = await verifyKey(currentMasterKey, testIvHex, testCipherHex);
-
-                    if (!isValid) {
-                      setPinKeyError('PIN incorrecto. Ingresa el PIN maestro de tu bóveda.');
-                      return;
-                    }
-
-                    const freshKey = generateRecoveryKey();
-                    await backupMasterKeyWithRecoveryKey(currentMasterKey, freshKey);
-                    setNewGeneratedKey(freshKey);
-                    setHasRecoveryKey(true);
-                    showToast('¡Nueva clave de respaldo generada y activada!', 'success');
-                  } catch (err: any) {
-                    setPinKeyError(err?.message || 'Error al generar clave de respaldo.');
-                  } finally {
-                    setIsGeneratingKey(false);
-                  }
-                }}
-                className="space-y-3.5 text-left"
-              >
-                <div
-                  className="p-3 rounded-xl border text-xs space-y-1"
-                  style={{
-                    backgroundColor: 'var(--theme-bg-secondary)',
-                    borderColor: 'var(--theme-border)',
-                  }}
-                >
-                  <p className="font-semibold" style={{ color: 'var(--theme-text-main)' }}>¿Deseas generar una nueva clave?</p>
-                  <p className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
-                    Por seguridad, introduce tu PIN actual para generar y respaldar tu clave maestra:
-                  </p>
-                </div>
-
-                <div>
-                  <label
-                    className="block text-xs font-semibold mb-1"
-                    style={{ color: 'var(--theme-text-main)' }}
-                  >
-                    PIN Maestro Actual
-                  </label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    value={pinForNewKey}
-                    onChange={(e) => {
-                      setPinForNewKey(e.target.value.replace(/\D/g, ''));
-                      setPinKeyError(null);
-                    }}
-                    placeholder="••••"
-                    required
-                    autoFocus
-                    disabled={isGeneratingKey}
-                    className="w-full rounded-xl px-3.5 py-2.5 text-center text-lg font-mono tracking-widest border transition-colors outline-none focus:ring-2"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
-                  />
-                </div>
-
-                {pinKeyError && (
-                  <div
-                    className="text-xs p-2.5 rounded-xl border flex items-center gap-1.5"
-                    style={{
-                      backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                      borderColor: 'rgba(244, 63, 94, 0.3)',
-                      color: '#e11d48',
-                    }}
-                  >
-                    <ShieldAlert className="w-4 h-4 shrink-0" />
-                    <span>{pinKeyError}</span>
-                  </div>
-                )}
-
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowRecoveryModal(false);
-                      setPinForNewKey('');
-                      setPinKeyError(null);
-                    }}
-                    className="flex-1 py-2.5 rounded-xl border font-semibold text-xs transition-colors cursor-pointer"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-secondary)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
-                  >
-                    Cerrar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isGeneratingKey || pinForNewKey.length < 4}
-                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-40"
-                    style={{
-                      background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                      color: '#ffffff',
-                      boxShadow: '0 4px 14px -2px var(--theme-glow)',
-                    }}
-                  >
-                    {isGeneratingKey ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                        <span className="text-white font-bold">Generando...</span>
-                      </>
-                    ) : (
-                      <>
-                        <KeyRound className="w-3.5 h-3.5 text-white" />
-                        <span className="text-white font-bold">Generar Clave</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
+

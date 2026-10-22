@@ -43,6 +43,16 @@ export default function App() {
     return saved !== null ? saved === 'true' : true;
   });
 
+  const vaultStatusRef = useRef(vaultStatus);
+  useEffect(() => {
+    vaultStatusRef.current = vaultStatus;
+  }, [vaultStatus]);
+
+  const lockOnTabSwitchRef = useRef(lockOnTabSwitch);
+  useEffect(() => {
+    lockOnTabSwitchRef.current = lockOnTabSwitch;
+  }, [lockOnTabSwitch]);
+
   const [vaultRefreshTrigger, setVaultRefreshTrigger] = useState<number>(0);
 
   // Sistema de Actualizaciones
@@ -87,6 +97,12 @@ export default function App() {
   const lockVault = useCallback(() => {
     // Strictly forbid locking while picking files or running backup operations
     if ((window as any).__isPickingFile || (window as any).__isProcessingBackup) {
+      return;
+    }
+    // CRITICAL: NEVER lock if the vault is not in 'unlocked' state!
+    // During registration ('register') or setup ('setup'), the user has not finished onboarding;
+    // locking would switch them to LockVaultView and corrupt the onboarding flow.
+    if (vaultStatusRef.current !== 'unlocked') {
       return;
     }
     try {
@@ -253,7 +269,7 @@ export default function App() {
     });
   }, []);
 
-  // App privacy blur shield and immediate locking when minimizing or switching apps
+  // App privacy blur shield and immediate locking when minimizing or switching apps (ONLY when unlocked)
   useEffect(() => {
     let appStateHandle: any = null;
 
@@ -268,18 +284,26 @@ export default function App() {
       if (isUserPickingFiles() || (window as any).__isProcessingBackup) {
         return;
       }
-      lockVault();
+      // CRITICAL: NEVER lock if in 'register' or 'setup' mode!
+      // The user is legitimately minimizing to retrieve their verification code from Gmail.
+      if (vaultStatusRef.current !== 'unlocked') {
+        return;
+      }
+      if (lockOnTabSwitchRef.current) {
+        lockVault();
+      }
     };
 
     if (CapacitorApp && typeof CapacitorApp.addListener === 'function') {
       try {
         CapacitorApp.addListener('appStateChange', (state) => {
           if (!isUserPickingFiles()) {
-            setIsPrivacyBlurActive(!state.isActive);
+            setIsPrivacyBlurActive(!state.isActive && vaultStatusRef.current === 'unlocked');
           }
           if (!state.isActive) {
             handleMinimizeOrBackground();
           } else {
+            setIsPrivacyBlurActive(false);
             window.dispatchEvent(new CustomEvent('vault_app_resumed'));
           }
         }).then((h) => {
@@ -291,17 +315,18 @@ export default function App() {
     const handleDocVisibility = () => {
       const isHidden = document.visibilityState === 'hidden';
       if (!isUserPickingFiles()) {
-        setIsPrivacyBlurActive(isHidden);
+        setIsPrivacyBlurActive(isHidden && vaultStatusRef.current === 'unlocked');
       }
       if (isHidden) {
         handleMinimizeOrBackground();
       } else {
+        setIsPrivacyBlurActive(false);
         window.dispatchEvent(new CustomEvent('vault_app_resumed'));
       }
     };
 
     const handleWindowBlur = () => {
-      if (!isUserPickingFiles()) {
+      if (!isUserPickingFiles() && vaultStatusRef.current === 'unlocked') {
         setIsPrivacyBlurActive(true);
       }
       handleMinimizeOrBackground();
@@ -312,9 +337,14 @@ export default function App() {
       window.dispatchEvent(new CustomEvent('vault_app_resumed'));
     };
 
+    const handlePageHide = () => {
+      handleMinimizeOrBackground();
+    };
+
     document.addEventListener('visibilitychange', handleDocVisibility);
     window.addEventListener('blur', handleWindowBlur);
     window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('pagehide', handlePageHide);
 
     return () => {
       if (appStateHandle && typeof appStateHandle.remove === 'function') {
@@ -323,6 +353,7 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleDocVisibility);
       window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('pagehide', handlePageHide);
     };
   }, [lockVault]);
 
@@ -400,45 +431,6 @@ export default function App() {
     };
   }, []);
 
-  // Lock on tab visibility change, minimize or pagehide
-  useEffect(() => {
-    if (!lockOnTabSwitch) return;
-
-    const isUserPickingFiles = () => {
-      if ((window as any).__isPickingFile) return true;
-      const startTime = (window as any).__filePickingStartTime || 0;
-      if (startTime > 0 && Date.now() - startTime < 180000) return true;
-      return false;
-    };
-
-    const handleVisibilityChange = () => {
-      // Ignore if user is actively picking files or processing backup
-      if (isUserPickingFiles() || (window as any).__isProcessingBackup) {
-        return;
-      }
-
-      if (document.visibilityState === 'hidden' && vaultStatus === 'unlocked') {
-        // Bloquear inmediatamente al minimizar o pasar a segundo plano
-        lockVault();
-      }
-    };
-
-    const handlePageHide = () => {
-      if (isUserPickingFiles() || (window as any).__isProcessingBackup) {
-        return;
-      }
-      if (vaultStatus === 'unlocked') {
-        lockVault();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('pagehide', handlePageHide);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('pagehide', handlePageHide);
-    };
-  }, [lockOnTabSwitch, vaultStatus, lockVault]);
 
   // Panic key: Escape locks immediately
   useEffect(() => {
@@ -467,7 +459,11 @@ export default function App() {
 
       setMasterKey(null);
       setIsSettingsOpen(false);
-      setVaultStatus('setup');
+      if (!userProfileService.isUserRegistered()) {
+        setVaultStatus('register');
+      } else {
+        setVaultStatus('setup');
+      }
       showToast('Bóveda restablecida por completo', 'alert');
     } catch (err) {
       console.error('Error resetting vault:', err);

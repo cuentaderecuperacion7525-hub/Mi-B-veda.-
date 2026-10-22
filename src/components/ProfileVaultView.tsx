@@ -12,13 +12,17 @@ import {
   ChevronRight,
   X,
   Save,
-  Image,
-  Video,
-  Music,
-  Grid,
   Info,
   LogOut,
   RefreshCw,
+  Code2,
+  Cpu,
+  RotateCcw,
+  Loader2,
+  ArrowLeft,
+  Check,
+  Lock,
+  Copy,
 } from 'lucide-react';
 import {
   userProfileService,
@@ -27,7 +31,9 @@ import {
   formatBirthDateMask,
 } from '../services/userProfileService';
 import { signInWithGoogle, signOutFromFirebase } from '../services/firebaseAuthService';
-import { CURRENT_APP_VERSION } from '../version';
+import { sendEmailPin, verifyEmailPin } from '../services/emailVerificationService';
+import { APP_VERSION } from '../version';
+import { formatSize } from '../utils/formatUtils';
 
 interface ProfileVaultViewProps {
   counts: {
@@ -60,8 +66,35 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   const [editEmail, setEditEmail] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
 
-  // Modals for Support and Terms
-  const [activeInfoModal, setActiveInfoModal] = useState<'privacy' | 'terms' | 'support' | null>(null);
+  // Email verification when changing email in profile
+  const [editStep, setEditStep] = useState<'form' | 'verify_email'>('form');
+  const [emailPinCode, setEmailPinCode] = useState('');
+  const [isSendingPin, setIsSendingPin] = useState(false);
+  const [isVerifyingPin, setIsVerifyingPin] = useState(false);
+  const [pinCountdown, setPinCountdown] = useState(0);
+  const [pendingNewEmail, setPendingNewEmail] = useState('');
+  const [testPinHint, setTestPinHint] = useState<string | null>(null);
+
+  // Modals for Support, Terms, and Developer
+  const [activeInfoModal, setActiveInfoModal] = useState<'privacy' | 'terms' | 'support' | 'developer' | null>(null);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+
+  const handleCopyEmail = (email: string) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(email);
+    }
+    setCopiedEmail(true);
+    showToast('Correo copiado al portapapeles: ' + email, 'success');
+    setTimeout(() => setCopiedEmail(false), 2500);
+  };
+
+  useEffect(() => {
+    if (pinCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setPinCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [pinCountdown]);
 
   useEffect(() => {
     return userProfileService.subscribe((updated) => {
@@ -84,6 +117,10 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       setEditEmail('');
     }
     setEditError(null);
+    setEditStep('form');
+    setEmailPinCode('');
+    setTestPinHint(null);
+    setPinCountdown(0);
     setIsEditing(true);
   };
 
@@ -99,11 +136,11 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     }
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanFirst = editFirst.trim();
     const cleanLast = editLast.trim();
-    const cleanEmail = editEmail.trim();
+    const cleanEmail = editEmail.trim().toLowerCase();
 
     if (!cleanFirst) {
       setEditError('Ingresa tu(s) nombre(s).');
@@ -130,6 +167,36 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       return;
     }
 
+    const currentEmail = (profile?.email || '').trim().toLowerCase();
+    const isEmailChanging = currentEmail && cleanEmail !== currentEmail;
+
+    if (isEmailChanging) {
+      // Must verify the new email address with PIN before saving
+      setIsSendingPin(true);
+      setEditError(null);
+      try {
+        const res = await sendEmailPin(cleanEmail, cleanFirst);
+        if (res.success) {
+          setPendingNewEmail(cleanEmail);
+          setEditStep('verify_email');
+          setEmailPinCode('');
+          setPinCountdown(60);
+          if (res.testPin) {
+            setTestPinHint(res.testPin);
+          }
+          showToast(`Código enviado a ${cleanEmail}`, 'info');
+        } else {
+          setEditError(res.error || 'No se pudo enviar el código de verificación.');
+        }
+      } catch {
+        setEditError('Error al contactar con el servicio de verificación.');
+      } finally {
+        setIsSendingPin(false);
+      }
+      return;
+    }
+
+    // Email didn't change: save directly
     userProfileService.saveUserProfile({
       firstName: cleanFirst,
       lastName: cleanLast,
@@ -143,6 +210,72 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
 
     setIsEditing(false);
     showToast('Perfil actualizado correctamente', 'success');
+  };
+
+  const handleVerifyNewEmailPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPin = emailPinCode.trim();
+    if (cleanPin.length !== 4) {
+      setEditError('Ingresa el código de 4 dígitos enviado a tu correo.');
+      return;
+    }
+
+    setIsVerifyingPin(true);
+    setEditError(null);
+    try {
+      const res = await verifyEmailPin(pendingNewEmail, cleanPin);
+      if (res.success) {
+        const cleanFirst = editFirst.trim();
+        const cleanLast = editLast.trim();
+        let age: number | undefined = undefined;
+        if (editBirthDate) {
+          age = calculateAgeFromBirthDate(editBirthDate) ?? undefined;
+        }
+
+        userProfileService.saveUserProfile({
+          firstName: cleanFirst,
+          lastName: cleanLast,
+          birthDate: editBirthDate || undefined,
+          age: age ?? profile?.age,
+          email: pendingNewEmail,
+          emailVerified: true,
+          photoURL: profile?.photoURL,
+          authProvider: profile?.authProvider,
+        });
+
+        setIsEditing(false);
+        setEditStep('form');
+        showToast('Correo verificado y actualizado con éxito', 'success');
+      } else {
+        setEditError(res.error || 'Código incorrecto o expirado.');
+      }
+    } catch {
+      setEditError('Error al verificar el código.');
+    } finally {
+      setIsVerifyingPin(false);
+    }
+  };
+
+  const handleResendPin = async () => {
+    if (pinCountdown > 0 || isSendingPin || !pendingNewEmail) return;
+    setIsSendingPin(true);
+    setEditError(null);
+    try {
+      const res = await sendEmailPin(pendingNewEmail, editFirst.trim());
+      if (res.success) {
+        setPinCountdown(60);
+        if (res.testPin) {
+          setTestPinHint(res.testPin);
+        }
+        showToast('Nuevo código enviado a tu correo', 'info');
+      } else {
+        setEditError(res.error || 'No se pudo reenviar el código.');
+      }
+    } catch {
+      setEditError('Error de conexión al reenviar el código.');
+    } finally {
+      setIsSendingPin(false);
+    }
   };
 
   const handleConnectGoogle = async () => {
@@ -159,13 +292,6 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     } finally {
       setIsSyncingGoogle(false);
     }
-  };
-
-  const formatSize = (bytes: number) => {
-    if (!bytes) return '0 KB';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   };
 
   const totalItems = counts.photos + counts.videos + counts.audios + counts.apps;
@@ -185,10 +311,10 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
         <div className="max-w-md mx-auto w-full flex items-center justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-0.5" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
-              Mi <span style={{ color: 'var(--theme-primary, #00e5ff)' }}>Perfil</span>
+              Informa<span style={{ color: 'var(--theme-primary, #00e5ff)' }}>ción</span>
             </h1>
             <p className="text-[10px] font-semibold tracking-[0.2em] uppercase" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
-              DATOS PERSONALES Y RESUMEN GENERAL
+              ALMACENAMIENTO, SOPORTE Y CRÉDITOS
             </p>
           </div>
         </div>
@@ -291,21 +417,6 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                     </span>
                   )}
 
-                  {/* Age Badge (only if user provided birth date) */}
-                  {profile?.age && profile.age > 0 ? (
-                    <span
-                      className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full border"
-                      style={{
-                        backgroundColor: 'color-mix(in srgb, var(--theme-primary) 12%, transparent)',
-                        borderColor: 'color-mix(in srgb, var(--theme-primary) 30%, transparent)',
-                        color: 'var(--theme-primary)',
-                      }}
-                    >
-                      <User className="w-3 h-3" />
-                      <span>{profile.age} años</span>
-                    </span>
-                  ) : null}
-
                   {profile?.birthDate ? (
                     <span
                       className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border"
@@ -322,20 +433,21 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                 </div>
               </div>
 
-              {/* Botones de Acción */}
+              {/* Botón de Acción: Solo el lápiz sin texto */}
               <div className="flex items-center gap-2 mx-auto sm:mx-0">
                 <button
                   type="button"
                   onClick={openEditModal}
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer active:scale-95 shadow-sm"
+                  className="w-9 h-9 rounded-xl border flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-sm"
                   style={{
                     backgroundColor: 'var(--theme-bg-secondary)',
                     borderColor: 'var(--theme-border)',
                     color: 'var(--theme-text-main)',
                   }}
+                  title="Editar perfil"
+                  aria-label="Editar"
                 >
-                  <Edit3 className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary)' }} />
-                  <span>Editar</span>
+                  <Edit3 className="w-4 h-4" style={{ color: 'var(--theme-primary)' }} />
                 </button>
               </div>
             </div>
@@ -413,87 +525,30 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
               }}
             />
           </div>
-          <div className="flex justify-between items-center mt-1.5 text-[10px]" style={{ color: 'var(--theme-text-subtle)' }}>
-            <span>Bóveda Local Cifrada</span>
-            <span>Espacio de Almacenamiento Dinámico</span>
-          </div>
-        </div>
-
-        {/* Desglose de Categorías */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-          {/* Fotos */}
-          <div
-            className="p-3 rounded-2xl border flex items-center gap-2.5 transition-colors"
-            style={{
-              backgroundColor: 'var(--theme-bg-secondary)',
-              borderColor: 'var(--theme-border)',
-            }}
-          >
-            <div className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-500 flex items-center justify-center shrink-0">
-              <Image className="w-4 h-4" />
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-0.5 text-[10px]">
+            <div className="flex items-center gap-1.5">
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{
+                  backgroundColor: 'var(--theme-primary, #00e5ff)',
+                  boxShadow: '0 0 6px var(--theme-glow)',
+                }}
+              />
+              <span className="font-semibold" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
+                Bóveda Local Cifrada
+              </span>
             </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold truncate" style={{ color: 'var(--theme-text-main)' }}>Fotos</p>
-              <p className="text-[10px] font-mono" style={{ color: 'var(--theme-text-muted)' }}>
-                {counts.photos} {counts.photos === 1 ? 'item' : 'items'}
-              </p>
-            </div>
-          </div>
-
-          {/* Videos */}
-          <div
-            className="p-3 rounded-2xl border flex items-center gap-2.5 transition-colors"
-            style={{
-              backgroundColor: 'var(--theme-bg-secondary)',
-              borderColor: 'var(--theme-border)',
-            }}
-          >
-            <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 flex items-center justify-center shrink-0">
-              <Video className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold truncate" style={{ color: 'var(--theme-text-main)' }}>Videos</p>
-              <p className="text-[10px] font-mono" style={{ color: 'var(--theme-text-muted)' }}>
-                {counts.videos} {counts.videos === 1 ? 'item' : 'items'}
-              </p>
-            </div>
-          </div>
-
-          {/* Audios */}
-          <div
-            className="p-3 rounded-2xl border flex items-center gap-2.5 transition-colors"
-            style={{
-              backgroundColor: 'var(--theme-bg-secondary)',
-              borderColor: 'var(--theme-border)',
-            }}
-          >
-            <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-500 flex items-center justify-center shrink-0">
-              <Music className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold truncate" style={{ color: 'var(--theme-text-main)' }}>Audios</p>
-              <p className="text-[10px] font-mono" style={{ color: 'var(--theme-text-muted)' }}>
-                {counts.audios} {counts.audios === 1 ? 'item' : 'items'}
-              </p>
-            </div>
-          </div>
-
-          {/* Apps */}
-          <div
-            className="p-3 rounded-2xl border flex items-center gap-2.5 transition-colors"
-            style={{
-              backgroundColor: 'var(--theme-bg-secondary)',
-              borderColor: 'var(--theme-border)',
-            }}
-          >
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0">
-              <Grid className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold truncate" style={{ color: 'var(--theme-text-main)' }}>Apps</p>
-              <p className="text-[10px] font-mono" style={{ color: 'var(--theme-text-muted)' }}>
-                {counts.apps} {counts.apps === 1 ? 'item' : 'items'}
-              </p>
+            <div className="flex items-center gap-1.5">
+              <span
+                className="w-2 h-2 rounded-full shrink-0 border"
+                style={{
+                  backgroundColor: 'var(--theme-bg-secondary, #1e293b)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.8))',
+                }}
+              />
+              <span style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
+                Espacio de Almacenamiento Dinámico
+              </span>
             </div>
           </div>
         </div>
@@ -613,6 +668,39 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
             </div>
             <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--theme-text-subtle)' }} />
           </button>
+
+          {/* Acerca del Desarrollador */}
+          <button
+            type="button"
+            onClick={() => setActiveInfoModal('developer')}
+            className="w-full p-3.5 rounded-2xl border flex items-center justify-between transition-colors cursor-pointer group"
+            style={{
+              backgroundColor: 'var(--theme-bg-secondary)',
+              borderColor: 'var(--theme-border)',
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="w-8 h-8 rounded-xl flex items-center justify-center border"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--theme-primary) 10%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--theme-primary) 25%, transparent)',
+                  color: 'var(--theme-primary)',
+                }}
+              >
+                <Code2 className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-bold" style={{ color: 'var(--theme-text-main)' }}>
+                  Acerca del Desarrollador
+                </p>
+                <p className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>
+                  Creado por José Manuel Martínez Ayala • Criptografía y Privacidad
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--theme-text-subtle)' }} />
+          </button>
         </div>
 
         {/* Versión de la App */}
@@ -625,9 +713,71 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
         >
           <span>Versión Instalada</span>
           <span className="font-mono font-bold" style={{ color: 'var(--theme-text-main)' }}>
-            v{CURRENT_APP_VERSION}
+            v{APP_VERSION}
           </span>
         </div>
+
+        {/* Reporte de fallos discreto */}
+        <div
+          className="mt-3 pt-3 border-t text-xs"
+          style={{
+            borderColor: 'var(--theme-border)',
+          }}
+        >
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 border"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--theme-primary) 10%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--theme-primary) 20%, transparent)',
+                  color: 'var(--theme-primary)',
+                }}
+              >
+                <Mail className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold" style={{ color: 'var(--theme-text-main)' }}>
+                  ¿Encontraste un error?
+                </p>
+                <p className="text-[10px] leading-tight mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                  Reporta fallos de manera discreta a:{' '}
+                  <a
+                    href="mailto:jmmrtinez5121@gmail.com?subject=Reporte%20de%20fallo%20-%20B%C3%B3veda%20Segura"
+                    className="font-mono underline font-medium hover:opacity-80 break-all"
+                    style={{ color: 'var(--theme-primary)' }}
+                  >
+                    jmmrtinez5121@gmail.com
+                  </a>
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleCopyEmail('jmmrtinez5121@gmail.com')}
+              title="Copiar correo"
+              className="px-2.5 py-1.5 rounded-xl border text-[10px] font-semibold shrink-0 flex items-center gap-1 active:scale-95 transition-all cursor-pointer shadow-xs"
+              style={{
+                backgroundColor: 'var(--theme-bg-secondary)',
+                borderColor: 'var(--theme-border)',
+                color: copiedEmail ? 'var(--theme-primary)' : 'var(--theme-text-main)',
+              }}
+            >
+              {copiedEmail ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+              <span>{copiedEmail ? 'Copiado' : 'Copiar'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. PIE DE PÁGINA Y DERECHOS RESERVADOS */}
+      <div className="text-center pt-1 pb-3 space-y-1">
+        <p className="text-[11px] font-semibold tracking-wide" style={{ color: 'var(--theme-text-subtle)' }}>
+          © 2026 José Manuel Martínez Ayala. Licencia Apache-2.0
+        </p>
+        <p className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>
+          ® Bóveda Segura — Derechos Reservados 2026
+        </p>
       </div>
 
       {/* MODAL: EDITAR PERFIL */}
@@ -651,15 +801,22 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                     color: 'var(--theme-primary)',
                   }}
                 >
-                  <Edit3 className="w-4 h-4" />
+                  {editStep === 'verify_email' ? (
+                    <Mail className="w-4 h-4" />
+                  ) : (
+                    <Edit3 className="w-4 h-4" />
+                  )}
                 </div>
                 <h3 className="font-bold text-sm" style={{ color: 'var(--theme-text-main)' }}>
-                  Editar Mis Datos
+                  {editStep === 'verify_email' ? 'Verificar Nuevo Correo' : 'Editar Mis Datos'}
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setIsEditing(false)}
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditStep('form');
+                }}
                 className="p-1.5 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
                 style={{ color: 'var(--theme-text-muted)' }}
               >
@@ -667,137 +824,278 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} className="space-y-3.5 text-left">
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
-                  Nombre(s) <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={editFirst}
-                  onChange={(e) => setEditFirst(e.target.value)}
-                  required
-                  className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
+            {editStep === 'verify_email' ? (
+              /* PASO 2: VERIFICAR CÓDIGO DEL NUEVO CORREO */
+              <form onSubmit={handleVerifyNewEmailPin} className="space-y-3.5 text-left">
+                <div
+                  className="p-3.5 rounded-2xl border text-center space-y-1.5"
                   style={{
-                    backgroundColor: 'var(--theme-bg-input)',
-                    borderColor: 'var(--theme-border)',
-                    color: 'var(--theme-text-main)',
+                    backgroundColor: 'rgba(0, 229, 255, 0.05)',
+                    borderColor: 'color-mix(in srgb, var(--theme-primary) 30%, transparent)',
                   }}
-                />
-              </div>
+                >
+                  <p className="text-xs font-semibold" style={{ color: 'var(--theme-text-muted)' }}>
+                    Para cambiar tu correo, ingresa el código de 4 dígitos enviado a:
+                  </p>
+                  <p className="text-xs font-mono font-bold break-all" style={{ color: 'var(--theme-primary)' }}>
+                    {pendingNewEmail}
+                  </p>
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
-                  Apellidos (Opcional)
-                </label>
-                <input
-                  type="text"
-                  value={editLast}
-                  onChange={(e) => setEditLast(e.target.value)}
-                  className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
-                  style={{
-                    backgroundColor: 'var(--theme-bg-input)',
-                    borderColor: 'var(--theme-border)',
-                    color: 'var(--theme-text-main)',
-                  }}
-                />
-              </div>
+                {testPinHint && (
+                  <div
+                    className="p-2.5 rounded-xl border text-[11px] text-center"
+                    style={{
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                      borderColor: 'rgba(16, 185, 129, 0.25)',
+                      color: '#059669',
+                    }}
+                  >
+                    Código de verificación: <span className="font-mono font-black text-xs">{testPinHint}</span>
+                  </div>
+                )}
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold" style={{ color: 'var(--theme-text-main)' }}>
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5 text-center" style={{ color: 'var(--theme-text-main)' }}>
+                    Código de 4 dígitos
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={4}
+                    autoFocus
+                    value={emailPinCode}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, 4);
+                      setEmailPinCode(v);
+                      setEditError(null);
+                    }}
+                    placeholder="0000"
+                    className="w-full text-center tracking-[0.5em] text-2xl font-mono font-bold rounded-2xl py-2.5 border outline-none focus:ring-2"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-input)',
+                      borderColor: 'var(--theme-border)',
+                      color: 'var(--theme-primary)',
+                    }}
+                  />
+                </div>
+
+                {editError && (
+                  <div
+                    className="p-2.5 rounded-xl text-xs border"
+                    style={{
+                      backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                      borderColor: 'rgba(244, 63, 94, 0.3)',
+                      color: '#e11d48',
+                    }}
+                  >
+                    {editError}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditStep('form');
+                      setEditError(null);
+                    }}
+                    className="text-xs font-medium flex items-center gap-1 cursor-pointer transition-opacity hover:opacity-80"
+                    style={{ color: 'var(--theme-text-muted)' }}
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Corregir correo</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResendPin}
+                    disabled={pinCountdown > 0 || isSendingPin}
+                    className="text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    style={{ color: 'var(--theme-primary)' }}
+                  >
+                    <RotateCcw className={`w-3 h-3 ${isSendingPin ? 'animate-spin' : ''}`} />
+                    <span>
+                      {pinCountdown > 0 ? `Reenviar (${pinCountdown}s)` : 'Reenviar código'}
+                    </span>
+                  </button>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditing(false);
+                      setEditStep('form');
+                    }}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-semibold border cursor-pointer transition-colors"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-secondary)',
+                      borderColor: 'var(--theme-border)',
+                      color: 'var(--theme-text-main)',
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isVerifyingPin || emailPinCode.trim().length !== 4}
+                    className="flex-1 py-2.5 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    style={{
+                      background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
+                      boxShadow: '0 4px 14px -2px var(--theme-glow)',
+                    }}
+                  >
+                    {isVerifyingPin ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                        <span>Verificando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-white" />
+                        <span>Confirmar</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* PASO 1: FORMULARIO PRINCIPAL */
+              <form onSubmit={handleSaveEdit} className="space-y-3.5 text-left">
+                <div>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
+                    Nombre(s) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editFirst}
+                    onChange={(e) => setEditFirst(e.target.value)}
+                    required
+                    className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-input)',
+                      borderColor: 'var(--theme-border)',
+                      color: 'var(--theme-text-main)',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
+                    Apellidos (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editLast}
+                    onChange={(e) => setEditLast(e.target.value)}
+                    className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-input)',
+                      borderColor: 'var(--theme-border)',
+                      color: 'var(--theme-text-main)',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
                     Fecha de Nacimiento (Opcional)
                   </label>
-                  {editCalculatedAge !== null && (
-                    <span
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-full border text-emerald-600"
-                      style={{
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        borderColor: 'rgba(16, 185, 129, 0.25)',
-                      }}
-                    >
-                      {editCalculatedAge} años
-                    </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={editBirthDate}
+                    onChange={(e) => handleBirthDateEdit(e.target.value)}
+                    placeholder="DD/MM/AAAA"
+                    maxLength={10}
+                    className="w-full rounded-xl px-3.5 py-2.5 text-xs font-mono font-medium border outline-none focus:ring-1"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-input)',
+                      borderColor: 'var(--theme-border)',
+                      color: 'var(--theme-text-main)',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
+                    Correo Electrónico <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    required
+                    className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-input)',
+                      borderColor: 'var(--theme-border)',
+                      color: 'var(--theme-text-main)',
+                    }}
+                  />
+                  {profile?.email && editEmail.trim().toLowerCase() !== profile.email.toLowerCase() && (
+                    <p className="text-[10px] mt-1" style={{ color: 'var(--theme-primary)' }}>
+                      * Se enviará un código de verificación al nuevo correo al guardar.
+                    </p>
                   )}
                 </div>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={editBirthDate}
-                  onChange={(e) => handleBirthDateEdit(e.target.value)}
-                  placeholder="DD/MM/AAAA"
-                  maxLength={10}
-                  className="w-full rounded-xl px-3.5 py-2.5 text-xs font-mono font-medium border outline-none focus:ring-1"
-                  style={{
-                    backgroundColor: 'var(--theme-bg-input)',
-                    borderColor: 'var(--theme-border)',
-                    color: 'var(--theme-text-main)',
-                  }}
-                />
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
-                  Correo Electrónico <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
-                  required
-                  className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
-                  style={{
-                    backgroundColor: 'var(--theme-bg-input)',
-                    borderColor: 'var(--theme-border)',
-                    color: 'var(--theme-text-main)',
-                  }}
-                />
-              </div>
+                {editError && (
+                  <div
+                    className="p-2.5 rounded-xl text-xs border"
+                    style={{
+                      backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                      borderColor: 'rgba(244, 63, 94, 0.3)',
+                      color: '#e11d48',
+                    }}
+                  >
+                    {editError}
+                  </div>
+                )}
 
-              {editError && (
-                <div
-                  className="p-2.5 rounded-xl text-xs border"
-                  style={{
-                    backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                    borderColor: 'rgba(244, 63, 94, 0.3)',
-                    color: '#e11d48',
-                  }}
-                >
-                  {editError}
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-semibold border cursor-pointer transition-colors"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-secondary)',
+                      borderColor: 'var(--theme-border)',
+                      color: 'var(--theme-text-main)',
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSendingPin}
+                    className="flex-1 py-2.5 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-60"
+                    style={{
+                      background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
+                      boxShadow: '0 4px 14px -2px var(--theme-glow)',
+                    }}
+                  >
+                    {isSendingPin ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                        <span>Enviando código...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5 text-white" />
+                        <span>Guardar</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-              )}
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="flex-1 py-2.5 rounded-xl text-xs font-semibold border cursor-pointer transition-colors"
-                  style={{
-                    backgroundColor: 'var(--theme-bg-secondary)',
-                    borderColor: 'var(--theme-border)',
-                    color: 'var(--theme-text-main)',
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
-                  style={{
-                    background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                    boxShadow: '0 4px 14px -2px var(--theme-glow)',
-                  }}
-                >
-                  <Save className="w-3.5 h-3.5 text-white" />
-                  <span>Guardar</span>
-                </button>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       )}
 
-      {/* MODAL: INFO MODAL (PRIVACY / TERMS / SUPPORT) */}
+      {/* MODAL: INFO MODAL (PRIVACY / TERMS / SUPPORT / DEVELOPER) */}
       {activeInfoModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div
@@ -810,11 +1108,16 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
           >
             <div className="flex justify-between items-center pb-3 border-b mb-3" style={{ borderColor: 'var(--theme-border)' }}>
               <div className="flex items-center gap-2">
-                <Info className="w-5 h-5" style={{ color: 'var(--theme-primary)' }} />
+                {activeInfoModal === 'developer' ? (
+                  <Code2 className="w-5 h-5" style={{ color: 'var(--theme-primary)' }} />
+                ) : (
+                  <Info className="w-5 h-5" style={{ color: 'var(--theme-primary)' }} />
+                )}
                 <h3 className="font-bold text-sm" style={{ color: 'var(--theme-text-main)' }}>
                   {activeInfoModal === 'privacy' && 'Privacidad y Cero Rastreo'}
                   {activeInfoModal === 'terms' && 'Términos de Uso y Licencia'}
                   {activeInfoModal === 'support' && 'Centro de Ayuda y Preguntas'}
+                  {activeInfoModal === 'developer' && 'Acerca del Desarrollador'}
                 </h3>
               </div>
               <button
@@ -828,6 +1131,130 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
             </div>
 
             <div className="overflow-y-auto space-y-3.5 text-xs pr-1 leading-relaxed" style={{ color: 'var(--theme-text-muted)' }}>
+              {activeInfoModal === 'developer' && (
+                <>
+                  {/* Tarjeta del Creador */}
+                  <div
+                    className="p-4 rounded-2xl border space-y-2 relative overflow-hidden"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary) 8%, var(--theme-bg-secondary))',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary) 30%, var(--theme-border))',
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-11 h-11 rounded-2xl flex items-center justify-center border shadow-sm shrink-0"
+                        style={{
+                          backgroundColor: 'color-mix(in srgb, var(--theme-primary) 15%, transparent)',
+                          borderColor: 'color-mix(in srgb, var(--theme-primary) 35%, transparent)',
+                          color: 'var(--theme-primary)',
+                        }}
+                      >
+                        <Code2 className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm" style={{ color: 'var(--theme-text-main)' }}>
+                          José Manuel Martínez Ayala
+                        </h4>
+                        <p className="text-[11px] font-medium" style={{ color: 'var(--theme-primary)' }}>
+                          Creador y Desarrollador de Bóveda Segura
+                        </p>
+                        <p className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>
+                          Arquitectura de Software & Criptografía Aplicada
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] leading-relaxed pt-1" style={{ color: 'var(--theme-text-muted)' }}>
+                      Esta aplicación fue concebida y desarrollada por <strong>José Manuel Martínez Ayala</strong> como una solución integral de almacenamiento privado de máxima seguridad, garantizando la soberanía absoluta de los datos personales sin depender de servidores centralizados.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-xs mb-1" style={{ color: 'var(--theme-text-main)' }}>
+                      Filosofía de Conocimiento Cero (Zero-Knowledge)
+                    </h4>
+                    <p>
+                      Ningún desarrollador, empresa o servidor en la nube tiene acceso a tus archivos, contraseñas ni multimedia. Cada elemento se procesa y cifra de forma matemáticamente aislada dentro del procesador de tu dispositivo.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-xs mb-1" style={{ color: 'var(--theme-text-main)' }}>
+                      Estándares Tecnológicos Implementados
+                    </h4>
+                    <div className="space-y-1.5 text-[11px] pt-1">
+                      <div className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: 'var(--theme-primary)' }} />
+                        <span><strong>Cifrado Simétrico:</strong> AES-256-GCM con Vector de Inicialización (IV) de 96 bits aleatorio por archivo.</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: 'var(--theme-primary)' }} />
+                        <span><strong>Derivación de Claves:</strong> PBKDF2 con SHA-256 y 100,000 iteraciones + Salt único criptográfico.</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: 'var(--theme-primary)' }} />
+                        <span><strong>Stack Nativo:</strong> React 19, TypeScript, Tailwind CSS, Web Crypto API y Progressive Web App (PWA).</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: 'var(--theme-primary)' }} />
+                        <span><strong>Privacidad Digital:</strong> 100% libre de rastreadores analíticos, telemetría comercial y publicidad invasiva.</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Canal de Reporte Discreto de Errores */}
+                  <div
+                    className="p-3 rounded-2xl border space-y-2"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-secondary)',
+                      borderColor: 'var(--theme-border)',
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2">
+                        <Mail className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--theme-primary)' }} />
+                        <div>
+                          <p className="font-bold text-xs" style={{ color: 'var(--theme-text-main)' }}>
+                            ¿Encontraste un error?
+                          </p>
+                          <p className="text-[11px] leading-tight mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                            Reporta fallos de manera discreta a:
+                          </p>
+                          <a
+                            href="mailto:jmmrtinez5121@gmail.com?subject=Reporte%20de%20fallo%20-%20B%C3%B3veda%20Segura"
+                            className="text-xs font-mono font-medium underline break-all mt-1 inline-block hover:opacity-80"
+                            style={{ color: 'var(--theme-primary)' }}
+                          >
+                            jmmrtinez5121@gmail.com
+                          </a>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyEmail('jmmrtinez5121@gmail.com')}
+                        className="px-2.5 py-1.5 rounded-xl border text-[10px] font-semibold shrink-0 flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                        style={{
+                          backgroundColor: 'var(--theme-bg-card)',
+                          borderColor: 'var(--theme-border)',
+                          color: copiedEmail ? 'var(--theme-primary)' : 'var(--theme-text-main)',
+                        }}
+                      >
+                        {copiedEmail ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedEmail ? 'Copiado' : 'Copiar'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Sello de Derechos Reservados */}
+                  <div className="text-center pt-1 border-t" style={{ borderColor: 'var(--theme-border)' }}>
+                    <p className="text-[10px] font-semibold" style={{ color: 'var(--theme-text-subtle)' }}>
+                      ® Bóveda Segura — Derechos Reservados 2026.
+                    </p>
+                  </div>
+                </>
+              )}
+
               {activeInfoModal === 'privacy' && (
                 <>
                   <div

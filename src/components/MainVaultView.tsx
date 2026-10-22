@@ -43,6 +43,7 @@ import {
   LayoutList,
   Rows3,
   User,
+  Info,
 } from 'lucide-react';
 import {
   EncryptedVaultItem,
@@ -79,6 +80,7 @@ import { registerBackHandler, triggerBackAction } from '../services/backButtonSe
 import { updateService, UpdateCheckResult } from '../services/updateService';
 import { UpdateNotificationBanner } from './UpdateNotificationModal';
 import { themeService, VaultTheme } from '../services/themeService';
+import { formatSize } from '../utils/formatUtils';
 
 export interface Carpeta {
   id: string;
@@ -869,7 +871,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
       const nameWithoutExt = it.record.name.replace(/\.[^/.]+$/, '');
       const encName = it.record.name.endsWith('.enc') ? it.record.name : `${nameWithoutExt}.enc`;
-      const sizeMb = (it.record.size / (1024 * 1024)).toFixed(1).replace('.', ',') + ' MB';
+      const sizeMb = formatSize(it.record.size);
       return {
         id: it.id,
         name: encName,
@@ -1284,12 +1286,6 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     }
   };
 
-  const formatSize = (bytes: number) => {
-    if (!bytes) return '0 KB';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  };
-
   // Counts and sizes by category
   const counts = useMemo(() => {
     let photos = 0;
@@ -1435,6 +1431,12 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           showToast={showToast}
           sessionPin={sessionPin}
           onLock={onLock}
+          masterKey={masterKey}
+          onMasterKeyUpdated={onMasterKeyUpdated || (() => {})}
+          autoLockMinutes={autoLockMinutes}
+          onAutoLockChange={onAutoLockChange || (() => {})}
+          lockOnTabSwitch={lockOnTabSwitch}
+          onLockOnTabSwitchChange={onLockOnTabSwitchChange || (() => {})}
         />
       ) : activeNavTab === 'settings' ? (
         /* Screen 4: Configuración Tab */
@@ -1771,7 +1773,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                       className="text-sm sm:text-base font-bold tracking-tight truncate group-hover:text-[var(--theme-primary)] transition-colors"
                       style={{ color: 'var(--theme-text-main, #ffffff)' }}
                     >
-                      Audio
+                      Audios
                     </h4>
                     <p
                       className="text-[11px] sm:text-xs truncate mt-0.5"
@@ -1826,13 +1828,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                       className="text-sm sm:text-base font-bold tracking-tight truncate group-hover:text-[var(--theme-primary)] transition-colors"
                       style={{ color: 'var(--theme-text-main, #ffffff)' }}
                     >
-                      Aplicaciones (APKs)
+                      Aplicaciones
                     </h4>
                     <p
                       className="text-[11px] sm:text-xs truncate mt-0.5"
                       style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
                     >
-                      {counts.apps} {counts.apps === 1 ? 'app protegida' : 'apps protegidas'} · {counts.appSize}
+                      {counts.apps} {counts.apps === 1 ? 'aplicación protegida' : 'aplicaciones protegidas'} · {counts.appSize}
                     </p>
                   </div>
                 </div>
@@ -1988,7 +1990,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                     className="text-[11px] font-medium"
                     style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
                   >
-                    Audio
+                    Audios
                   </p>
                   <div className="flex items-baseline justify-between mt-0.5">
                     <h4
@@ -2038,7 +2040,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                     className="text-[11px] font-medium"
                     style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
                   >
-                    Apps
+                    Aplicaciones
                   </p>
                   <div className="flex items-baseline justify-between mt-0.5">
                     <h4
@@ -2263,8 +2265,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                                 : activeCategory === 'video'
                                 ? 'Videos'
                                 : activeCategory === 'audio'
-                                ? 'Audio'
-                                : 'Apps'
+                                ? 'Audios'
+                                : 'Aplicaciones'
                             }`}
                       </h1>
                       <span className="text-xs font-normal text-zinc-500 font-mono shrink-0">
@@ -2419,7 +2421,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   }`}
                 >
                   <Music size={15} strokeWidth={1.5} />
-                  <span>Audio ({counts.audios})</span>
+                  <span>Audios ({counts.audios})</span>
                 </button>
 
                 <button
@@ -2436,7 +2438,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   }`}
                 >
                   <Folder size={15} strokeWidth={1.5} />
-                  <span>Apps ({counts.apps})</span>
+                  <span>Aplicaciones ({counts.apps})</span>
                 </button>
 
                 <button
@@ -2490,7 +2492,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 <div className="flex items-center justify-between px-1">
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
                     <Folder size={15} strokeWidth={1.5} className="text-amber-400" />
-                    <span>Álbumes de {activeCategory === 'photo' ? 'Fotos' : activeCategory === 'video' ? 'Videos' : activeCategory === 'audio' ? 'Audio' : activeCategory === 'app' ? 'Apps' : 'Favoritos'}</span>
+                    <span>Álbumes de {activeCategory === 'photo' ? 'Fotos' : activeCategory === 'video' ? 'Videos' : activeCategory === 'audio' ? 'Audios' : activeCategory === 'app' ? 'Aplicaciones' : 'Favoritos'}</span>
                   </h2>
                   <span className="text-xs text-zinc-500 font-mono">
                     {listaCarpetas.length} {listaCarpetas.length === 1 ? 'carpeta' : 'carpetas'}
@@ -2926,7 +2928,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               </span>
             </button>
 
-            {/* Botón 3: Yo (Mi Perfil) */}
+            {/* Botón 3: Info */}
             <button
               type="button"
               onClick={() => {
@@ -2938,7 +2940,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               }}
               className="flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group"
             >
-              <User
+              <Info
                 className="w-5 h-5 transition-transform"
                 style={{
                   transform: activeNavTab === 'profile' ? 'scale(1.1)' : undefined,
@@ -2947,7 +2949,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 strokeWidth={1.5}
               />
               <span className={`text-[10px] sm:text-[11px] tracking-tight ${activeNavTab === 'profile' ? 'font-bold' : 'font-medium'}`}>
-                Yo
+                Info
               </span>
             </button>
 
@@ -3148,7 +3150,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
                 >
                   <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
-                    Añadir música
+                    Añadir audios
                   </span>
                   <div className="w-12 h-12 rounded-full bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center shadow-lg shadow-amber-500/30 border border-amber-300/40 transition-all">
                     <Music className="w-5 h-5 stroke-[2.4]" />
@@ -3166,7 +3168,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
                 >
                   <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
-                    Añadir archivos / apps
+                    Añadir aplicaciones
                   </span>
                   <div className="w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center shadow-lg shadow-emerald-500/30 border border-emerald-300/40 transition-all">
                     <Package className="w-5 h-5 stroke-[2.4]" />

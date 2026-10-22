@@ -520,9 +520,20 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
         {/* Error Feedback */}
         {errorMessage && (
-          <div className="mt-4 flex items-center justify-center gap-1.5 text-rose-400 text-xs bg-rose-500/10 py-2.5 px-3 rounded-xl border border-rose-500/20">
-            <ShieldAlert className="w-4 h-4 shrink-0" />
-            <span>{errorMessage}</span>
+          <div className="mt-4 flex flex-col items-center justify-center gap-1.5 text-rose-400 text-xs bg-rose-500/10 py-2.5 px-3 rounded-xl border border-rose-500/20">
+            <div className="flex items-center gap-1.5">
+              <ShieldAlert className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            {errorMessage.includes('no está inicializada') && (
+              <button
+                type="button"
+                onClick={onResetVaultRequest}
+                className="mt-1 text-[11px] font-bold text-[#00e5ff] hover:underline cursor-pointer"
+              >
+                Volver a la pantalla de inicio o registro
+              </button>
+            )}
           </div>
         )}
 

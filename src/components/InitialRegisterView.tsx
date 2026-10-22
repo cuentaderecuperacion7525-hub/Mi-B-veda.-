@@ -22,18 +22,47 @@ interface InitialRegisterViewProps {
   showToast: (message: string, type?: 'info' | 'success' | 'alert' | 'error') => void;
 }
 
+const PENDING_REG_KEY = 'vault_pending_registration';
+
+interface PendingRegistrationData {
+  step: 'form' | 'verify_pin';
+  firstName: string;
+  lastName: string;
+  email: string;
+  deliveredEmail: string;
+  pinSentAt: number;
+}
+
+function loadPendingRegistration(): PendingRegistrationData | null {
+  try {
+    const raw = localStorage.getItem(PENDING_REG_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingRegistrationData;
+    // Válido por 15 minutos (tiempo de vida del PIN en backend)
+    if (parsed && parsed.pinSentAt && Date.now() - parsed.pinSentAt < 15 * 60 * 1000) {
+      return parsed;
+    }
+    localStorage.removeItem(PENDING_REG_KEY);
+  } catch {}
+  return null;
+}
+
 export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   onComplete,
   showToast,
 }) => {
+  const pendingInitial = useRef<PendingRegistrationData | null>(loadPendingRegistration()).current;
+
   // Step: 'form' | 'verify_pin'
-  const [step, setStep] = useState<'form' | 'verify_pin'>('form');
+  const [step, setStep] = useState<'form' | 'verify_pin'>(() => {
+    return pendingInitial?.step === 'verify_pin' ? 'verify_pin' : 'form';
+  });
 
   // Form Fields (No birthdate or age required)
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('josemanuel5121@gmail.com');
-  const [deliveredEmail, setDeliveredEmail] = useState('');
+  const [firstName, setFirstName] = useState(() => pendingInitial?.firstName || '');
+  const [lastName, setLastName] = useState(() => pendingInitial?.lastName || '');
+  const [email, setEmail] = useState(() => pendingInitial?.email || 'josemanuel5121@gmail.com');
+  const [deliveredEmail, setDeliveredEmail] = useState(() => pendingInitial?.deliveredEmail || '');
 
   // Loading & error states
   const [isSendingCode, setIsSendingCode] = useState(false);
@@ -50,8 +79,20 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   ];
 
   // 60-second countdown for resending
-  const [countdown, setCountdown] = useState<number>(60);
-  const [canResend, setCanResend] = useState(false);
+  const [countdown, setCountdown] = useState<number>(() => {
+    if (pendingInitial?.step === 'verify_pin' && pendingInitial.pinSentAt) {
+      const elapsed = Math.floor((Date.now() - pendingInitial.pinSentAt) / 1000);
+      return Math.max(0, 60 - elapsed);
+    }
+    return 60;
+  });
+  const [canResend, setCanResend] = useState(() => {
+    if (pendingInitial?.step === 'verify_pin' && pendingInitial.pinSentAt) {
+      const elapsed = Math.floor((Date.now() - pendingInitial.pinSentAt) / 1000);
+      return elapsed >= 60;
+    }
+    return false;
+  });
 
   useEffect(() => {
     let timer: any = null;
@@ -71,6 +112,26 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       if (timer) clearInterval(timer);
     };
   }, [step, countdown]);
+
+  // Auto-focus PIN input when returning from Gmail app
+  useEffect(() => {
+    const handleResumeOrFocus = () => {
+      if (step === 'verify_pin') {
+        setTimeout(() => {
+          const emptyIdx = pinDigits.findIndex((d) => !d);
+          const idx = emptyIdx >= 0 ? emptyIdx : 3;
+          pinInputRefs[idx]?.current?.focus();
+        }, 100);
+      }
+    };
+
+    window.addEventListener('vault_app_resumed', handleResumeOrFocus);
+    window.addEventListener('focus', handleResumeOrFocus);
+    return () => {
+      window.removeEventListener('vault_app_resumed', handleResumeOrFocus);
+      window.removeEventListener('focus', handleResumeOrFocus);
+    };
+  }, [step, pinDigits]);
 
   // SUBMIT FORM: SEND 4-DIGIT PIN TO EMAIL
   const handleSendPin = async (e: React.FormEvent) => {
@@ -109,6 +170,21 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       setCanResend(false);
       setPinDigits(['', '', '', '']);
 
+      // Guardar estado en localStorage para que resista minimizar la app para abrir Gmail
+      try {
+        localStorage.setItem(
+          PENDING_REG_KEY,
+          JSON.stringify({
+            step: 'verify_pin',
+            firstName: cleanFirst,
+            lastName: cleanLast,
+            email: cleanEmail,
+            deliveredEmail: target,
+            pinSentAt: Date.now(),
+          })
+        );
+      } catch {}
+
       showToast(`Código de 4 dígitos enviado a tu correo`, 'success');
 
       setTimeout(() => {
@@ -136,6 +212,21 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
         setCountdown(60);
         setCanResend(false);
         setPinDigits(['', '', '', '']);
+
+        try {
+          localStorage.setItem(
+            PENDING_REG_KEY,
+            JSON.stringify({
+              step: 'verify_pin',
+              firstName: firstName.trim(),
+              lastName: lastName.trim(),
+              email: cleanEmail,
+              deliveredEmail: deliveredEmail || cleanEmail,
+              pinSentAt: Date.now(),
+            })
+          );
+        } catch {}
+
         showToast('Nuevo código enviado a tu correo', 'success');
         setTimeout(() => {
           pinInputRefs[0].current?.focus();
@@ -221,6 +312,10 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
         emailVerified: true,
         authProvider: 'email_pin',
       });
+
+      try {
+        localStorage.removeItem(PENDING_REG_KEY);
+      } catch {}
 
       showToast('¡Código verificado con éxito!', 'success');
 
@@ -498,8 +593,12 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  try {
+                    localStorage.removeItem(PENDING_REG_KEY);
+                  } catch {}
                   setStep('form');
                   setError(null);
+                  setPinDigits(['', '', '', '']);
                 }}
                 className="p-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors hover:opacity-80 shrink-0"
                 style={{

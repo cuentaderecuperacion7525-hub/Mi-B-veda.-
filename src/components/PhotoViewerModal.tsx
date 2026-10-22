@@ -35,6 +35,7 @@ import { registerBackHandler } from '../services/backButtonService';
 import { exportVaultItemToDevice } from '../services/nativeVaultBridge';
 import { BarraAccionesInferior } from './BarraAccionesInferior';
 import { ModalEliminar } from './ModalEliminar';
+import { formatSize as formatBytes } from '../utils/formatUtils';
 
 export interface DecryptedVaultItem {
   id: string;
@@ -572,13 +573,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     } finally {
       setIsDeleting(false);
     }
-  };
-
-  const formatBytes = (bytes?: number) => {
-    if (!bytes) return 'Desconocido';
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
 
   const formatTime = (secs: number) => {

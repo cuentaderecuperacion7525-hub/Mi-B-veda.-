@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { getSafeAppVersionCode, downloadAndInstallApk, onDownloadProgress } from '../services/nativeUpdaterBridge';
 import { updateService } from '../services/updateService';
-import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER, CURRENT_RELEASE_DATE, CURRENT_CHANGELOG } from '../version';
+import { APP_VERSION, CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER, CURRENT_RELEASE_DATE, CURRENT_CHANGELOG } from '../version';
 
 interface BovedaUpdaterProps {
   onOpenChangelog?: () => void;
@@ -22,7 +22,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
   const [serverVersionName, setServerVersionName] = useState<string>(() => cachedCheck?.latestVersion || '');
   const [serverVersionCode, setServerVersionCode] = useState<number>(() => cachedCheck?.buildNumber || 0);
   const [currentInstalledCode, setCurrentInstalledCode] = useState<number>(CURRENT_BUILD_NUMBER);
-  const [installedVersionName, setInstalledVersionName] = useState<string>(CURRENT_APP_VERSION);
+  const [installedVersionName, setInstalledVersionName] = useState<string>(APP_VERSION);
   const [loading, setLoading] = useState<boolean>(false);
   const [isInstalling, setIsInstalling] = useState<boolean>(false);
   const [downloadPercent, setDownloadPercent] = useState<number>(0);
@@ -55,7 +55,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
     try {
       // 1. Obtener versión instalada en el dispositivo
       let versionActual = CURRENT_BUILD_NUMBER;
-      let nombreActual = CURRENT_APP_VERSION;
+      let nombreActual = APP_VERSION;
       try {
         const info = await getSafeAppVersionCode();
         if (info.versionCode) {
