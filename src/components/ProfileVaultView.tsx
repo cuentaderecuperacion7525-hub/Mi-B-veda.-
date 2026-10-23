@@ -57,7 +57,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(() => userProfileService.getUserProfile());
   const [isEditing, setIsEditing] = useState(false);
-  const [showGmailPicker, setShowGmailPicker] = useState(false);
+  const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
   const [editFirst, setEditFirst] = useState('');
   const [editLast, setEditLast] = useState('');
   const [editBirthDate, setEditBirthDate] = useState('');
@@ -99,7 +99,6 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       setEditEmail('');
     }
     setEditError(null);
-    setShowGmailPicker(false);
     setIsEditing(true);
   };
 
@@ -165,13 +164,26 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     showToast(isEmailChanging ? 'Correo de Gmail confirmado y actualizado' : 'Perfil actualizado correctamente', 'success');
   };
 
-  const handleSelectGmailForEdit = (email: string, first?: string, last?: string) => {
-    setEditEmail(email);
-    if (first && !editFirst.trim()) setEditFirst(first);
-    if (last && !editLast.trim()) setEditLast(last);
-    setShowGmailPicker(false);
+  const handleConnectGoogleForEmail = async () => {
+    setIsSyncingGoogle(true);
     setEditError(null);
-    showToast(`Cuenta seleccionada: ${email}`, 'info');
+    try {
+      const res = await signInWithGoogle();
+      if (res.success && res.profile) {
+        setEditEmail(res.profile.email);
+        if (res.profile.firstName) setEditFirst(res.profile.firstName);
+        if (res.profile.lastName) setEditLast(res.profile.lastName);
+        showToast(`Cuenta de Google verificada: ${res.profile.email}`, 'success');
+      } else if (res.error) {
+        if (!res.error.includes('cerrada') && !res.error.includes('cancelad')) {
+          setEditError(res.error);
+        }
+      }
+    } catch {
+      setEditError('Error al conectar con la cuenta de Google');
+    } finally {
+      setIsSyncingGoogle(false);
+    }
   };
 
   const totalItems = counts.photos + counts.videos + counts.audios + counts.apps;
@@ -778,87 +790,44 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                   {/* Botón para cambiar o confirmar con Google */}
                   <button
                     type="button"
-                    onClick={() => setShowGmailPicker((prev) => !prev)}
-                    className="mt-2 w-full py-2.5 px-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer hover:opacity-90 active:scale-[0.99]"
+                    onClick={handleConnectGoogleForEmail}
+                    disabled={isSyncingGoogle}
+                    className="mt-2 w-full py-2.5 px-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
                     style={{
                       backgroundColor: 'var(--theme-bg-secondary)',
                       borderColor: 'var(--theme-border)',
                       color: 'var(--theme-text-main)',
                     }}
                   >
-                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                    <span>Elegir o confirmar con cuenta de Gmail</span>
+                    {isSyncingGoogle ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-500" />
+                        <span>Conectando con Google...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                          <path
+                            fill="#4285F4"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                          />
+                          <path
+                            fill="#34A853"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                          />
+                          <path
+                            fill="#FBBC05"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                          />
+                          <path
+                            fill="#EA4335"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                          />
+                        </svg>
+                        <span>Seleccionar cuenta de Gmail</span>
+                      </>
+                    )}
                   </button>
-
-                  {showGmailPicker && (
-                    <div
-                      className="mt-2 p-2.5 rounded-2xl border space-y-1.5"
-                      style={{
-                        backgroundColor: 'var(--theme-bg-secondary)',
-                        borderColor: 'var(--theme-border)',
-                      }}
-                    >
-                      <p className="text-[11px] font-bold px-1" style={{ color: 'var(--theme-text-muted)' }}>
-                        Selecciona una cuenta de Gmail:
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleSelectGmailForEdit('josemanuel5121@gmail.com', 'Jose Manuel', 'Martínez')}
-                        className="w-full p-2 rounded-xl flex items-center justify-between text-left hover:opacity-80 cursor-pointer border"
-                        style={{
-                          backgroundColor: 'var(--theme-bg-card)',
-                          borderColor: 'var(--theme-border)',
-                        }}
-                      >
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold truncate" style={{ color: 'var(--theme-text-main)' }}>
-                            Jose Manuel Martínez
-                          </p>
-                          <p className="text-[11px] truncate font-mono" style={{ color: 'var(--theme-text-muted)' }}>
-                            josemanuel5121@gmail.com
-                          </p>
-                        </div>
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleSelectGmailForEdit('jmmrtinez5121@gmail.com', 'Jose Manuel', 'Martínez')}
-                        className="w-full p-2 rounded-xl flex items-center justify-between text-left hover:opacity-80 cursor-pointer border"
-                        style={{
-                          backgroundColor: 'var(--theme-bg-card)',
-                          borderColor: 'var(--theme-border)',
-                        }}
-                      >
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold truncate" style={{ color: 'var(--theme-text-main)' }}>
-                            Jose Manuel Martínez
-                          </p>
-                          <p className="text-[11px] truncate font-mono" style={{ color: 'var(--theme-text-muted)' }}>
-                            jmmrtinez5121@gmail.com
-                          </p>
-                        </div>
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 {editError && (

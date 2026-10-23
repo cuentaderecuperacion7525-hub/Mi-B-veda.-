@@ -1,8 +1,6 @@
 import {
   GoogleAuthProvider,
-  signInWithPopup,
   signInWithCredential,
-  browserPopupRedirectResolver,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
@@ -12,6 +10,58 @@ import {
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { userProfileService, UserProfile } from './userProfileService';
+import firebaseConfig from '../../firebase-applet-config.json';
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential?: string }) => void;
+            auto_select?: boolean;
+            cancel_on_tap_outside?: boolean;
+            ux_mode?: 'popup' | 'redirect';
+            context?: 'signin' | 'signup' | 'use';
+          }) => void;
+          renderButton: (
+            parent: HTMLElement,
+            options: {
+              type?: 'standard' | 'icon';
+              theme?: 'outline' | 'filled_blue' | 'filled_black';
+              size?: 'large' | 'medium' | 'small';
+              text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin';
+              shape?: 'rectangular' | 'pill' | 'circle' | 'square';
+              width?: number | string;
+              logo_alignment?: 'left' | 'center';
+            }
+          ) => void;
+          prompt: () => void;
+        };
+        oauth2?: {
+          initTokenClient: (config: {
+            client_id: string;
+            scope: string;
+            prompt?: string;
+            callback: (response: {
+              access_token?: string;
+              error?: string;
+              error_description?: string;
+            }) => void;
+            error_callback?: (error: { type?: string; message?: string }) => void;
+          }) => {
+            requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
+          };
+        };
+      };
+    };
+  }
+}
+
+export const GOOGLE_OAUTH_CLIENT_ID =
+  firebaseConfig.oAuthClientId ||
+  '608078005590-n71gktl427qb5265uej3nonvafjsavuv.apps.googleusercontent.com';
 
 /**
  * Decodes a Google ID Token JWT payload without external libraries.
@@ -44,7 +94,7 @@ export function decodeGoogleJwt(token: string): {
 
 /**
  * Signs in using a Google ID token credential obtained from Google Identity Services (GSI).
- * This is 100% immune to popup blockers and mobile browser redirect errors.
+ * Never opens .firebaseapp.com/__/auth/handler, preventing "The requested action is invalid" on Android.
  */
 export async function signInWithGoogleCredential(idToken: string): Promise<{
   success: boolean;
@@ -62,7 +112,6 @@ export async function signInWithGoogleCredential(idToken: string): Promise<{
     const email = payload?.email || user.email || '';
     const photoURL = payload?.picture || user.photoURL || undefined;
 
-    // 1. Save profile locally
     const profile = userProfileService.saveUserProfile({
       firstName,
       lastName,
@@ -72,7 +121,6 @@ export async function signInWithGoogleCredential(idToken: string): Promise<{
       authProvider: 'google.com',
     });
 
-    // 2. Persist in Firestore
     await syncUserProfile(user.uid, {
       firstName,
       lastName,
@@ -96,47 +144,69 @@ export async function signInWithGoogleCredential(idToken: string): Promise<{
 }
 
 /**
- * Sign In / Register with Google using official GoogleAuthProvider and signInWithPopup.
- * Includes browserPopupRedirectResolver to prevent "The requested action is invalid" errors.
+ * Signs in using an OAuth 2.0 access_token obtained directly from accounts.google.com (GSI Token Client).
+ * Fetches real user profile from Google's userinfo endpoint and signs into Firebase via signInWithCredential.
  */
-export async function signInWithGoogle(): Promise<{
+export async function signInWithGoogleAccessToken(accessToken: string): Promise<{
   success: boolean;
   profile?: UserProfile;
   error?: string;
 }> {
   try {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({
-      prompt: 'select_account',
-    });
+    // 1. Authenticate with Firebase using the Google access token directly (no firebaseapp.com popup)
+    const credential = GoogleAuthProvider.credential(null, accessToken);
+    const userCredential = await signInWithCredential(auth, credential);
+    const user = userCredential.user;
 
-    // Use browserPopupRedirectResolver as 3rd parameter to stabilize popups on Chrome/Android
-    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
-    const user = result.user;
+    // 2. Fetch complete profile info from official Google userinfo API
+    let googleUser: {
+      given_name?: string;
+      family_name?: string;
+      name?: string;
+      email?: string;
+      picture?: string;
+      email_verified?: boolean;
+    } = {};
 
-    const fullName = user.displayName || 'Usuario de la Bóveda';
+    try {
+      const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (resp.ok) {
+        googleUser = await resp.json();
+      }
+    } catch (fetchErr) {
+      console.warn('Could not fetch extra userinfo, using Firebase user fields:', fetchErr);
+    }
+
+    const fullName = googleUser.name || user.displayName || 'Usuario';
     const nameParts = fullName.trim().split(' ');
-    const firstName = nameParts[0] || 'Usuario';
-    const lastName = nameParts.slice(1).join(' ') || '';
-    const email = user.email || '';
-    const photoURL = user.photoURL || undefined;
+    const firstName = googleUser.given_name || nameParts[0] || 'Usuario';
+    const lastName = googleUser.family_name || nameParts.slice(1).join(' ') || '';
+    const email = googleUser.email || user.email || '';
+    const photoURL = googleUser.picture || user.photoURL || undefined;
 
-    // 1. Save profile locally
+    if (!email) {
+      return {
+        success: false,
+        error: 'No se pudo obtener el correo electrónico de la cuenta de Google.',
+      };
+    }
+
     const profile = userProfileService.saveUserProfile({
       firstName,
       lastName,
       email,
-      emailVerified: user.emailVerified,
+      emailVerified: true,
       photoURL,
       authProvider: 'google.com',
     });
 
-    // 2. Persist in Firestore
     await syncUserProfile(user.uid, {
       firstName,
       lastName,
       email,
-      emailVerified: user.emailVerified,
+      emailVerified: true,
       photoURL,
       authProvider: 'google.com',
     });
@@ -146,24 +216,88 @@ export async function signInWithGoogle(): Promise<{
       profile,
     };
   } catch (err: any) {
-    console.error('Google Sign-In Error:', err);
-    let errorMsg = 'Error al iniciar sesión con Google.';
-    if (err.code === 'auth/popup-closed-by-user') {
-      errorMsg = 'Ventana de inicio cerrada. Vuelve a intentarlo.';
-    } else if (err.code === 'auth/cancelled-popup-request') {
-      errorMsg = 'Operación cancelada.';
-    } else if (err.code === 'auth/popup-blocked') {
-      errorMsg = 'El navegador bloqueó la ventana emergente. Por favor, permítela.';
-    } else if (err.code === 'auth/network-request-failed') {
-      errorMsg = 'Error de conexión. Verifica tu conexión a internet.';
-    } else if (err.message) {
-      errorMsg = err.message;
-    }
+    console.error('Google AccessToken Sign-In Error:', err);
     return {
       success: false,
-      error: errorMsg,
+      error: err.message || 'Error al verificar la cuenta con Google.',
     };
   }
+}
+
+/**
+ * Opens the official Google Account Chooser & Consent flow directly via accounts.google.com
+ * (Google Identity Services OAuth2 Token Client), avoiding the .firebaseapp.com/__/auth/handler
+ * "The requested action is invalid" error on Android Chrome / WebAPK.
+ */
+export async function signInWithGoogle(): Promise<{
+  success: boolean;
+  profile?: UserProfile;
+  error?: string;
+}> {
+  return new Promise((resolve) => {
+    const oauth2 = window.google?.accounts?.oauth2;
+
+    if (!oauth2) {
+      resolve({
+        success: false,
+        error: 'El servicio de cuentas de Google aún está cargando. Intenta de nuevo en un segundo.',
+      });
+      return;
+    }
+
+    try {
+      const tokenClient = oauth2.initTokenClient({
+        client_id: GOOGLE_OAUTH_CLIENT_ID,
+        scope: 'openid email profile',
+        prompt: 'select_account consent',
+        callback: async (tokenResponse) => {
+          if (tokenResponse.error || !tokenResponse.access_token) {
+            if (tokenResponse.error === 'access_denied') {
+              resolve({
+                success: false,
+                error: 'Acceso rechazado. Debes permitir el acceso para continuar.',
+              });
+            } else {
+              resolve({
+                success: false,
+                error: tokenResponse.error_description || 'Inicio de sesión cancelado.',
+              });
+            }
+            return;
+          }
+
+          const result = await signInWithGoogleAccessToken(tokenResponse.access_token);
+          resolve(result);
+        },
+        error_callback: (err) => {
+          if (err?.type === 'popup_closed') {
+            resolve({
+              success: false,
+              error: 'Ventana cerrada antes de completar la selección de cuenta.',
+            });
+          } else if (err?.type === 'popup_failed_to_open') {
+            resolve({
+              success: false,
+              error: 'El navegador bloqueó la ventana emergente de Google. Permite las ventanas emergentes.',
+            });
+          } else {
+            resolve({
+              success: false,
+              error: 'Operación cancelada.',
+            });
+          }
+        },
+      });
+
+      tokenClient.requestAccessToken({ prompt: 'select_account consent' });
+    } catch (err: any) {
+      console.error('Error launching Google OAuth2 TokenClient:', err);
+      resolve({
+        success: false,
+        error: 'No se pudo abrir el selector oficial de cuentas de Google.',
+      });
+    }
+  });
 }
 
 /**
@@ -264,7 +398,7 @@ export async function sendFirebaseVerification(
     } else if (err.code === 'auth/too-many-requests') {
       errorMsg = 'Demasiados intentos. Espera unos momentos antes de solicitar otro correo.';
     } else if (err.code === 'auth/operation-not-allowed') {
-      errorMsg = 'El registro manual por correo está deshabilitado. Usa el botón "Continuar con Google".';
+      errorMsg = 'El registro manual por correo está deshabilitado. Usa el botón "Continuar con Gmail".';
     } else if (err.code === 'auth/network-request-failed') {
       errorMsg = 'Error de conexión. Verifica tu conexión a internet.';
     } else if (err.message) {
@@ -402,7 +536,6 @@ async function syncUserProfile(
     authProvider?: string;
   }
 ) {
-  // 1. Save locally with standard service
   userProfileService.saveUserProfile({
     firstName: profile.firstName,
     lastName: profile.lastName,
@@ -414,7 +547,6 @@ async function syncUserProfile(
     authProvider: profile.authProvider,
   });
 
-  // 2. Persist in Firestore
   try {
     const userRef = doc(db, 'users', uid);
     const now = new Date().toISOString();
