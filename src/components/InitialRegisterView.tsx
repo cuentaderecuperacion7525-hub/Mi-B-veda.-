@@ -4,8 +4,6 @@ import {
   Mail,
   Loader2,
   AlertCircle,
-  CheckCircle2,
-  Sparkles,
 } from 'lucide-react';
 import { userProfileService } from '../services/userProfileService';
 import { sendEmailPin, verifyEmailPin } from '../services/emailVerificationService';
@@ -47,10 +45,8 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
 }) => {
   const pendingInitial = useRef<PendingRegistrationData | null>(loadPendingRegistration()).current;
 
-  // Step: 'form' | 'verify_pin'
-  const [step, setStep] = useState<'form' | 'verify_pin'>(() => {
-    return pendingInitial?.step === 'verify_pin' ? 'verify_pin' : 'form';
-  });
+  // Step: ALWAYS start with 'form' (Imagen 2: "Crea tu bóveda") first!
+  const [step, setStep] = useState<'form' | 'verify_pin'>('form');
 
   // Form Fields
   const [firstName, setFirstName] = useState(() => pendingInitial?.firstName || 'Jose Manuel');
@@ -73,16 +69,9 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [testPinHint, setTestPinHint] = useState<string | null>(() => pendingInitial?.testPin || null);
 
   // 60-second countdown for resend
-  const [countdown, setCountdown] = useState<number>(() => {
-    if (pendingInitial?.step === 'verify_pin' && pendingInitial.pinSentAt) {
-      const elapsed = Math.floor((Date.now() - pendingInitial.pinSentAt) / 1000);
-      return Math.max(0, 60 - elapsed);
-    }
-    return 60;
-  });
+  const [countdown, setCountdown] = useState<number>(60);
 
   useEffect(() => {
     let timer: any = null;
@@ -188,7 +177,6 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
 
       const target = res.targetEmail || cleanEmail;
       setDeliveredEmail(target);
-      setTestPinHint(res.testPin || null);
       setStep('verify_pin');
       setCountdown(60);
       setPinDigits(['', '', '', '', '', '']);
@@ -231,7 +219,6 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       const res = await sendEmailPin(cleanEmail, cleanFirst);
       if (res.success) {
         setCountdown(60);
-        setTestPinHint(res.testPin || null);
         setPinDigits(['', '', '', '', '', '']);
 
         try {
@@ -494,26 +481,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               </div>
             )}
 
-            {/* Helper para desarrollo o cuando el sandbox de Resend restringe envíos externos */}
-            {testPinHint && (
-              <div
-                onClick={() => {
-                  const digits = testPinHint.split('').slice(0, 6);
-                  setPinDigits(digits);
-                  setError(null);
-                  showToast('Código de activación completado', 'info');
-                }}
-                className="mt-4 p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center cursor-pointer hover:bg-emerald-100/70 transition-colors shadow-xs"
-              >
-                <div className="flex items-center justify-center gap-1.5 text-emerald-800 text-xs font-semibold">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>Código de activación: <strong className="font-mono text-sm tracking-widest text-emerald-950 font-black">{testPinHint}</strong></span>
-                </div>
-                <p className="text-[10px] text-emerald-600 font-medium underline mt-0.5">
-                  Toca aquí para autocompletar en los 6 campos
-                </p>
-              </div>
-            )}
+
 
             {/* Formulario de 6 dígitos */}
             <form onSubmit={handleVerifyPin} className="mt-6">

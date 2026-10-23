@@ -44,7 +44,7 @@ export async function sendEmailPin(email: string, firstName?: string): Promise<S
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6500);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     const endpoint = getApiEndpoint('/api/send-email-pin');
     const res = await fetch(endpoint, {

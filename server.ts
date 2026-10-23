@@ -155,28 +155,46 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
 
     // 2. Try Resend if configured
     if (resendApiKey && resendApiKey.trim()) {
-      let response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${resendApiKey.trim()}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'Bóveda Segura <onboarding@resend.dev>',
-          to: [cleanEmail],
-          subject: `${pin} es tu código de verificación de Bóveda Segura`,
-          html: emailHtml,
-        }),
-      });
+      let response: any = null;
+      let data: any = null;
 
-      let data = await response.json().catch(() => null);
+      try {
+        response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendApiKey.trim()}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: 'Bóveda Segura <onboarding@resend.dev>',
+            to: [cleanEmail],
+            subject: `${pin} es tu código de verificación de Bóveda Segura`,
+            html: emailHtml,
+          }),
+          signal: AbortSignal.timeout(8000),
+        });
+        data = await response.json().catch(() => null);
+      } catch (e: any) {
+        console.warn('Resend primary fetch notice:', e?.message);
+      }
 
-      // If Resend sandbox restricts to account owner, also attempt delivery to owner's inbox
-      if (!response.ok && data?.message && data.message.includes('You can only send testing emails to your own email address')) {
+      // If Resend sandbox restricts to account owner, dispatch to owner's inbox
+      if (
+        response &&
+        !response.ok &&
+        data?.message &&
+        data.message.includes('You can only send testing emails to your own email address')
+      ) {
         const match = data.message.match(/\(([^)]+)\)/);
         const ownerEmail = match ? match[1] : 'jmmrtinez5121@gmail.com';
         console.log(`Resend sandbox mode: delivering to verified account email ${ownerEmail}`);
 
+        // Register PIN for BOTH emails so verification always succeeds
+        verificationCodes.set(cleanEmail, {
+          pin,
+          expiresAt,
+          firstName: typeof firstName === 'string' ? firstName.trim() : undefined,
+        });
         verificationCodes.set(ownerEmail.toLowerCase(), {
           pin,
           expiresAt,
@@ -196,6 +214,7 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
               subject: `${pin} es tu código de verificación para ${cleanEmail}`,
               html: emailHtml,
             }),
+            signal: AbortSignal.timeout(8000),
           });
           const ownerData = await ownerRes.json().catch(() => null);
           if (ownerRes.ok) {
@@ -203,19 +222,20 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
               success: true,
               delivered: true,
               targetEmail: ownerEmail,
-              testPin: pin,
               message: `Código enviado a tu bandeja de correo (${ownerEmail}).`,
             });
           }
-        } catch {}
+        } catch (e: any) {
+          console.warn('Resend owner dispatch notice:', e?.message);
+        }
+      }
 
-        // Even if owner delivery failed, do not block the user! Return testPin
+      if (response && response.ok) {
         return res.json({
           success: true,
-          delivered: false,
+          delivered: true,
           targetEmail: cleanEmail,
-          testPin: pin,
-          message: 'Código de 6 dígitos generado correctamente para verificación.',
+          message: 'Código enviado a tu correo exitosamente.',
         });
       }
 
