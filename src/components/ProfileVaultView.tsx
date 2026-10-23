@@ -33,6 +33,7 @@ import {
   formatBirthDateMask,
 } from '../services/userProfileService';
 import { signOutFromFirebase } from '../services/firebaseAuthService';
+import { signInWithNativeGoogle } from '../services/nativeGoogleAuthService';
 import { CURRENT_APP_VERSION as APP_VERSION } from '../version';
 import { formatSize } from '../utils/formatUtils';
 
@@ -169,7 +170,21 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     showToast(isEmailChanging ? 'Correo de Gmail confirmado y actualizado' : 'Perfil actualizado correctamente', 'success');
   };
 
-  const handleOpenGoogleModal = () => {
+  const handleOpenGoogleModal = async () => {
+    try {
+      const res = await signInWithNativeGoogle();
+      if (res.success && res.profile) {
+        setEditEmail(res.profile.email);
+        if (res.profile.firstName) setEditFirst(res.profile.firstName);
+        if (res.profile.lastName) setEditLast(res.profile.lastName);
+        showToast(`Cuenta de Google verificada: ${res.profile.email}`, 'success');
+        return;
+      }
+      if (res.cancelled) return;
+    } catch {
+      // Continuar al modal si falla el nativo
+    }
+
     setGoogleModalEmail(editEmail || profile?.email || '');
     setGoogleModalName(editFirst || profile?.firstName || '');
     setGoogleModalError(null);

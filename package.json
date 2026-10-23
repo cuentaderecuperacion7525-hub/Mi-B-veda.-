@@ -16,6 +16,7 @@
     "@capacitor/core": "^8.5.2",
     "@capacitor/filesystem": "^8.1.4",
     "@capacitor/preferences": "^8.0.1",
+    "@capgo/capacitor-social-login": "^8.7.5",
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
