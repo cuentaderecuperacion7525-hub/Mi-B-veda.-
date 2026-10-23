@@ -11,10 +11,6 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
-import com.getcapacitor.Plugin;
-import com.getcapacitor.PluginHandle;
-import ee.forgr.capacitor.social.login.GoogleProvider;
-import ee.forgr.capacitor.social.login.SocialLoginPlugin;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -99,22 +95,6 @@ public class MainActivity extends BridgeActivity {
 
         if (!neededPermissions.isEmpty()) {
             ActivityCompat.requestPermissions(this, neededPermissions.toArray(new String[0]), PERMISSION_REQ_CODE);
-        }
-    }
-
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode >= GoogleProvider.REQUEST_AUTHORIZE_GOOGLE_MIN && requestCode < GoogleProvider.REQUEST_AUTHORIZE_GOOGLE_MAX) {
-            PluginHandle pluginHandle = getBridge().getPlugin("SocialLogin");
-            if (pluginHandle == null) {
-                return;
-            }
-            Plugin plugin = pluginHandle.getInstance();
-            if (!(plugin instanceof SocialLoginPlugin)) {
-                return;
-            }
-            ((SocialLoginPlugin) plugin).handleGoogleLoginIntent(requestCode, data);
         }
     }
 }
