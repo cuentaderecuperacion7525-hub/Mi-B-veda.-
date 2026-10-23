@@ -113,45 +113,7 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
 </html>
       `;
 
-    const brevoApiKey = process.env.BREVO_API_KEY;
     const resendApiKey = process.env.RESEND_API_KEY;
-
-    // 1. Try Brevo (Sendinblue) first if configured — works with Hotmail, Outlook, Yahoo & Gmail
-    if (brevoApiKey && brevoApiKey.trim()) {
-      try {
-        const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: {
-            'accept': 'application/json',
-            'api-key': brevoApiKey.trim(),
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({
-            sender: {
-              name: 'Bóveda Segura',
-              email: process.env.SENDER_EMAIL || 'jmmrtinez5121@gmail.com',
-            },
-            to: [{ email: cleanEmail, name: displayName }],
-            subject: `${pin} es tu código de verificación de Bóveda Segura`,
-            htmlContent: emailHtml,
-          }),
-        });
-
-        const brevoData = await brevoRes.json().catch(() => null);
-        if (brevoRes.ok) {
-          return res.json({
-            success: true,
-            delivered: true,
-            targetEmail: cleanEmail,
-            message: 'Código enviado a tu correo exitosamente.',
-          });
-        } else {
-          console.warn('Brevo dispatch notice:', brevoData);
-        }
-      } catch (brevoErr) {
-        console.warn('Brevo dispatch error:', brevoErr);
-      }
-    }
 
     // 2. Try Resend if configured
     if (resendApiKey && resendApiKey.trim()) {

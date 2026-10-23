@@ -31,7 +31,6 @@ import {
   formatBirthDateMask,
 } from '../services/userProfileService';
 import { signInWithGoogle, signOutFromFirebase } from '../services/firebaseAuthService';
-import { sendEmailPin, verifyEmailPin } from '../services/emailVerificationService';
 import { CURRENT_APP_VERSION as APP_VERSION } from '../version';
 import { formatSize } from '../utils/formatUtils';
 
@@ -66,15 +65,6 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   const [editEmail, setEditEmail] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
 
-  // Email verification when changing email in profile
-  const [editStep, setEditStep] = useState<'form' | 'verify_email'>('form');
-  const [emailPinCode, setEmailPinCode] = useState('');
-  const [isSendingPin, setIsSendingPin] = useState(false);
-  const [isVerifyingPin, setIsVerifyingPin] = useState(false);
-  const [pinCountdown, setPinCountdown] = useState(0);
-  const [pendingNewEmail, setPendingNewEmail] = useState('');
-  const [testPinHint, setTestPinHint] = useState<string | null>(null);
-
   // Modals for Support, Terms, and Developer
   const [activeInfoModal, setActiveInfoModal] = useState<'privacy' | 'terms' | 'support' | 'developer' | null>(null);
   const [copiedEmail, setCopiedEmail] = useState(false);
@@ -87,14 +77,6 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     showToast('Correo copiado al portapapeles: ' + email, 'success');
     setTimeout(() => setCopiedEmail(false), 2500);
   };
-
-  useEffect(() => {
-    if (pinCountdown <= 0) return;
-    const timer = setInterval(() => {
-      setPinCountdown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [pinCountdown]);
 
   useEffect(() => {
     return userProfileService.subscribe((updated) => {
@@ -117,10 +99,6 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       setEditEmail('');
     }
     setEditError(null);
-    setEditStep('form');
-    setEmailPinCode('');
-    setTestPinHint(null);
-    setPinCountdown(0);
     setIsEditing(true);
   };
 
@@ -170,111 +148,39 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     const currentEmail = (profile?.email || '').trim().toLowerCase();
     const isEmailChanging = currentEmail && cleanEmail !== currentEmail;
 
-    if (isEmailChanging) {
-      // Must verify the new email address with PIN before saving
-      setIsSendingPin(true);
-      setEditError(null);
-      try {
-        const res = await sendEmailPin(cleanEmail, cleanFirst);
-        if (res.success) {
-          setPendingNewEmail(cleanEmail);
-          setEditStep('verify_email');
-          setEmailPinCode('');
-          setPinCountdown(60);
-          if (res.testPin) {
-            setTestPinHint(res.testPin);
-          }
-          showToast(`Código enviado a ${cleanEmail}`, 'info');
-        } else {
-          setEditError(res.error || 'No se pudo enviar el código de verificación.');
-        }
-      } catch {
-        setEditError('Error al contactar con el servicio de verificación.');
-      } finally {
-        setIsSendingPin(false);
-      }
-      return;
-    }
-
-    // Email didn't change: save directly
+    // Save profile directly
     userProfileService.saveUserProfile({
       firstName: cleanFirst,
       lastName: cleanLast,
       birthDate: editBirthDate || undefined,
       age: age ?? profile?.age,
       email: cleanEmail,
-      emailVerified: profile?.emailVerified !== undefined ? profile.emailVerified : true,
+      emailVerified: true,
       photoURL: profile?.photoURL,
-      authProvider: profile?.authProvider,
+      authProvider: profile?.authProvider || 'google.com',
     });
 
     setIsEditing(false);
-    showToast('Perfil actualizado correctamente', 'success');
+    showToast(isEmailChanging ? 'Correo de Gmail actualizado correctamente' : 'Perfil actualizado correctamente', 'success');
   };
 
-  const handleVerifyNewEmailPin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanPin = emailPinCode.trim();
-    if (cleanPin.length !== 4) {
-      setEditError('Ingresa el código de 4 dígitos enviado a tu correo.');
-      return;
-    }
-
-    setIsVerifyingPin(true);
+  const handleConnectGoogleForEmail = async () => {
+    setIsSyncingGoogle(true);
     setEditError(null);
     try {
-      const res = await verifyEmailPin(pendingNewEmail, cleanPin);
-      if (res.success) {
-        const cleanFirst = editFirst.trim();
-        const cleanLast = editLast.trim();
-        let age: number | undefined = undefined;
-        if (editBirthDate) {
-          age = calculateAgeFromBirthDate(editBirthDate) ?? undefined;
-        }
-
-        userProfileService.saveUserProfile({
-          firstName: cleanFirst,
-          lastName: cleanLast,
-          birthDate: editBirthDate || undefined,
-          age: age ?? profile?.age,
-          email: pendingNewEmail,
-          emailVerified: true,
-          photoURL: profile?.photoURL,
-          authProvider: profile?.authProvider,
-        });
-
-        setIsEditing(false);
-        setEditStep('form');
-        showToast('Correo verificado y actualizado con éxito', 'success');
-      } else {
-        setEditError(res.error || 'Código incorrecto o expirado.');
+      const res = await signInWithGoogle();
+      if (res.success && res.profile) {
+        setEditEmail(res.profile.email);
+        if (res.profile.firstName) setEditFirst(res.profile.firstName);
+        if (res.profile.lastName) setEditLast(res.profile.lastName);
+        showToast(`Cuenta de Gmail vinculada: ${res.profile.email}`, 'success');
+      } else if (res.error) {
+        setEditError(res.error);
       }
     } catch {
-      setEditError('Error al verificar el código.');
+      setEditError('Error al conectar con la cuenta de Google');
     } finally {
-      setIsVerifyingPin(false);
-    }
-  };
-
-  const handleResendPin = async () => {
-    if (pinCountdown > 0 || isSendingPin || !pendingNewEmail) return;
-    setIsSendingPin(true);
-    setEditError(null);
-    try {
-      const res = await sendEmailPin(pendingNewEmail, editFirst.trim());
-      if (res.success) {
-        setPinCountdown(60);
-        if (res.testPin) {
-          setTestPinHint(res.testPin);
-        }
-        showToast('Nuevo código enviado a tu correo', 'info');
-      } else {
-        setEditError(res.error || 'No se pudo reenviar el código.');
-      }
-    } catch {
-      setEditError('Error de conexión al reenviar el código.');
-    } finally {
-      setIsSendingPin(false);
+      setIsSyncingGoogle(false);
     }
   };
 
@@ -801,22 +707,15 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                     color: 'var(--theme-primary)',
                   }}
                 >
-                  {editStep === 'verify_email' ? (
-                    <Mail className="w-4 h-4" />
-                  ) : (
-                    <Edit3 className="w-4 h-4" />
-                  )}
+                  <Edit3 className="w-4 h-4" />
                 </div>
                 <h3 className="font-bold text-sm" style={{ color: 'var(--theme-text-main)' }}>
-                  {editStep === 'verify_email' ? 'Verificar Nuevo Correo' : 'Editar Mis Datos'}
+                  Editar Mis Datos y Cuenta
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setIsEditing(false);
-                  setEditStep('form');
-                }}
+                onClick={() => setIsEditing(false)}
                 className="p-1.5 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
                 style={{ color: 'var(--theme-text-muted)' }}
               >
@@ -824,145 +723,8 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
               </button>
             </div>
 
-            {editStep === 'verify_email' ? (
-              /* PASO 2: VERIFICAR CÓDIGO DEL NUEVO CORREO */
-              <form onSubmit={handleVerifyNewEmailPin} className="space-y-3.5 text-left">
-                <div
-                  className="p-3.5 rounded-2xl border text-center space-y-1.5"
-                  style={{
-                    backgroundColor: 'rgba(0, 229, 255, 0.05)',
-                    borderColor: 'color-mix(in srgb, var(--theme-primary) 30%, transparent)',
-                  }}
-                >
-                  <p className="text-xs font-semibold" style={{ color: 'var(--theme-text-muted)' }}>
-                    Para cambiar tu correo, ingresa el código de 4 dígitos enviado a:
-                  </p>
-                  <p className="text-xs font-mono font-bold break-all" style={{ color: 'var(--theme-primary)' }}>
-                    {pendingNewEmail}
-                  </p>
-                </div>
-
-                {testPinHint && (
-                  <div
-                    className="p-2.5 rounded-xl border text-[11px] text-center"
-                    style={{
-                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                      borderColor: 'rgba(16, 185, 129, 0.25)',
-                      color: '#059669',
-                    }}
-                  >
-                    Código de verificación: <span className="font-mono font-black text-xs">{testPinHint}</span>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-semibold mb-1.5 text-center" style={{ color: 'var(--theme-text-main)' }}>
-                    Código de 4 dígitos
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={4}
-                    autoFocus
-                    value={emailPinCode}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/\D/g, '').slice(0, 4);
-                      setEmailPinCode(v);
-                      setEditError(null);
-                    }}
-                    placeholder="0000"
-                    className="w-full text-center tracking-[0.5em] text-2xl font-mono font-bold rounded-2xl py-2.5 border outline-none focus:ring-2"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-primary)',
-                    }}
-                  />
-                </div>
-
-                {editError && (
-                  <div
-                    className="p-2.5 rounded-xl text-xs border"
-                    style={{
-                      backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                      borderColor: 'rgba(244, 63, 94, 0.3)',
-                      color: '#e11d48',
-                    }}
-                  >
-                    {editError}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditStep('form');
-                      setEditError(null);
-                    }}
-                    className="text-xs font-medium flex items-center gap-1 cursor-pointer transition-opacity hover:opacity-80"
-                    style={{ color: 'var(--theme-text-muted)' }}
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Corregir correo</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleResendPin}
-                    disabled={pinCountdown > 0 || isSendingPin}
-                    className="text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                    style={{ color: 'var(--theme-primary)' }}
-                  >
-                    <RotateCcw className={`w-3 h-3 ${isSendingPin ? 'animate-spin' : ''}`} />
-                    <span>
-                      {pinCountdown > 0 ? `Reenviar (${pinCountdown}s)` : 'Reenviar código'}
-                    </span>
-                  </button>
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditing(false);
-                      setEditStep('form');
-                    }}
-                    className="flex-1 py-2.5 rounded-xl text-xs font-semibold border cursor-pointer transition-colors"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-secondary)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isVerifyingPin || emailPinCode.trim().length !== 4}
-                    className="flex-1 py-2.5 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-                    style={{
-                      background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                      boxShadow: '0 4px 14px -2px var(--theme-glow)',
-                    }}
-                  >
-                    {isVerifyingPin ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                        <span>Verificando...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-white" />
-                        <span>Confirmar</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              /* PASO 1: FORMULARIO PRINCIPAL */
-              <form onSubmit={handleSaveEdit} className="space-y-3.5 text-left">
+            {/* FORMULARIO DE EDICIÓN DE PERFIL */}
+            <form onSubmit={handleSaveEdit} className="space-y-3.5 text-left">
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
                     Nombre(s) <span className="text-rose-500">*</span>
@@ -1020,13 +782,17 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
-                    Correo Electrónico <span className="text-rose-500">*</span>
+                    Correo Electrónico de Gmail <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="email"
                     value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEditEmail(e.target.value);
+                      setEditError(null);
+                    }}
                     required
+                    placeholder="tu-correo@gmail.com"
                     className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
                     style={{
                       backgroundColor: 'var(--theme-bg-input)',
@@ -1034,11 +800,48 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                       color: 'var(--theme-text-main)',
                     }}
                   />
-                  {profile?.email && editEmail.trim().toLowerCase() !== profile.email.toLowerCase() && (
-                    <p className="text-[10px] mt-1" style={{ color: 'var(--theme-primary)' }}>
-                      * Se enviará un código de verificación al nuevo correo al guardar.
-                    </p>
-                  )}
+
+                  {/* Botón para cambiar o confirmar con Google */}
+                  <button
+                    type="button"
+                    onClick={handleConnectGoogleForEmail}
+                    disabled={isSyncingGoogle}
+                    className="mt-2 w-full py-2.5 px-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-secondary)',
+                      borderColor: 'var(--theme-border)',
+                      color: 'var(--theme-text-main)',
+                    }}
+                  >
+                    {isSyncingGoogle ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-500" />
+                        <span>Conectando con Google...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                          <path
+                            fill="#4285F4"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                          />
+                          <path
+                            fill="#34A853"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                          />
+                          <path
+                            fill="#FBBC05"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                          />
+                          <path
+                            fill="#EA4335"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                          />
+                        </svg>
+                        <span>Confirmar o cambiar con cuenta de Gmail</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
                 {editError && (
@@ -1069,31 +872,20 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                   </button>
                   <button
                     type="submit"
-                    disabled={isSendingPin}
-                    className="flex-1 py-2.5 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-60"
+                    className="flex-1 py-2.5 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
                     style={{
                       background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
                       boxShadow: '0 4px 14px -2px var(--theme-glow)',
                     }}
                   >
-                    {isSendingPin ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                        <span>Enviando código...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-3.5 h-3.5 text-white" />
-                        <span>Guardar</span>
-                      </>
-                    )}
+                    <Save className="w-3.5 h-3.5 text-white" />
+                    <span>Guardar</span>
                   </button>
                 </div>
               </form>
-            )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* MODAL: INFO MODAL (PRIVACY / TERMS / SUPPORT / DEVELOPER) */}
       {activeInfoModal && (
