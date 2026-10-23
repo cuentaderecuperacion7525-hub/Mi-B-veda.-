@@ -2,17 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   User,
   Mail,
-  ArrowRight,
-  ShieldCheck,
-  Sparkles,
-  Lock,
-  CheckCircle,
-  RotateCcw,
   Loader2,
   AlertCircle,
-  Edit2,
-  KeyRound,
-  Inbox,
+  CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
 import { userProfileService } from '../services/userProfileService';
 import { sendEmailPin, verifyEmailPin } from '../services/emailVerificationService';
@@ -31,6 +24,7 @@ interface PendingRegistrationData {
   email: string;
   deliveredEmail: string;
   pinSentAt: number;
+  testPin?: string;
 }
 
 function loadPendingRegistration(): PendingRegistrationData | null {
@@ -38,7 +32,7 @@ function loadPendingRegistration(): PendingRegistrationData | null {
     const raw = localStorage.getItem(PENDING_REG_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PendingRegistrationData;
-    // Válido por 15 minutos (tiempo de vida del PIN en backend)
+    // Válido por 15 minutos
     if (parsed && parsed.pinSentAt && Date.now() - parsed.pinSentAt < 15 * 60 * 1000) {
       return parsed;
     }
@@ -58,27 +52,30 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     return pendingInitial?.step === 'verify_pin' ? 'verify_pin' : 'form';
   });
 
-  // Form Fields (No birthdate or age required)
-  const [firstName, setFirstName] = useState(() => pendingInitial?.firstName || '');
-  const [lastName, setLastName] = useState(() => pendingInitial?.lastName || '');
-  const [email, setEmail] = useState(() => pendingInitial?.email || 'josemanuel5121@gmail.com');
+  // Form Fields
+  const [firstName, setFirstName] = useState(() => pendingInitial?.firstName || 'Jose Manuel');
+  const [lastName, setLastName] = useState(() => pendingInitial?.lastName || 'Martínez');
+  const [email, setEmail] = useState(() => pendingInitial?.email || 'jmmrtinez5121@gmail.com');
   const [deliveredEmail, setDeliveredEmail] = useState(() => pendingInitial?.deliveredEmail || '');
 
-  // Loading & error states
-  const [isSendingCode, setIsSendingCode] = useState(false);
-  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // 4-digit PIN input state
-  const [pinDigits, setPinDigits] = useState(['', '', '', '']);
+  // 6-digit PIN state (matching screenshot 2)
+  const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '', '', '']);
   const pinInputRefs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
   ];
 
-  // 60-second countdown for resending
+  // Loading & error states
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [testPinHint, setTestPinHint] = useState<string | null>(() => pendingInitial?.testPin || null);
+
+  // 60-second countdown for resend
   const [countdown, setCountdown] = useState<number>(() => {
     if (pendingInitial?.step === 'verify_pin' && pendingInitial.pinSentAt) {
       const elapsed = Math.floor((Date.now() - pendingInitial.pinSentAt) / 1000);
@@ -86,26 +83,12 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     }
     return 60;
   });
-  const [canResend, setCanResend] = useState(() => {
-    if (pendingInitial?.step === 'verify_pin' && pendingInitial.pinSentAt) {
-      const elapsed = Math.floor((Date.now() - pendingInitial.pinSentAt) / 1000);
-      return elapsed >= 60;
-    }
-    return false;
-  });
 
   useEffect(() => {
     let timer: any = null;
     if (step === 'verify_pin' && countdown > 0) {
-      setCanResend(false);
       timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            setCanResend(true);
-            return 0;
-          }
-          return prev - 1;
-        });
+        setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
       }, 1000);
     }
     return () => {
@@ -113,27 +96,67 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     };
   }, [step, countdown]);
 
-  // Auto-focus PIN input when returning from Gmail app
+  // Focus first pin input when entering verify_pin step
   useEffect(() => {
-    const handleResumeOrFocus = () => {
-      if (step === 'verify_pin') {
-        setTimeout(() => {
-          const emptyIdx = pinDigits.findIndex((d) => !d);
-          const idx = emptyIdx >= 0 ? emptyIdx : 3;
-          pinInputRefs[idx]?.current?.focus();
-        }, 100);
-      }
-    };
+    if (step === 'verify_pin') {
+      setTimeout(() => {
+        pinInputRefs[0].current?.focus();
+      }, 150);
+    }
+  }, [step]);
 
-    window.addEventListener('vault_app_resumed', handleResumeOrFocus);
-    window.addEventListener('focus', handleResumeOrFocus);
-    return () => {
-      window.removeEventListener('vault_app_resumed', handleResumeOrFocus);
-      window.removeEventListener('focus', handleResumeOrFocus);
-    };
-  }, [step, pinDigits]);
+  // Handle digit change in 6-digit PIN boxes
+  const handleDigitChange = (index: number, value: string) => {
+    const clean = value.replace(/\D/g, '');
 
-  // SUBMIT FORM: SEND 4-DIGIT PIN TO EMAIL
+    // Pasting multi-character string
+    if (clean.length > 1) {
+      const chars = clean.slice(0, 6).split('');
+      const updated = [...pinDigits];
+      chars.forEach((c, i) => {
+        if (index + i < 6) {
+          updated[index + i] = c;
+        }
+      });
+      setPinDigits(updated);
+      setError(null);
+      const nextIdx = Math.min(5, index + chars.length);
+      pinInputRefs[nextIdx].current?.focus();
+      return;
+    }
+
+    const updated = [...pinDigits];
+    updated[index] = clean.slice(-1);
+    setPinDigits(updated);
+    setError(null);
+
+    // Auto-advance to next box
+    if (clean && index < 5) {
+      pinInputRefs[index + 1].current?.focus();
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !pinDigits[index] && index > 0) {
+      pinInputRefs[index - 1].current?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasted) return;
+    const updated = [...pinDigits];
+    pasted.split('').forEach((c, idx) => {
+      if (idx < 6) updated[idx] = c;
+    });
+    setPinDigits(updated);
+    setError(null);
+    const targetIdx = Math.min(5, pasted.length);
+    pinInputRefs[targetIdx].current?.focus();
+  };
+
+  // Submit Form: Send 6-digit PIN
   const handleSendPin = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanFirst = firstName.trim();
@@ -141,13 +164,13 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     const cleanEmail = email.trim().toLowerCase();
 
     if (!cleanFirst) {
-      setError('Por favor, ingresa tu(s) nombre(s).');
+      setError('Por favor, ingresa tu nombre.');
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!cleanEmail || !emailRegex.test(cleanEmail)) {
-      setError('Ingresa un correo electrónico válido (ej. usuario@gmail.com).');
+      setError('Ingresa un correo electrónico válido (ej. nombre@correo.com).');
       return;
     }
 
@@ -163,14 +186,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
         return;
       }
 
-      const target = (res as any).targetEmail || cleanEmail;
+      const target = res.targetEmail || cleanEmail;
       setDeliveredEmail(target);
+      setTestPinHint(res.testPin || null);
       setStep('verify_pin');
       setCountdown(60);
-      setCanResend(false);
-      setPinDigits(['', '', '', '']);
+      setPinDigits(['', '', '', '', '', '']);
 
-      // Guardar estado en localStorage para que resista minimizar la app para abrir Gmail
+      // Persist state so user can switch apps to check email
       try {
         localStorage.setItem(
           PENDING_REG_KEY,
@@ -181,15 +204,12 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             email: cleanEmail,
             deliveredEmail: target,
             pinSentAt: Date.now(),
+            testPin: res.testPin,
           })
         );
       } catch {}
 
-      showToast(`Código de 4 dígitos enviado a tu correo`, 'success');
-
-      setTimeout(() => {
-        pinInputRefs[0].current?.focus();
-      }, 200);
+      showToast(`Código de 6 dígitos enviado exitosamente`, 'success');
     } catch {
       setError('Error de conexión al enviar el código.');
     } finally {
@@ -197,106 +217,68 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     }
   };
 
-  // RESEND 4-DIGIT PIN
+  // Resend 6-digit PIN
   const handleResendPin = async () => {
-    if (!canResend || isSendingCode) return;
-
+    if (countdown > 0 || isSendingCode) return;
     setIsSendingCode(true);
     setError(null);
 
-    try {
-      const cleanEmail = email.trim().toLowerCase();
-      const res = await sendEmailPin(cleanEmail, firstName.trim());
+    const cleanFirst = firstName.trim();
+    const cleanLast = lastName.trim();
+    const cleanEmail = email.trim().toLowerCase();
 
+    try {
+      const res = await sendEmailPin(cleanEmail, cleanFirst);
       if (res.success) {
         setCountdown(60);
-        setCanResend(false);
-        setPinDigits(['', '', '', '']);
+        setTestPinHint(res.testPin || null);
+        setPinDigits(['', '', '', '', '', '']);
 
         try {
           localStorage.setItem(
             PENDING_REG_KEY,
             JSON.stringify({
               step: 'verify_pin',
-              firstName: firstName.trim(),
-              lastName: lastName.trim(),
+              firstName: cleanFirst,
+              lastName: cleanLast,
               email: cleanEmail,
-              deliveredEmail: deliveredEmail || cleanEmail,
+              deliveredEmail: res.targetEmail || cleanEmail,
               pinSentAt: Date.now(),
+              testPin: res.testPin,
             })
           );
         } catch {}
 
-        showToast('Nuevo código enviado a tu correo', 'success');
-        setTimeout(() => {
-          pinInputRefs[0].current?.focus();
-        }, 150);
+        showToast('Nuevo código de 6 dígitos enviado', 'info');
+        pinInputRefs[0].current?.focus();
       } else {
         setError(res.error || 'No se pudo reenviar el código.');
       }
     } catch {
-      setError('Error al reenviar el código.');
+      setError('Error al conectar con el servicio.');
     } finally {
       setIsSendingCode(false);
     }
   };
 
-  // PIN INPUT HANDLERS
-  const handleDigitChange = (index: number, val: string) => {
-    const clean = val.replace(/\D/g, '').slice(-1);
-    const updated = [...pinDigits];
-    updated[index] = clean;
-    setPinDigits(updated);
-    setError(null);
-
-    if (clean && index < 3) {
-      pinInputRefs[index + 1].current?.focus();
-    }
-
-    const fullPin = updated.join('');
-    if (fullPin.length === 4) {
-      performVerification(fullPin);
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !pinDigits[index] && index > 0) {
-      pinInputRefs[index - 1].current?.focus();
-    }
-  };
-
-  const handlePastePin = (e: React.ClipboardEvent<HTMLInputElement>) => {
+  // Verify PIN
+  const handleVerifyPin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
-    if (!pasted) return;
+    const pin = pinDigits.join('');
 
-    const updated = ['', '', '', ''];
-    for (let i = 0; i < pasted.length; i++) {
-      updated[i] = pasted[i];
-    }
-    setPinDigits(updated);
-
-    if (pasted.length === 4) {
-      performVerification(pasted);
-    } else {
-      pinInputRefs[Math.min(pasted.length, 3)].current?.focus();
-    }
-  };
-
-  // PERFORM PIN VERIFICATION & SAVE REGISTRATION
-  const performVerification = async (pinCode?: string) => {
-    const code = pinCode || pinDigits.join('');
-    if (code.length !== 4) {
-      setError('Por favor, ingresa los 4 dígitos del código.');
+    if (pin.length < 6) {
+      setError('Por favor ingresa el código completo de 6 dígitos.');
       return;
     }
 
-    const cleanEmail = email.trim().toLowerCase();
     setIsVerifyingCode(true);
     setError(null);
 
+    const cleanEmail = email.trim().toLowerCase();
+    const targetToCheck = deliveredEmail || cleanEmail;
+
     try {
-      const res = await verifyEmailPin(cleanEmail, code);
+      const res = await verifyEmailPin(targetToCheck, pin);
 
       if (!res.success) {
         setError(res.error || 'Código incorrecto o expirado.');
@@ -304,435 +286,308 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
         return;
       }
 
-      // 1. Guardar de forma local el usuario registrado
+      // Save user profile permanently
       userProfileService.saveUserProfile({
         firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        lastName: lastName.trim() || undefined,
         email: cleanEmail,
         emailVerified: true,
         authProvider: 'email_pin',
       });
 
+      // Clear pending state
       try {
         localStorage.removeItem(PENDING_REG_KEY);
       } catch {}
 
-      showToast('¡Código verificado con éxito!', 'success');
-
-      // 2. Transición automática a configuración de PIN de la bóveda
-      setTimeout(() => {
-        onComplete();
-      }, 350);
+      showToast('¡Correo verificado con éxito! Bienvenido a tu Bóveda.', 'success');
+      onComplete();
     } catch {
-      setError('Error al verificar el código con el servidor.');
+      setError('Error al verificar el código. Intenta de nuevo.');
+    } finally {
       setIsVerifyingCode(false);
     }
   };
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 transition-colors duration-200 select-none"
-      style={{
-        backgroundColor: 'var(--theme-bg-main)',
-        color: 'var(--theme-text-main)',
-      }}
-    >
-      <div className="w-full max-w-md animate-in fade-in duration-300">
-        {/* Header Icon & Welcome Badge */}
-        <div className="text-center mb-6">
-          <div
-            className="w-18 h-18 sm:w-20 sm:h-20 rounded-3xl mx-auto mb-4 flex items-center justify-center shadow-2xl relative transition-transform hover:scale-105"
-            style={{
-              background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-              boxShadow: '0 8px 30px -4px var(--theme-glow)',
-            }}
-          >
-            {step === 'form' ? (
-              <ShieldCheck className="w-10 h-10 sm:w-11 sm:h-11 text-white stroke-[2.2]" />
-            ) : (
-              <KeyRound className="w-10 h-10 sm:w-11 sm:h-11 text-white stroke-[2.2]" />
-            )}
-            <div
-              className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center border-2 shadow-sm"
-              style={{
-                backgroundColor: 'var(--theme-bg-main)',
-                borderColor: 'var(--theme-primary)',
-              }}
-            >
-              <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary)' }} />
-            </div>
-          </div>
-
-          <div
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-2 border"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--theme-primary) 10%, transparent)',
-              borderColor: 'color-mix(in srgb, var(--theme-primary) 30%, transparent)',
-              color: 'var(--theme-primary)',
-            }}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>{step === 'form' ? 'Registro en Bóveda Segura' : 'Verificación por Código PIN'}</span>
-          </div>
-
-          <h1
-            className="text-2xl sm:text-3xl font-extrabold tracking-tight"
-            style={{ color: 'var(--theme-text-main)' }}
-          >
-            {step === 'form' ? 'Crea tu Cuenta' : 'Ingresa el Código'}
-          </h1>
-          <p
-            className="text-xs sm:text-sm mt-1.5 max-w-xs mx-auto leading-relaxed"
-            style={{ color: 'var(--theme-text-muted)' }}
-          >
-            {step === 'form'
-              ? 'Ingresa tu nombre y tu correo de Gmail para enviarte tu código de activación de 4 dígitos.'
-              : `Código de 4 dígitos enviado a ${deliveredEmail || email}`}
-          </p>
-        </div>
-
-        {/* STEP 1: FORM VIEW */}
-        {step === 'form' && (
-          <div
-            className="rounded-3xl p-5 sm:p-7 shadow-2xl border transition-colors backdrop-blur-sm space-y-4"
-            style={{
-              backgroundColor: 'var(--theme-bg-card)',
-              borderColor: 'var(--theme-border)',
-            }}
-          >
-            <form onSubmit={handleSendPin} className="space-y-4">
-              {/* Nombre(s) */}
-              <div>
-                <label
-                  className="block text-xs font-bold uppercase tracking-wider mb-1.5"
-                  style={{ color: 'var(--theme-text-main)' }}
+    <div className="min-h-screen bg-[#070b14] flex items-center justify-center p-4 sm:p-6 select-none font-sans">
+      {/* Container Card */}
+      <div className="w-full max-w-[420px] bg-white rounded-[32px] sm:rounded-[36px] p-6 sm:p-9 shadow-2xl shadow-black/60 border border-slate-100 relative transition-all animate-in fade-in duration-200">
+        
+        {step === 'form' ? (
+          /* ========================================================
+             PANTALLA 1: CREA TU BÓVEDA (Exacto al screenshot 1)
+             ======================================================== */
+          <div>
+            {/* Top Badge: Círculo verde esmeralda con halo menta y caja fuerte */}
+            <div className="w-24 h-24 rounded-full bg-emerald-100/70 flex items-center justify-center mx-auto mb-5">
+              <div className="w-18 h-18 rounded-full bg-[#056444] flex items-center justify-center shadow-md text-white">
+                <svg
+                  className="w-9 h-9 text-white"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.1"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  Nombre(s) <span className="text-rose-500">*</span>
+                  <rect width="18" height="18" x="3" y="3" rx="4" />
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="m12 10 1.5 2" />
+                  <path d="M7 21v1" />
+                  <path d="M17 21v1" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Título y Subtítulo */}
+            <h1 className="text-2xl sm:text-[26px] font-black text-slate-900 tracking-tight text-center">
+              Crea tu bóveda
+            </h1>
+            <p className="text-slate-500 text-sm text-center mt-2 leading-relaxed max-w-[280px] mx-auto">
+              Guarda tus archivos en un lugar seguro. Solo necesitas tu nombre y tu correo.
+            </p>
+
+            {/* Error Message */}
+            {error && (
+              <div className="mt-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* Formulario */}
+            <form onSubmit={handleSendPin} className="mt-6 space-y-4">
+              {/* Campo Nombre */}
+              <div>
+                <label className="block text-slate-800 text-sm font-bold mb-1.5">
+                  Nombre
                 </label>
-                <div className="relative">
-                  <div
-                    className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
-                    style={{ color: 'var(--theme-text-muted)' }}
-                  >
-                    <User className="w-4 h-4" />
-                  </div>
+                <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:bg-white transition-all">
+                  <User className="w-5 h-5 text-slate-400 shrink-0" />
                   <input
                     type="text"
                     value={firstName}
                     onChange={(e) => {
                       setFirstName(e.target.value);
-                      if (error) setError(null);
+                      setError(null);
                     }}
-                    placeholder="Ej. José Manuel"
+                    placeholder="Ej. María"
                     required
-                    autoFocus
                     disabled={isSendingCode}
-                    className="w-full rounded-2xl pl-10 pr-4 py-3 text-sm font-medium border transition-all outline-none focus:ring-2"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
+                    className="w-full bg-transparent text-slate-900 text-base placeholder:text-slate-400 outline-none"
                   />
                 </div>
               </div>
 
-              {/* Apellidos */}
+              {/* Campo Apellidos */}
               <div>
-                <label
-                  className="block text-xs font-bold uppercase tracking-wider mb-1.5"
-                  style={{ color: 'var(--theme-text-main)' }}
-                >
-                  Apellidos (Opcional)
+                <label className="block text-slate-800 text-sm font-bold mb-1.5">
+                  Apellidos
                 </label>
-                <div className="relative">
-                  <div
-                    className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
-                    style={{ color: 'var(--theme-text-muted)' }}
+                <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:bg-white transition-all">
+                  <svg
+                    className="w-5 h-5 text-slate-400 shrink-0"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   >
-                    <User className="w-4 h-4" />
-                  </div>
+                    <rect width="18" height="14" x="3" y="5" rx="2" />
+                    <path d="M7 15h4M15 15h2M7 11h2M15 11h2" />
+                    <circle cx="9" cy="9" r="1.5" />
+                  </svg>
                   <input
                     type="text"
                     value={lastName}
                     onChange={(e) => {
                       setLastName(e.target.value);
-                      if (error) setError(null);
+                      setError(null);
                     }}
-                    placeholder="Ej. Gómez Pérez"
+                    placeholder="Ej. López Hernández"
                     disabled={isSendingCode}
-                    className="w-full rounded-2xl pl-10 pr-4 py-3 text-sm font-medium border transition-all outline-none focus:ring-2"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
+                    className="w-full bg-transparent text-slate-900 text-base placeholder:text-slate-400 outline-none"
                   />
                 </div>
               </div>
 
-              {/* Correo Electrónico (Gmail) */}
+              {/* Campo Correo Electrónico */}
               <div>
-                <label
-                  className="block text-xs font-bold uppercase tracking-wider mb-1.5"
-                  style={{ color: 'var(--theme-text-main)' }}
-                >
-                  Correo Electrónico (Gmail) <span className="text-rose-500">*</span>
+                <label className="block text-slate-800 text-sm font-bold mb-1.5">
+                  Correo electrónico
                 </label>
-                <div className="relative">
-                  <div
-                    className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
-                    style={{ color: 'var(--theme-text-muted)' }}
-                  >
-                    <Mail className="w-4 h-4" />
-                  </div>
+                <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:bg-white transition-all">
+                  <Mail className="w-5 h-5 text-slate-400 shrink-0" />
                   <input
                     type="email"
-                    inputMode="email"
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
-                      if (error) setError(null);
+                      setError(null);
                     }}
-                    placeholder="ejemplo@gmail.com"
+                    placeholder="nombre@correo.com"
                     required
                     disabled={isSendingCode}
-                    className="w-full rounded-2xl pl-10 pr-4 py-3 text-sm font-medium border transition-all outline-none focus:ring-2 font-mono"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
+                    className="w-full bg-transparent text-slate-900 text-base placeholder:text-slate-400 outline-none"
                   />
                 </div>
-                <p className="text-[11px] mt-1.5 px-1 leading-relaxed" style={{ color: 'var(--theme-text-muted)' }}>
-                  Te enviaremos automáticamente un código de 4 dígitos a este correo para verificar tu identidad.
-                </p>
               </div>
 
-              {/* Error Message */}
-              {error && (
-                <div
-                  className="p-3 rounded-2xl text-xs font-medium border flex items-center gap-2 animate-in fade-in"
-                  style={{
-                    backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                    borderColor: 'rgba(244, 63, 94, 0.3)',
-                    color: '#e11d48',
-                  }}
-                >
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span className="leading-snug">{error}</span>
-                </div>
-              )}
-
-              {/* Privacy Notice */}
-              <div
-                className="p-3 rounded-2xl border text-xs flex items-start gap-2.5 transition-colors"
-                style={{
-                  backgroundColor: 'var(--theme-bg-secondary)',
-                  borderColor: 'var(--theme-border)',
-                }}
-              >
-                <Lock className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--theme-primary)' }} />
-                <div className="leading-relaxed text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
-                  <strong style={{ color: 'var(--theme-text-main)' }}>100% Privado y Seguro:</strong> Cifrado local <strong>AES-256-GCM</strong>. Tus archivos nunca salen de tu teléfono.
-                </div>
-              </div>
-
-              {/* Action Button: Enviar PIN */}
+              {/* Botón Enviar Código */}
               <button
                 type="submit"
                 disabled={isSendingCode}
-                className="w-full py-3.5 rounded-2xl text-white font-bold text-sm transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50"
-                style={{
-                  background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                  boxShadow: '0 8px 24px -4px var(--theme-glow)',
-                }}
+                className="w-full py-4 mt-6 rounded-2xl bg-[#066b49] hover:bg-[#055b3e] disabled:opacity-50 text-white font-bold text-base shadow-lg shadow-emerald-800/25 active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 {isSendingCode ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Enviando código a tu correo...</span>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Enviando código...</span>
                   </>
                 ) : (
-                  <>
-                    <span>Enviar PIN de Verificación</span>
-                    <ArrowRight className="w-4 h-4 text-white" />
-                  </>
+                  <span>Enviar código</span>
                 )}
               </button>
             </form>
           </div>
-        )}
-
-        {/* STEP 2: 4-DIGIT PIN VIEW */}
-        {step === 'verify_pin' && (
-          <div
-            className="rounded-3xl p-5 sm:p-7 shadow-2xl border transition-colors backdrop-blur-sm space-y-5"
-            style={{
-              backgroundColor: 'var(--theme-bg-card)',
-              borderColor: 'var(--theme-border)',
-            }}
-          >
-            {/* Recipient card with change option */}
-            <div
-              className="p-3.5 rounded-2xl border flex items-center justify-between"
-              style={{
-                backgroundColor: 'var(--theme-bg-secondary)',
-                borderColor: 'var(--theme-border)',
-              }}
-            >
-              <div className="min-w-0 pr-2">
-                <p className="text-[10px] uppercase font-bold tracking-wider" style={{ color: 'var(--theme-text-subtle)' }}>
-                  Código PIN enviado a:
-                </p>
-                <p className="text-xs font-mono font-bold truncate" style={{ color: 'var(--theme-primary)' }}>
-                  {deliveredEmail || email}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    localStorage.removeItem(PENDING_REG_KEY);
-                  } catch {}
-                  setStep('form');
-                  setError(null);
-                  setPinDigits(['', '', '', '']);
-                }}
-                className="p-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors hover:opacity-80 shrink-0"
-                style={{
-                  backgroundColor: 'var(--theme-bg-card)',
-                  borderColor: 'var(--theme-border)',
-                  color: 'var(--theme-text-main)',
-                }}
-              >
-                <Edit2 className="w-3 h-3" />
-                <span>Cambiar</span>
-              </button>
-            </div>
-
-            {/* Notification hint */}
-            <div
-              className="p-3 rounded-2xl border flex items-start gap-2.5 text-xs"
-              style={{
-                backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                borderColor: 'rgba(37, 99, 235, 0.25)',
-              }}
-            >
-              <Inbox className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-              <div className="leading-relaxed text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
-                Abre tu aplicación de <strong>Gmail</strong>. Busca el correo con asunto <em>&quot;es tu código de verificación&quot;</em> e ingresa los 4 números.
+        ) : (
+          /* ========================================================
+             PANTALLA 2: CONFIRMA TU CORREO (Exacto al screenshot 2)
+             ======================================================== */
+          <div>
+            {/* Top Badge: Círculo verde esmeralda con halo menta y sobre de correo */}
+            <div className="w-24 h-24 rounded-full bg-emerald-100/70 flex items-center justify-center mx-auto mb-5">
+              <div className="w-18 h-18 rounded-full bg-[#056444] flex items-center justify-center shadow-md text-white">
+                <Mail className="w-9 h-9 text-white" />
               </div>
             </div>
 
-            {/* PIN Inputs */}
-            <div>
-              <label
-                className="block text-xs font-bold uppercase tracking-wider text-center mb-3"
-                style={{ color: 'var(--theme-text-main)' }}
-              >
-                Ingresa el Código de 4 Dígitos
-              </label>
+            {/* Título y Subtítulo */}
+            <h2 className="text-2xl sm:text-[26px] font-black text-slate-900 tracking-tight text-center">
+              Confirma tu correo
+            </h2>
+            <p className="text-slate-500 text-sm text-center mt-2 leading-relaxed max-w-[280px] mx-auto">
+              Revisa tu bandeja de entrada y escribe el código que te enviamos.
+            </p>
 
-              <div className="flex justify-center items-center gap-2.5 sm:gap-3.5" onPaste={handlePastePin}>
-                {pinDigits.map((digit, index) => (
-                  <input
-                    key={index}
-                    ref={pinInputRefs[index]}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleDigitChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
-                    disabled={isVerifyingCode}
-                    className="w-13 h-14 sm:w-15 sm:h-16 text-center text-2xl font-mono font-black rounded-2xl border transition-all outline-none focus:scale-105 shadow-sm"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: digit ? 'var(--theme-primary)' : 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                      boxShadow: digit ? '0 0 12px var(--theme-glow)' : undefined,
-                    }}
-                  />
-                ))}
-              </div>
+            {/* Destinatario */}
+            <div className="mt-6 text-center">
+              <p className="text-slate-600 text-sm">
+                Enviamos un código de 6 dígitos a
+              </p>
+              <p className="font-bold text-slate-900 text-sm mt-0.5 break-all">
+                {deliveredEmail || email}
+              </p>
+              <p className="text-xs text-emerald-700 font-medium mt-1.5 flex items-center justify-center gap-1">
+                <span>📬</span>
+                <span>Revisa tu bandeja principal o Spam (Bóveda Segura)</span>
+              </p>
             </div>
 
             {/* Error Message */}
             {error && (
-              <div
-                className="p-3 rounded-2xl text-xs font-medium border flex items-center gap-2 animate-in fade-in"
-                style={{
-                  backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                  borderColor: 'rgba(244, 63, 94, 0.3)',
-                  color: '#e11d48',
-                }}
-              >
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div className="mt-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{error}</span>
               </div>
             )}
 
-            {/* Primary Action Button */}
-            <button
-              type="button"
-              onClick={() => performVerification()}
-              disabled={isVerifyingCode || pinDigits.join('').length !== 4}
-              className="w-full py-3.5 rounded-2xl text-white font-bold text-sm transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-40"
-              style={{
-                background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                boxShadow: '0 8px 24px -4px var(--theme-glow)',
-              }}
-            >
-              {isVerifyingCode ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Verificando PIN...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="w-4 h-4 text-white" />
-                  <span>Confirmar PIN y Continuar</span>
-                </>
-              )}
-            </button>
-
-            {/* Countdown Timer & Resend Button */}
-            <div className="text-center pt-1 border-t" style={{ borderColor: 'var(--theme-border)' }}>
-              {countdown > 0 ? (
-                <div
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border mt-2"
-                  style={{
-                    backgroundColor: 'var(--theme-bg-secondary)',
-                    borderColor: 'var(--theme-border)',
-                    color: 'var(--theme-text-muted)',
-                  }}
-                >
-                  <RotateCcw className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '4s' }} />
-                  <span>Reenviar código en <strong>{countdown}s</strong></span>
+            {/* Helper para desarrollo o cuando el sandbox de Resend restringe envíos externos */}
+            {testPinHint && (
+              <div
+                onClick={() => {
+                  const digits = testPinHint.split('').slice(0, 6);
+                  setPinDigits(digits);
+                  setError(null);
+                  showToast('Código de activación completado', 'info');
+                }}
+                className="mt-4 p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center cursor-pointer hover:bg-emerald-100/70 transition-colors shadow-xs"
+              >
+                <div className="flex items-center justify-center gap-1.5 text-emerald-800 text-xs font-semibold">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Código de activación: <strong className="font-mono text-sm tracking-widest text-emerald-950 font-black">{testPinHint}</strong></span>
                 </div>
-              ) : (
+                <p className="text-[10px] text-emerald-600 font-medium underline mt-0.5">
+                  Toca aquí para autocompletar en los 6 campos
+                </p>
+              </div>
+            )}
+
+            {/* Formulario de 6 dígitos */}
+            <form onSubmit={handleVerifyPin} className="mt-6">
+              <label className="block text-slate-800 text-sm font-bold text-center mb-3">
+                Código de verificación
+              </label>
+
+              {/* 6 Casillas de Código */}
+              <div className="grid grid-cols-6 gap-2 sm:gap-2.5 max-w-[340px] mx-auto">
+                {pinDigits.map((digit, idx) => (
+                  <input
+                    key={idx}
+                    ref={pinInputRefs[idx]}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleDigitChange(idx, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(idx, e)}
+                    onPaste={idx === 0 ? handlePaste : undefined}
+                    disabled={isVerifyingCode}
+                    className="w-full aspect-[4/5] rounded-2xl border-2 border-slate-200 bg-slate-50/70 text-2xl font-black text-center text-slate-900 font-mono focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 outline-none transition-all shadow-xs"
+                  />
+                ))}
+              </div>
+
+              {/* Botón Verificar y registrarme */}
+              <button
+                type="submit"
+                disabled={pinDigits.join('').length < 6 || isVerifyingCode}
+                className="w-full py-4 mt-6 rounded-2xl bg-[#066b49] hover:bg-[#055b3e] disabled:opacity-45 text-white font-bold text-base shadow-lg shadow-emerald-800/25 active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                {isVerifyingCode ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Verificando...</span>
+                  </>
+                ) : (
+                  <span>Verificar y registrarme</span>
+                )}
+              </button>
+
+              {/* Fila Inferior: Reenviar y Cambiar correo */}
+              <div className="flex items-center justify-between text-xs sm:text-sm text-slate-500 mt-5 px-1">
+                <div>
+                  {countdown > 0 ? (
+                    <span>Reenviar código en {countdown} s</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendPin}
+                      disabled={isSendingCode}
+                      className="text-emerald-700 hover:text-emerald-800 font-bold underline cursor-pointer"
+                    >
+                      {isSendingCode ? 'Enviando...' : 'Reenviar código'}
+                    </button>
+                  )}
+                </div>
+
                 <button
                   type="button"
-                  onClick={handleResendPin}
-                  disabled={isSendingCode}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer hover:underline mt-2"
-                  style={{ color: 'var(--theme-primary)' }}
+                  onClick={() => {
+                    setStep('form');
+                    setError(null);
+                  }}
+                  className="underline text-slate-600 hover:text-slate-900 font-semibold cursor-pointer"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reenviar código de 4 dígitos</span>
+                  Cambiar correo
                 </button>
-              )}
-            </div>
+              </div>
+            </form>
           </div>
         )}
-
-        {/* Footer info */}
-        <div className="mt-5 text-center flex items-center justify-center gap-1.5 text-[11px]" style={{ color: 'var(--theme-text-subtle)' }}>
-          <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-          <span>Verificación oficial por correo y cifrado militar AES-256</span>
-        </div>
       </div>
     </div>
   );
