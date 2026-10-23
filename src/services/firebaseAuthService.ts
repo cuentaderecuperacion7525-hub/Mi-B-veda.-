@@ -523,7 +523,7 @@ export async function verifyWithActionCode(
 /**
  * Saves profile data to local storage and Firestore.
  */
-async function syncUserProfile(
+export async function syncUserProfile(
   uid: string,
   profile: {
     firstName: string;
