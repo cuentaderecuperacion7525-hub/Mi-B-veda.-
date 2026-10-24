@@ -1,5 +1,21 @@
+import { registerPlugin, Capacitor } from '@capacitor/core';
 import { userProfileService, UserProfile } from './userProfileService';
 import { syncUserProfile } from './firebaseAuthService';
+
+export interface NativeGoogleAuthResponse {
+  success: boolean;
+  email?: string;
+  displayName?: string;
+  provider?: string;
+  cancelled?: boolean;
+  error?: string;
+}
+
+export interface VaultGoogleAuthPluginInterface {
+  chooseGoogleAccount(): Promise<NativeGoogleAuthResponse>;
+}
+
+export const NativeGoogleAuth = registerPlugin<VaultGoogleAuthPluginInterface>('VaultGoogleAuth');
 
 export interface NativeGoogleAuthResult {
   success: boolean;
@@ -9,50 +25,74 @@ export interface NativeGoogleAuthResult {
 }
 
 /**
- * Servicio unificado de Autenticación de Google.
- * Diseñado para ser 100% compatible con Web, Android y CI (GitHub Actions)
- * sin requerir plugins binarios inestables que rompen Gradle.
+ * Invoca directamente el selector nativo oficial de Google Play Services / Android en el teléfono.
+ *
+ * En Android:
+ * - Desliza la tarjeta oficial de Google desde la parte inferior de la pantalla.
+ * - Muestra las cuentas reales de Gmail guardadas en el dispositivo (la tuya, la de un familiar o la opción de añadir otra).
+ * - Al pulsar la cuenta, entrega su nombre y correo real verificado.
+ * - Sin redirecciones web, sin abrir Chrome y sin errores de origin_mismatch.
  */
-export async function signInWithNativeGoogle(customEmail?: string, customName?: string): Promise<NativeGoogleAuthResult> {
+export async function signInWithNativeGoogle(): Promise<NativeGoogleAuthResult> {
   try {
-    const existing = userProfileService.getUserProfile();
-    const finalEmail = (customEmail || existing?.email || '').trim().toLowerCase();
-    const finalName = customName || existing?.firstName || (finalEmail ? finalEmail.split('@')[0] : 'Usuario');
+    // Si estamos en un dispositivo nativo Android
+    if (Capacitor.isNativePlatform()) {
+      const res = await NativeGoogleAuth.chooseGoogleAccount();
 
-    if (!finalEmail) {
+      if (res.cancelled) {
+        return {
+          success: false,
+          cancelled: true,
+        };
+      }
+
+      if (res.success && res.email) {
+        const cleanEmail = res.email.trim().toLowerCase();
+        const displayName = res.displayName || cleanEmail.split('@')[0] || 'Usuario';
+
+        // Guardar el perfil verificado en el almacenamiento seguro de la app
+        const profile = userProfileService.saveUserProfile({
+          firstName: displayName,
+          email: cleanEmail,
+          emailVerified: true,
+          authProvider: 'google.com',
+        });
+
+        // Sincronización secundaria en la nube si hay conexión
+        try {
+          const uid = `google_${btoa(cleanEmail).replace(/=/g, '')}`;
+          await syncUserProfile(uid, {
+            firstName: profile.firstName,
+            email: profile.email,
+            emailVerified: true,
+            authProvider: 'google.com',
+          });
+        } catch {
+          // Continúa sin bloquear
+        }
+
+        return {
+          success: true,
+          profile,
+        };
+      }
+
       return {
         success: false,
-        error: 'no_email_provided',
+        error: res.error || 'No se pudo obtener la cuenta seleccionada',
       };
     }
 
-    const profile = userProfileService.saveUserProfile({
-      firstName: finalName,
-      email: finalEmail,
-      emailVerified: true,
-      authProvider: 'google.com',
-    });
-
-    try {
-      const uid = `google_${btoa(finalEmail).replace(/=/g, '')}`;
-      await syncUserProfile(uid, {
-        firstName: profile.firstName,
-        email: profile.email,
-        emailVerified: true,
-        authProvider: 'google.com',
-      });
-    } catch {
-      // Sincronización secundaria silenciosa
-    }
-
-    return {
-      success: true,
-      profile,
-    };
-  } catch (err: any) {
+    // Entorno Web (Previsualizador de AI Studio / Navegador de escritorio)
     return {
       success: false,
-      error: err?.message || 'Error en autenticación con Google',
+      error: 'web_environment',
+    };
+  } catch (err: any) {
+    console.error('Error en selector nativo de Google:', err);
+    return {
+      success: false,
+      error: err?.message || 'Error al conectar con Google Play Services',
     };
   }
 }

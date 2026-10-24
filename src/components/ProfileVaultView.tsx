@@ -1114,49 +1114,6 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Canal de Reporte Discreto de Errores */}
-                  <div
-                    className="p-3 rounded-2xl border space-y-2"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-secondary)',
-                      borderColor: 'var(--theme-border)',
-                    }}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2">
-                        <Mail className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--theme-primary)' }} />
-                        <div>
-                          <p className="font-bold text-xs" style={{ color: 'var(--theme-text-main)' }}>
-                            ¿Encontraste un error?
-                          </p>
-                          <p className="text-[11px] leading-tight mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
-                            Reporta fallos de manera discreta a:
-                          </p>
-                          <a
-                            href="mailto:jmmrtinez5121@gmail.com?subject=Reporte%20de%20fallo%20-%20B%C3%B3veda%20Segura"
-                            className="text-xs font-mono font-medium underline break-all mt-1 inline-block hover:opacity-80"
-                            style={{ color: 'var(--theme-primary)' }}
-                          >
-                            jmmrtinez5121@gmail.com
-                          </a>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyEmail('jmmrtinez5121@gmail.com')}
-                        className="px-2.5 py-1.5 rounded-xl border text-[10px] font-semibold shrink-0 flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
-                        style={{
-                          backgroundColor: 'var(--theme-bg-card)',
-                          borderColor: 'var(--theme-border)',
-                          color: copiedEmail ? 'var(--theme-primary)' : 'var(--theme-text-main)',
-                        }}
-                      >
-                        {copiedEmail ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                        <span>{copiedEmail ? 'Copiado' : 'Copiar'}</span>
-                      </button>
-                    </div>
-                  </div>
-
                   {/* Sello de Derechos Reservados */}
                   <div className="text-center pt-1 border-t" style={{ borderColor: 'var(--theme-border)' }}>
                     <p className="text-[10px] font-semibold" style={{ color: 'var(--theme-text-subtle)' }}>

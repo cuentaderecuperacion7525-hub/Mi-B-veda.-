@@ -23,6 +23,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(VaultSecurityPlugin.class);
         registerPlugin(VaultMediaPlugin.class);
         registerPlugin(UpdaterPlugin.class);
+        registerPlugin(VaultGoogleAuthPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Bloqueo total a nivel de sistema operativo para capturas y grabaciones de pantalla
