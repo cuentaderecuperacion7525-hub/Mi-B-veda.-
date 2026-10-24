@@ -134,7 +134,7 @@ class UserProfileService {
       age: numAge,
       email: data.email.trim().toLowerCase(),
       emailVerified: data.emailVerified !== undefined ? data.emailVerified : true,
-      photoURL: data.photoURL || existing?.photoURL,
+      photoURL: data.photoURL !== undefined ? data.photoURL : existing?.photoURL,
       authProvider: data.authProvider || existing?.authProvider || 'google.com',
       registeredAt: existing?.registeredAt || Date.now(),
       avatarColor:

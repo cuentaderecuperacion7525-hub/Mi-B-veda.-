@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   User,
   Mail,
@@ -25,6 +25,10 @@ import {
   Copy,
   AlertCircle,
   Shield,
+  Camera,
+  Image as ImageIcon,
+  Trash2,
+  Pencil,
 } from 'lucide-react';
 import {
   userProfileService,
@@ -60,6 +64,10 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(() => userProfileService.getUserProfile());
   const [isEditing, setIsEditing] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
   const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [googleModalEmail, setGoogleModalEmail] = useState('');
   const [googleModalName, setGoogleModalName] = useState('');
@@ -120,6 +128,44 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     }
   };
 
+  const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Por favor selecciona una imagen válida', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      if (dataUrl) {
+        if (profile) {
+          userProfileService.saveUserProfile({
+            ...profile,
+            photoURL: dataUrl,
+          });
+        }
+        showToast('Foto de perfil actualizada', 'success');
+        setShowPhotoModal(false);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRemovePhoto = () => {
+    if (profile) {
+      userProfileService.saveUserProfile({
+        ...profile,
+        photoURL: '',
+      });
+      showToast('Foto de perfil eliminada', 'info');
+    }
+    setShowPhotoModal(false);
+  };
+
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanFirst = editFirst.trim();
@@ -170,14 +216,14 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     showToast(isEmailChanging ? 'Correo de Gmail confirmado y actualizado' : 'Perfil actualizado correctamente', 'success');
   };
 
-  const handleOpenGoogleModal = async () => {
+  const handleChangeGoogleAccount = async () => {
     try {
       const res = await signInWithNativeGoogle();
       if (res.success && res.profile) {
         setEditEmail(res.profile.email);
         if (res.profile.firstName) setEditFirst(res.profile.firstName);
         if (res.profile.lastName) setEditLast(res.profile.lastName);
-        showToast(`Cuenta de Google verificada: ${res.profile.email}`, 'success');
+        showToast(`Cuenta de Google seleccionada: ${res.profile.email}`, 'success');
         return;
       }
       if (res.cancelled) return;
@@ -246,148 +292,69 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       {/* Spacer */}
       <div className="safe-top-header-spacer shrink-0 w-full mb-3" />
 
-      {/* 1. ENCABEZADO DE PERFIL CON AVATAR DE GOOGLE */}
+      {/* 1. ENCABEZADO DE PERFIL CON AVATAR DE GOOGLE (IMAGEN 1) */}
       <div
-        className="rounded-3xl p-5 sm:p-6 shadow-xl border transition-colors relative overflow-hidden"
+        className="rounded-[26px] p-5 shadow-2xl border transition-colors relative overflow-hidden"
         style={{
-          backgroundColor: 'var(--theme-bg-card)',
-          borderColor: 'var(--theme-border)',
+          backgroundColor: '#0d1624',
+          borderColor: 'rgba(51, 65, 85, 0.6)',
         }}
       >
-        {/* Glow ambient background accent */}
-        <div
-          className="absolute -top-12 -right-12 w-40 h-40 rounded-full blur-3xl opacity-20 pointer-events-none"
-          style={{ backgroundColor: 'var(--theme-primary)' }}
-        />
-
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 relative z-10 text-center sm:text-left">
+        <div className="flex items-center gap-4 relative z-10">
           {/* Avatar / Foto de Google o Iniciales */}
-          <div className="relative group">
+          <div className="relative shrink-0">
             {profile?.photoURL ? (
               <img
                 src={profile.photoURL}
                 alt={profile.firstName}
-                className="w-20 h-20 sm:w-22 sm:h-22 rounded-3xl object-cover shadow-xl border-2"
-                style={{
-                  borderColor: 'var(--theme-border)',
-                  boxShadow: '0 8px 24px -4px var(--theme-glow)',
-                }}
+                className="w-18 h-18 sm:w-20 sm:h-20 rounded-[22px] object-cover shadow-lg border border-cyan-500/30"
                 referrerPolicy="no-referrer"
               />
             ) : (
               <div
-                className="w-20 h-20 sm:w-22 sm:h-22 rounded-3xl flex items-center justify-center text-white text-2xl font-black shadow-xl tracking-wider select-none border-2"
+                className="w-18 h-18 sm:w-20 sm:h-20 rounded-[22px] flex items-center justify-center text-white text-3xl font-extrabold shadow-lg tracking-wider select-none"
                 style={{
-                  background: profile?.avatarColor || 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                  borderColor: 'var(--theme-border)',
-                  boxShadow: '0 8px 24px -4px var(--theme-glow)',
+                  background: 'linear-gradient(135deg, #00f0b5, #00b4d8)',
                 }}
               >
                 {initials}
               </div>
             )}
-            <div
-              className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center border-2 shadow-sm"
-              style={{
-                backgroundColor: 'var(--theme-bg-card)',
-                borderColor: 'var(--theme-border)',
-              }}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+            {/* Insignia de Escudo Verificado en esquina inferior derecha */}
+            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#0a111e] border border-emerald-500/60 flex items-center justify-center shadow-md">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
             </div>
           </div>
 
           {/* Información del Perfil */}
           <div className="flex-1 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h2
-                  className="text-xl sm:text-2xl font-black tracking-tight"
-                  style={{ color: 'var(--theme-text-main)' }}
-                >
-                  {profile ? `${profile.firstName} ${profile.lastName || ''}`.trim() : 'Usuario de la Bóveda'}
-                </h2>
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-1.5">
-                  {/* Google Badge */}
-                  {profile?.authProvider === 'google.com' ? (
-                    <span
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border shadow-sm"
-                      style={{
-                        backgroundColor: 'rgba(66, 133, 244, 0.1)',
-                        borderColor: 'rgba(66, 133, 244, 0.3)',
-                        color: '#3b82f6',
-                      }}
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
-                        <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-                        <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
-                        <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-                      </svg>
-                      <span>Google Verificado</span>
-                    </span>
-                  ) : (
-                    <span
-                      className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border"
-                      style={{
-                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                        borderColor: 'rgba(16, 185, 129, 0.25)',
-                        color: '#059669',
-                      }}
-                    >
-                      <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                      <span>Correo Verificado</span>
-                    </span>
-                  )}
-
-                  {profile?.birthDate ? (
-                    <span
-                      className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border"
-                      style={{
-                        backgroundColor: 'var(--theme-bg-secondary)',
-                        borderColor: 'var(--theme-border)',
-                        color: 'var(--theme-text-muted)',
-                      }}
-                    >
-                      <Calendar className="w-3 h-3" />
-                      <span>{profile.birthDate}</span>
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Botón de Acción: Solo el lápiz sin texto */}
-              <div className="flex items-center gap-2 mx-auto sm:mx-0">
-                <button
-                  type="button"
-                  onClick={openEditModal}
-                  className="w-9 h-9 rounded-xl border flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-sm"
-                  style={{
-                    backgroundColor: 'var(--theme-bg-secondary)',
-                    borderColor: 'var(--theme-border)',
-                    color: 'var(--theme-text-main)',
-                  }}
-                  title="Editar perfil"
-                  aria-label="Editar"
-                >
-                  <Edit3 className="w-4 h-4" style={{ color: 'var(--theme-primary)' }} />
-                </button>
-              </div>
-            </div>
-
-            {/* Correo Electrónico */}
-            <div
-              className="mt-3 pt-3 border-t flex items-center justify-center sm:justify-start gap-2 text-xs"
-              style={{
-                borderColor: 'var(--theme-border)',
-                color: 'var(--theme-text-muted)',
-              }}
-            >
-              <Mail className="w-4 h-4 shrink-0" style={{ color: 'var(--theme-primary)' }} />
-              <span className="truncate font-mono">{profile?.email || 'Sin correo configurado'}</span>
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight truncate">
+              {profile ? `${profile.firstName} ${profile.lastName || ''}`.trim() : 'Usuario'}
+            </h2>
+            <p className="text-xs text-slate-400 font-mono tracking-tight mt-0.5 truncate">
+              {profile?.email || 'Sin correo vinculado'}
+            </p>
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-blue-500/40 bg-blue-500/10 text-xs font-semibold text-blue-400">
+              <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+              </svg>
+              <span>Google verificado</span>
             </div>
           </div>
         </div>
+
+        {/* Botón Completo "Editar perfil" con lápiz y degradado cian/azul */}
+        <button
+          type="button"
+          onClick={openEditModal}
+          className="w-full mt-4 py-3.5 px-4 rounded-[16px] font-bold text-sm text-slate-950 bg-gradient-to-r from-[#00f2fe] to-[#4facfe] flex items-center justify-center gap-2 shadow-[0_4px_18px_rgba(0,242,254,0.35)] active:scale-[0.99] transition-all cursor-pointer"
+        >
+          <Pencil className="w-4 h-4 text-slate-950" />
+          <span>Editar perfil</span>
+        </button>
       </div>
 
       {/* 2. TARJETA DE RESUMEN DE ALMACENAMIENTO */}
@@ -703,47 +670,86 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
         </p>
       </div>
 
-      {/* MODAL: EDITAR PERFIL */}
+      {/* MODAL: EDITAR MIS DATOS (IMAGEN 2) */}
       {isEditing && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
           <div
-            className="w-full max-w-sm rounded-3xl p-6 shadow-2xl border transition-all"
+            className="w-full max-w-md rounded-t-[32px] sm:rounded-3xl p-6 shadow-2xl border transition-all animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto"
             style={{
-              backgroundColor: 'var(--theme-bg-card)',
-              borderColor: 'var(--theme-border)',
-              color: 'var(--theme-text-main)',
+              backgroundColor: '#0a111e',
+              borderColor: 'rgba(51, 65, 85, 0.7)',
             }}
           >
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center border"
-                  style={{
-                    backgroundColor: 'color-mix(in srgb, var(--theme-primary) 12%, transparent)',
-                    borderColor: 'color-mix(in srgb, var(--theme-primary) 30%, transparent)',
-                    color: 'var(--theme-primary)',
-                  }}
-                >
-                  <Edit3 className="w-4 h-4" />
+            {/* Barra superior de arrastre */}
+            <div className="w-12 h-1 rounded-full bg-slate-700/60 mx-auto mb-4" />
+
+            {/* Cabecera: Icono lápiz + Título + Botón Cerrar */}
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-sm">
+                  <Pencil className="w-5 h-5" />
                 </div>
-                <h3 className="font-bold text-sm" style={{ color: 'var(--theme-text-main)' }}>
-                  Editar Mis Datos y Cuenta
+                <h3 className="text-xl font-bold text-white tracking-tight">
+                  Editar mis datos
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsEditing(false)}
-                className="p-1.5 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                style={{ color: 'var(--theme-text-muted)' }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white cursor-pointer transition-colors"
               >
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
-            {/* FORMULARIO DE EDICIÓN DE PERFIL */}
-            <form onSubmit={handleSaveEdit} className="space-y-3.5 text-left">
+            {/* Sección Foto de perfil con Camarita */}
+            <div className="flex items-center gap-4 mb-6">
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowPhotoModal(true)}
+                  className="block relative rounded-[22px] group cursor-pointer focus:outline-none"
+                  title="Cambiar foto de perfil"
+                >
+                  {profile?.photoURL ? (
+                    <img
+                      src={profile.photoURL}
+                      alt={profile.firstName}
+                      className="w-20 h-20 rounded-[22px] object-cover shadow-lg border border-cyan-500/40"
+                    />
+                  ) : (
+                    <div
+                      className="w-20 h-20 rounded-[22px] flex items-center justify-center text-white text-3xl font-extrabold shadow-lg select-none"
+                      style={{
+                        background: 'linear-gradient(135deg, #00f0b5, #00b4d8)',
+                      }}
+                    >
+                      {initials}
+                    </div>
+                  )}
+                  {/* Badge botón camarita */}
+                  <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[#132238] border-2 border-[#1e3456] flex items-center justify-center text-cyan-400 shadow-md group-hover:scale-110 active:scale-95 transition-transform">
+                    <Camera className="w-3.5 h-3.5" />
+                  </div>
+                </button>
+              </div>
+
+              <div>
+                <h4 className="text-base font-bold text-white">
+                  Foto de perfil
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Toca la cámara para cambiarla
+                </p>
+              </div>
+            </div>
+
+            {/* Formulario */}
+            <form onSubmit={handleSaveEdit} className="space-y-4 text-left">
+              {/* Fila Nombre(s) y Apellidos */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     Nombre(s) <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -751,36 +757,31 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                     value={editFirst}
                     onChange={(e) => setEditFirst(e.target.value)}
                     required
-                    className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
+                    placeholder="Nombre(s)"
+                    className="w-full rounded-xl bg-[#0c1626] border border-slate-700/80 px-3.5 py-3 text-sm text-white font-medium focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
-                    Apellidos (Opcional)
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Apellidos
                   </label>
                   <input
                     type="text"
                     value={editLast}
                     onChange={(e) => setEditLast(e.target.value)}
-                    className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
+                    placeholder="Opcional"
+                    className="w-full rounded-xl bg-[#0c1626] border border-slate-700/80 px-3.5 py-3 text-sm text-white font-medium focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none transition-colors"
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
-                    Fecha de Nacimiento (Opcional)
-                  </label>
+              {/* Fecha de nacimiento con icono calendario */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Fecha de nacimiento
+                </label>
+                <div className="relative flex items-center">
                   <input
                     type="text"
                     inputMode="numeric"
@@ -788,111 +789,157 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                     onChange={(e) => handleBirthDateEdit(e.target.value)}
                     placeholder="DD/MM/AAAA"
                     maxLength={10}
-                    className="w-full rounded-xl px-3.5 py-2.5 text-xs font-mono font-medium border outline-none focus:ring-1"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
+                    className="w-full rounded-xl bg-[#0c1626] border border-slate-700/80 px-3.5 py-3 pr-10 text-sm text-white font-mono font-medium focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none transition-colors"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--theme-text-main)' }}>
-                    Correo Electrónico de Gmail <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={editEmail}
-                    onChange={(e) => {
-                      setEditEmail(e.target.value);
-                      setEditError(null);
-                    }}
-                    required
-                    placeholder="tu-correo@gmail.com"
-                    className="w-full rounded-xl px-3.5 py-2.5 text-xs font-medium border outline-none focus:ring-1"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-input)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
-                  />
-
-                  {/* Botón para cambiar o confirmar con Google */}
-                  <button
-                    type="button"
-                    onClick={handleOpenGoogleModal}
-                    className="mt-2 w-full py-2.5 px-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer hover:opacity-90 active:scale-[0.99]"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-secondary)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
-                  >
-                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                    <span>Seleccionar cuenta de Gmail</span>
-                  </button>
-                </div>
-
-                {editError && (
-                  <div
-                    className="p-2.5 rounded-xl text-xs border"
-                    style={{
-                      backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                      borderColor: 'rgba(244, 63, 94, 0.3)',
-                      color: '#e11d48',
-                    }}
-                  >
-                    {editError}
+                  <div className="absolute right-3.5 pointer-events-none text-cyan-400">
+                    <Calendar className="w-5 h-5" />
                   </div>
-                )}
+                </div>
+              </div>
 
-                <div className="flex gap-2 pt-2">
+              {/* Correo de Gmail con logo y botón Cambiar */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Correo de Gmail <span className="text-rose-500">*</span>
+                </label>
+                <div className="w-full rounded-xl bg-[#0c1626] border border-slate-700/80 px-3.5 py-2.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
+                    <span className="text-sm text-slate-200 font-mono truncate">
+                      {editEmail || profile?.email || 'Sin correo'}
+                    </span>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => setIsEditing(false)}
-                    className="flex-1 py-2.5 rounded-xl text-xs font-semibold border cursor-pointer transition-colors"
-                    style={{
-                      backgroundColor: 'var(--theme-bg-secondary)',
-                      borderColor: 'var(--theme-border)',
-                      color: 'var(--theme-text-main)',
-                    }}
+                    onClick={handleChangeGoogleAccount}
+                    className="shrink-0 px-3.5 py-1.5 rounded-lg border border-blue-500/40 bg-blue-500/10 text-xs font-semibold text-blue-400 hover:bg-blue-500/20 active:scale-95 transition-all cursor-pointer"
                   >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-2.5 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
-                    style={{
-                      background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                      boxShadow: '0 4px 14px -2px var(--theme-glow)',
-                    }}
-                  >
-                    <Save className="w-3.5 h-3.5 text-white" />
-                    <span>Guardar</span>
+                    Cambiar
                   </button>
                 </div>
-              </form>
-            </div>
+                <p className="text-[11px] text-slate-400 mt-1.5">
+                  Vinculado a tu cuenta de Google
+                </p>
+              </div>
+
+              {editError && (
+                <div className="p-2.5 rounded-xl text-xs border border-rose-500/30 bg-rose-500/10 text-rose-400">
+                  {editError}
+                </div>
+              )}
+
+              {/* Botones inferiores: Cancelar y Guardar */}
+              <div className="flex items-center justify-between pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="px-5 py-2.5 text-sm font-semibold text-slate-300 hover:text-white cursor-pointer transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="py-3 px-8 rounded-xl font-bold text-sm text-slate-950 bg-gradient-to-r from-[#00f2fe] to-[#4facfe] flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(0,242,254,0.3)] active:scale-95 transition-all cursor-pointer"
+                >
+                  <Save className="w-4 h-4 text-slate-950" />
+                  <span>Guardar</span>
+                </button>
+              </div>
+            </form>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* MODAL: FOTO DEL PERFIL (IMAGEN 3) */}
+      {showPhotoModal && (
+        <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+          <div
+            className="w-full max-w-md rounded-t-[32px] sm:rounded-3xl p-6 shadow-2xl border transition-all animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-200"
+            style={{
+              backgroundColor: '#0a111e',
+              borderColor: 'rgba(51, 65, 85, 0.7)',
+            }}
+          >
+            {/* Barra superior de arrastre */}
+            <div className="w-12 h-1 rounded-full bg-slate-700/60 mx-auto mb-4" />
+
+            {/* Cabecera: Cerrar (X) + Título + Papelera */}
+            <div className="flex justify-between items-center mb-6">
+              <button
+                type="button"
+                onClick={() => setShowPhotoModal(false)}
+                className="p-1 rounded-lg text-slate-300 hover:text-white cursor-pointer transition-colors"
+                title="Cerrar"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <h3 className="text-xl font-bold text-white tracking-tight">
+                Foto del perfil
+              </h3>
+
+              <button
+                type="button"
+                onClick={handleRemovePhoto}
+                className="p-1 rounded-lg text-slate-400 hover:text-rose-400 cursor-pointer transition-colors"
+                title="Eliminar foto"
+              >
+                <Trash2 className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Opciones: Cámara y Galería */}
+            <div className="space-y-2">
+              {/* Opción Cámara */}
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                className="w-full py-4 px-4 rounded-2xl flex items-center gap-4 hover:bg-slate-800/40 active:bg-slate-800/70 transition-colors text-left cursor-pointer group"
+              >
+                <Camera className="w-6 h-6 text-slate-300 group-hover:text-cyan-400 transition-colors" />
+                <span className="text-base font-medium text-white">
+                  Cámara
+                </span>
+              </button>
+
+              {/* Opción Galería */}
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                className="w-full py-4 px-4 rounded-2xl flex items-center gap-4 hover:bg-slate-800/40 active:bg-slate-800/70 transition-colors text-left cursor-pointer group"
+              >
+                <ImageIcon className="w-6 h-6 text-slate-300 group-hover:text-cyan-400 transition-colors" />
+                <span className="text-base font-medium text-white">
+                  Galería
+                </span>
+              </button>
+            </div>
+
+            {/* Hidden file inputs */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handlePhotoFileChange}
+            />
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhotoFileChange}
+            />
+          </div>
+        </div>
+      )}
 
       {/* MODAL: CUENTA GOOGLE CON PERMITIR / RECHAZAR */}
       {showGoogleModal && (
