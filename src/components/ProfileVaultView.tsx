@@ -73,6 +73,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   const [editBirthDate, setEditBirthDate] = useState('');
   const [editCalculatedAge, setEditCalculatedAge] = useState<number | null>(null);
   const [editEmail, setEditEmail] = useState('');
+  const [editPhotoURL, setEditPhotoURL] = useState<string | undefined>(undefined);
   const [editError, setEditError] = useState<string | null>(null);
 
   // Modals for Support, Terms, and Developer
@@ -101,12 +102,14 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       setEditBirthDate(profile.birthDate || '');
       setEditCalculatedAge(profile.age || (profile.birthDate ? calculateAgeFromBirthDate(profile.birthDate) : null));
       setEditEmail(profile.email);
+      setEditPhotoURL(profile.photoURL);
     } else {
       setEditFirst('');
       setEditLast('');
       setEditBirthDate('');
       setEditCalculatedAge(null);
       setEditEmail('');
+      setEditPhotoURL(undefined);
     }
     setEditError(null);
     setIsEditing(true);
@@ -137,12 +140,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     reader.onload = () => {
       const dataUrl = reader.result as string;
       if (dataUrl) {
-        if (profile) {
-          userProfileService.saveUserProfile({
-            ...profile,
-            photoURL: dataUrl,
-          });
-        }
+        setEditPhotoURL(dataUrl);
         showToast('Foto de perfil actualizada', 'success');
         setShowPhotoModal(false);
       }
@@ -152,13 +150,8 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   };
 
   const handleRemovePhoto = () => {
-    if (profile) {
-      userProfileService.saveUserProfile({
-        ...profile,
-        photoURL: '',
-      });
-      showToast('Foto de perfil eliminada', 'info');
-    }
+    setEditPhotoURL('');
+    showToast('Foto de perfil eliminada', 'info');
     setShowPhotoModal(false);
   };
 
@@ -204,7 +197,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       age: age ?? profile?.age,
       email: cleanEmail,
       emailVerified: true,
-      photoURL: profile?.photoURL,
+      photoURL: editPhotoURL !== undefined ? editPhotoURL : profile?.photoURL,
       authProvider: 'google.com',
     });
 
@@ -217,8 +210,12 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       const res = await signInWithNativeGoogle();
       if (res.success && res.profile) {
         setEditEmail(res.profile.email);
-        if (res.profile.firstName) setEditFirst(res.profile.firstName);
-        if (res.profile.lastName) setEditLast(res.profile.lastName);
+        setEditFirst(res.profile.firstName || '');
+        setEditLast(res.profile.lastName || '');
+        setEditBirthDate('');
+        setEditCalculatedAge(null);
+        setEditPhotoURL(res.profile.photoURL || '');
+        setEditError(null);
         showToast(`Cuenta de Google seleccionada: ${res.profile.email}`, 'success');
         return;
       }
@@ -687,10 +684,10 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                   className="block relative rounded-[22px] group cursor-pointer focus:outline-none"
                   title="Cambiar foto de perfil"
                 >
-                  {profile?.photoURL ? (
+                  {(editPhotoURL !== undefined ? editPhotoURL : profile?.photoURL) ? (
                     <img
-                      src={profile.photoURL}
-                      alt={profile.firstName}
+                      src={editPhotoURL !== undefined ? editPhotoURL : profile?.photoURL}
+                      alt={editFirst || profile?.firstName || 'Perfil'}
                       className="w-20 h-20 rounded-[22px] object-cover shadow-lg border border-cyan-500/40"
                     />
                   ) : (
@@ -700,7 +697,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                         background: 'linear-gradient(135deg, #00f0b5, #00b4d8)',
                       }}
                     >
-                      {initials}
+                      {(editFirst.trim() || editEmail.trim() || 'U').charAt(0).toUpperCase()}
                     </div>
                   )}
                   {/* Badge botón camarita */}

@@ -4,6 +4,7 @@ import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.accounts.AccountManagerCallback;
 import android.accounts.AccountManagerFuture;
+import android.accounts.OperationCanceledException;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Build;
@@ -78,10 +79,77 @@ public class VaultGoogleAuthPlugin extends Plugin {
         if (resultCode == Activity.RESULT_OK && data != null) {
             String accountName = data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME);
             if (accountName != null && !accountName.trim().isEmpty()) {
-                String cleanEmail = accountName.trim().toLowerCase();
-                String displayName = cleanEmail.split("@")[0];
-                if (displayName.length() > 0) {
-                    displayName = displayName.substring(0, 1).toUpperCase() + displayName.substring(1);
+                final String cleanEmail = accountName.trim().toLowerCase();
+                String namePart = cleanEmail.split("@")[0];
+                final String displayName = namePart.length() > 0
+                    ? namePart.substring(0, 1).toUpperCase() + namePart.substring(1)
+                    : "Usuario";
+
+                final Activity activity = getActivity();
+                if (activity == null) {
+                    JSObject ret = new JSObject();
+                    ret.put("success", true);
+                    ret.put("email", cleanEmail);
+                    ret.put("displayName", displayName);
+                    ret.put("provider", "google.com");
+                    call.resolve(ret);
+                    return;
+                }
+
+                // Solicitar la autorización oficial de Google Play Services con la pantalla nativa de "¿Permitir o Cancelar?"
+                try {
+                    Account account = new Account(cleanEmail, "com.google");
+                    AccountManager am = AccountManager.get(activity);
+
+                    am.getAuthToken(
+                        account,
+                        OAUTH_SCOPE,
+                        null,
+                        activity,
+                        new AccountManagerCallback<Bundle>() {
+                            @Override
+                            public void run(AccountManagerFuture<Bundle> future) {
+                                try {
+                                    Bundle bundle = future.getResult();
+                                    if (bundle != null) {
+                                        String confirmedAccount = bundle.getString(AccountManager.KEY_ACCOUNT_NAME);
+                                        String finalEmail = (confirmedAccount != null && !confirmedAccount.trim().isEmpty())
+                                            ? confirmedAccount.trim().toLowerCase()
+                                            : cleanEmail;
+
+                                        JSObject ret = new JSObject();
+                                        ret.put("success", true);
+                                        ret.put("email", finalEmail);
+                                        ret.put("displayName", displayName);
+                                        ret.put("provider", "google.com");
+                                        call.resolve(ret);
+                                        return;
+                                    }
+                                } catch (OperationCanceledException oce) {
+                                    Log.i(TAG, "Usuario canceló en la pantalla oficial de Google de Permitir/Cancelar");
+                                    JSObject ret = new JSObject();
+                                    ret.put("success", false);
+                                    ret.put("cancelled", true);
+                                    call.resolve(ret);
+                                    return;
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Aviso al obtener autorización de Google: " + e.getMessage());
+                                }
+
+                                // Si ya contaba con la autorización previa del sistema
+                                JSObject ret = new JSObject();
+                                ret.put("success", true);
+                                ret.put("email", cleanEmail);
+                                ret.put("displayName", displayName);
+                                ret.put("provider", "google.com");
+                                call.resolve(ret);
+                            }
+                        },
+                        null
+                    );
+                    return;
+                } catch (Exception e) {
+                    Log.e(TAG, "Fallo al solicitar getAuthToken", e);
                 }
 
                 JSObject ret = new JSObject();

@@ -53,8 +53,10 @@ export async function signInWithNativeGoogle(): Promise<NativeGoogleAuthResult> 
         // Guardar el perfil verificado en el almacenamiento seguro de la app
         const profile = userProfileService.saveUserProfile({
           firstName: displayName,
+          lastName: '',
           email: cleanEmail,
           emailVerified: true,
+          photoURL: '',
           authProvider: 'google.com',
         });
 

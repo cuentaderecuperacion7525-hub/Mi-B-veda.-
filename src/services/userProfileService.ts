@@ -116,6 +116,8 @@ class UserProfileService {
     avatarColor?: string;
   }): UserProfile {
     const existing = this.getUserProfile();
+    const cleanEmail = data.email.trim().toLowerCase();
+    const isSameAccount = existing && existing.email.toLowerCase() === cleanEmail;
 
     let numAge: number | undefined = undefined;
     if (data.age !== undefined && data.age !== null && data.age !== '') {
@@ -124,22 +126,22 @@ class UserProfileService {
     } else if (data.birthDate) {
       numAge = calculateAgeFromBirthDate(data.birthDate) ?? undefined;
     } else {
-      numAge = existing?.age;
+      numAge = isSameAccount ? existing?.age : undefined;
     }
 
     const profile: UserProfile = {
       firstName: data.firstName.trim(),
-      lastName: data.lastName ? data.lastName.trim() : existing?.lastName || '',
-      birthDate: data.birthDate !== undefined ? data.birthDate.trim() : existing?.birthDate,
+      lastName: data.lastName !== undefined ? data.lastName.trim() : (isSameAccount ? existing?.lastName || '' : ''),
+      birthDate: data.birthDate !== undefined ? data.birthDate.trim() : (isSameAccount ? existing?.birthDate : undefined),
       age: numAge,
-      email: data.email.trim().toLowerCase(),
+      email: cleanEmail,
       emailVerified: data.emailVerified !== undefined ? data.emailVerified : true,
-      photoURL: data.photoURL !== undefined ? data.photoURL : existing?.photoURL,
-      authProvider: data.authProvider || existing?.authProvider || 'google.com',
-      registeredAt: existing?.registeredAt || Date.now(),
+      photoURL: data.photoURL !== undefined ? data.photoURL : (isSameAccount ? existing?.photoURL : undefined),
+      authProvider: data.authProvider || (isSameAccount ? existing?.authProvider : undefined) || 'google.com',
+      registeredAt: isSameAccount && existing ? existing.registeredAt : Date.now(),
       avatarColor:
         data.avatarColor ||
-        existing?.avatarColor ||
+        (isSameAccount && existing ? existing.avatarColor : undefined) ||
         AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
     };
 

@@ -44,6 +44,8 @@ import {
   Rows3,
   User,
   Info,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import {
   EncryptedVaultItem,
@@ -1479,6 +1481,32 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   TUS ARCHIVOS, SIEMPRE PROTEGIDOS
                 </p>
               </div>
+
+              {/* Botón de cambio de tema: Luna (en tema blanco) para cambiar a oscuro, Sol (en tema oscuro) para cambiar a blanco */}
+              <button
+                type="button"
+                onClick={() => {
+                  const nextTheme: VaultTheme = currentTheme === 'light' ? 'cyan' : 'light';
+                  themeService.setTheme(nextTheme);
+                  showToast(
+                    nextTheme === 'light' ? 'Modo claro activado' : 'Modo oscuro activado',
+                    'info'
+                  );
+                }}
+                className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 border shadow-sm cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                }}
+                aria-label={currentTheme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+                title={currentTheme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+              >
+                {currentTheme === 'light' ? (
+                  <Moon className="w-5 h-5 text-slate-700" strokeWidth={1.8} />
+                ) : (
+                  <Sun className="w-5 h-5 text-amber-400" strokeWidth={1.8} />
+                )}
+              </button>
             </div>
           </header>
 
