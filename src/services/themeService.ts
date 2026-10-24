@@ -65,7 +65,7 @@ export const VAULT_THEMES: Record<VaultTheme, ThemeDefinition> = {
   },
 };
 
-const THEME_STORAGE_KEY = 'vault_app_theme';
+const THEME_STORAGE_KEY = 'vault_theme_mode_v2';
 
 class ThemeService {
   private currentTheme: VaultTheme = 'light';
@@ -81,7 +81,7 @@ class ThemeService {
       if (saved && (saved === 'cyan' || saved === 'light')) {
         this.currentTheme = saved;
       } else {
-        // Por defecto la aplicación inicia en tema blanco (claro)
+        // Por defecto la aplicación inicia siempre en tema blanco (claro)
         this.currentTheme = 'light';
         localStorage.setItem(THEME_STORAGE_KEY, 'light');
       }
@@ -96,11 +96,11 @@ class ThemeService {
   }
 
   public getThemeDefinition(theme?: VaultTheme): ThemeDefinition {
-    return VAULT_THEMES[theme || this.currentTheme] || VAULT_THEMES.cyan;
+    return VAULT_THEMES[theme || this.currentTheme] || VAULT_THEMES.light;
   }
 
   public setTheme(theme: VaultTheme) {
-    if (!VAULT_THEMES[theme]) return;
+    if (!VAULT_THEMES[theme] || this.currentTheme === theme) return;
     this.currentTheme = theme;
     try {
       localStorage.setItem(THEME_STORAGE_KEY, theme);
@@ -129,8 +129,11 @@ class ThemeService {
 
   private applyToDom(theme: VaultTheme) {
     if (typeof document === 'undefined') return;
-    const def = VAULT_THEMES[theme] || VAULT_THEMES.cyan;
+    const def = VAULT_THEMES[theme] || VAULT_THEMES.light;
     const root = document.documentElement;
+
+    // Congelar transiciones CSS durante el cambio de tema para evitar parpadeos
+    root.classList.add('theme-switching');
 
     root.setAttribute('data-theme', theme);
     root.classList.remove('theme-cyan', 'theme-amoled', 'theme-emerald', 'theme-violet', 'theme-light');
@@ -169,6 +172,14 @@ class ThemeService {
     if (metaThemeColor) {
       metaThemeColor.setAttribute('content', def.bgMain);
     }
+
+    // Forzar reflujo sincrónico y reactivar transiciones en el siguiente frame
+    void root.offsetHeight;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        root.classList.remove('theme-switching');
+      });
+    });
   }
 }
 

@@ -4,18 +4,26 @@
   :root {
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --theme-bg-main: #060b14;
-    --theme-bg-card: #0a121d;
-    --theme-bg-secondary: #0f172a;
-    --theme-bg-header: rgba(6, 11, 20, 0.94);
-    --theme-bg-input: #0a121d;
-    --theme-primary: #00e5ff;
-    --theme-primary-hover: #00cce6;
-    --theme-glow: rgba(0, 229, 255, 0.45);
-    --theme-text-main: #f8fafc;
-    --theme-text-muted: #94a3b8;
+    --theme-bg-main: #f1f5f9;
+    --theme-bg-card: #ffffff;
+    --theme-bg-secondary: #f8fafc;
+    --theme-bg-header: rgba(255, 255, 255, 0.95);
+    --theme-bg-input: #ffffff;
+    --theme-primary: #0284c7;
+    --theme-primary-hover: #0369a1;
+    --theme-glow: rgba(2, 132, 199, 0.25);
+    --theme-text-main: #0f172a;
+    --theme-text-muted: #475569;
     --theme-text-subtle: #64748b;
-    --theme-border: rgba(51, 65, 85, 0.75);
+    --theme-border: #cbd5e1;
+  }
+
+  html.theme-switching,
+  html.theme-switching *,
+  html.theme-switching *::before,
+  html.theme-switching *::after {
+    transition: none !important;
+    animation-duration: 0s !important;
   }
 
   html, body {
@@ -24,9 +32,8 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    background-color: var(--theme-bg-main, #060b14) !important;
-    color: var(--theme-text-main, #f8fafc) !important;
-    transition: background-color 0.25s ease, color 0.25s ease;
+    background-color: var(--theme-bg-main, #f1f5f9) !important;
+    color: var(--theme-text-main, #0f172a) !important;
     overflow-x: clip;
     overscroll-behavior-x: none;
     overscroll-behavior-y: none;

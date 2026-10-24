@@ -1462,22 +1462,22 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           onOpenSettings={() => navigateToTab('settings')}
         />
       ) : activeCategory === null ? (
-        <div className="max-w-md mx-auto w-full px-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+4.5rem),4.75rem)] flex flex-col animate-in fade-in duration-200">
+        <div className="max-w-md mx-auto w-full px-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+4.5rem),4.75rem)] flex flex-col">
           {/* Fixed Pinned Header */}
           <header
-            className="fixed top-0 left-0 right-0 z-30 [backdrop-filter:blur(24px)] backdrop-blur-xl border-b safe-top-sticky pb-3 px-4 shadow-md transition-all"
+            className="fixed top-0 left-0 right-0 z-30 [backdrop-filter:blur(24px)] backdrop-blur-xl border-b safe-top-sticky pb-3 px-4 shadow-md"
             style={{
-              backgroundColor: 'var(--theme-bg-header, rgba(6, 11, 20, 0.94))',
-              borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.8))',
+              backgroundColor: 'var(--theme-bg-header, rgba(255, 255, 255, 0.95))',
+              borderColor: 'var(--theme-border, #cbd5e1)',
               WebkitBackdropFilter: 'blur(24px)',
             }}
           >
             <div className="max-w-md mx-auto w-full flex items-center justify-between">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-0.5" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
-                  Mi <span style={{ color: 'var(--theme-primary, #00e5ff)' }}>Bóveda</span>
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-0.5" style={{ color: 'var(--theme-text-main, #0f172a)' }}>
+                  Mi <span style={{ color: 'var(--theme-primary, #0284c7)' }}>Bóveda</span>
                 </h1>
-                <p className="text-[10px] font-semibold tracking-[0.2em] uppercase" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
+                <p className="text-[10px] font-semibold tracking-[0.2em] uppercase" style={{ color: 'var(--theme-text-muted, #475569)' }}>
                   TUS ARCHIVOS, SIEMPRE PROTEGIDOS
                 </p>
               </div>
@@ -1488,15 +1488,11 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 onClick={() => {
                   const nextTheme: VaultTheme = currentTheme === 'light' ? 'cyan' : 'light';
                   themeService.setTheme(nextTheme);
-                  showToast(
-                    nextTheme === 'light' ? 'Modo claro activado' : 'Modo oscuro activado',
-                    'info'
-                  );
                 }}
-                className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 border shadow-sm cursor-pointer"
+                className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 border shadow-sm cursor-pointer"
                 style={{
-                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
-                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                  backgroundColor: 'var(--theme-bg-card, #ffffff)',
+                  borderColor: 'var(--theme-border, #cbd5e1)',
                 }}
                 aria-label={currentTheme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
                 title={currentTheme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
