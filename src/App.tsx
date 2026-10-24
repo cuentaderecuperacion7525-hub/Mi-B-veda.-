@@ -95,8 +95,12 @@ export default function App() {
 
   // Lock Vault Action
   const lockVault = useCallback(() => {
-    // Strictly forbid locking while picking files or running backup operations
-    if ((window as any).__isPickingFile || (window as any).__isProcessingBackup) {
+    // Strictly forbid locking while picking files, authenticating Google account, or running backup operations
+    if (
+      (window as any).__isPickingFile ||
+      (window as any).__isProcessingBackup ||
+      (window as any).__isAuthenticatingGoogle
+    ) {
       return;
     }
     // CRITICAL: NEVER lock if the vault is not in 'unlocked' state!
@@ -274,14 +278,16 @@ export default function App() {
     let appStateHandle: any = null;
 
     const isUserPickingFiles = () => {
-      if ((window as any).__isPickingFile) return true;
+      if ((window as any).__isPickingFile || (window as any).__isAuthenticatingGoogle) return true;
       const startTime = (window as any).__filePickingStartTime || 0;
       if (startTime > 0 && Date.now() - startTime < 180000) return true; // 3 min grace window while picking files
+      const googleAuthStart = (window as any).__googleAuthStartTime || 0;
+      if (googleAuthStart > 0 && Date.now() - googleAuthStart < 180000) return true;
       return false;
     };
 
     const handleMinimizeOrBackground = () => {
-      if (isUserPickingFiles() || (window as any).__isProcessingBackup) {
+      if (isUserPickingFiles() || (window as any).__isProcessingBackup || (window as any).__isAuthenticatingGoogle) {
         return;
       }
       // CRITICAL: NEVER lock if in 'register' or 'setup' mode!
@@ -372,8 +378,12 @@ export default function App() {
       if (inactivityTimerRef.current) {
         window.clearTimeout(inactivityTimerRef.current);
       }
-      if ((window as any).__isProcessingBackup || (window as any).__isPickingFile) {
-        // Pause auto-lock completely during backup generation/restoration or file picking
+      if (
+        (window as any).__isProcessingBackup ||
+        (window as any).__isPickingFile ||
+        (window as any).__isAuthenticatingGoogle
+      ) {
+        // Pause auto-lock completely during backup generation/restoration, Google auth, or file picking
         return;
       }
       inactivityTimerRef.current = window.setTimeout(() => {

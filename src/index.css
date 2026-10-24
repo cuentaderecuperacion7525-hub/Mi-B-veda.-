@@ -318,6 +318,17 @@
   stroke: #ffffff !important;
 }
 
+/* Botón Cambiar correo en Editar Perfil (tema claro) */
+[data-theme="light"] button.profile-change-email-btn,
+[data-theme="light"] button.profile-change-email-btn * {
+  color: #1d4ed8 !important;
+  stroke: #1d4ed8 !important;
+}
+[data-theme="light"] button.profile-change-email-btn {
+  background-color: #eff6ff !important;
+  border-color: #60a5fa !important;
+}
+
 /* Secondary cancel/close buttons in light mode */
 [data-theme="light"] button[class*="bg-slate-800"]:not(.grid button):not(.rounded-full),
 [data-theme="light"] button[class*="bg-slate-700"]:not(.grid button):not(.rounded-full),

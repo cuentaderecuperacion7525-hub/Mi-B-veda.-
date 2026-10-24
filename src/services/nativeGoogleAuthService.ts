@@ -37,7 +37,18 @@ export async function signInWithNativeGoogle(): Promise<NativeGoogleAuthResult> 
   try {
     // Si estamos en un dispositivo nativo Android
     if (Capacitor.isNativePlatform()) {
-      const res = await NativeGoogleAuth.chooseGoogleAccount();
+      (window as any).__isAuthenticatingGoogle = true;
+      (window as any).__googleAuthStartTime = Date.now();
+
+      let res: NativeGoogleAuthResponse;
+      try {
+        res = await NativeGoogleAuth.chooseGoogleAccount();
+      } finally {
+        setTimeout(() => {
+          (window as any).__isAuthenticatingGoogle = false;
+          (window as any).__googleAuthStartTime = 0;
+        }, 3000);
+      }
 
       if (res.cancelled) {
         return {
@@ -49,14 +60,17 @@ export async function signInWithNativeGoogle(): Promise<NativeGoogleAuthResult> 
       if (res.success && res.email) {
         const cleanEmail = res.email.trim().toLowerCase();
         const displayName = res.displayName || cleanEmail.split('@')[0] || 'Usuario';
+        const existing = userProfileService.getUserProfile();
 
-        // Guardar el perfil verificado en el almacenamiento seguro de la app
+        // Guardar el perfil verificado preservando foto, apellidos y fecha de nacimiento si ya existían
         const profile = userProfileService.saveUserProfile({
           firstName: displayName,
-          lastName: '',
+          lastName: existing?.lastName || '',
+          birthDate: existing?.birthDate,
+          age: existing?.age,
           email: cleanEmail,
           emailVerified: true,
-          photoURL: '',
+          photoURL: existing?.photoURL || '',
           authProvider: 'google.com',
         });
 

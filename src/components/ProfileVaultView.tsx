@@ -75,6 +75,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   const [editEmail, setEditEmail] = useState('');
   const [editPhotoURL, setEditPhotoURL] = useState<string | undefined>(undefined);
   const [editError, setEditError] = useState<string | null>(null);
+  const [isChangingGoogle, setIsChangingGoogle] = useState(false);
 
   // Modals for Support, Terms, and Developer
   const [activeInfoModal, setActiveInfoModal] = useState<'privacy' | 'terms' | 'support' | 'developer' | null>(null);
@@ -206,17 +207,15 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   };
 
   const handleChangeGoogleAccount = async () => {
+    if (isChangingGoogle) return;
+    setIsChangingGoogle(true);
     try {
       const res = await signInWithNativeGoogle();
       if (res.success && res.profile) {
         setEditEmail(res.profile.email);
-        setEditFirst(res.profile.firstName || '');
-        setEditLast(res.profile.lastName || '');
-        setEditBirthDate('');
-        setEditCalculatedAge(null);
-        setEditPhotoURL(res.profile.photoURL || '');
+        setEditFirst(res.profile.firstName || editFirst);
         setEditError(null);
-        showToast(`Cuenta de Google seleccionada: ${res.profile.email}`, 'success');
+        showToast(`Cuenta de Google autorizada: ${res.profile.email}`, 'success');
         return;
       }
       if (res.cancelled) {
@@ -231,6 +230,8 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       }
     } catch (err: any) {
       showToast(err?.message || 'No se pudo abrir el selector de Google', 'error');
+    } finally {
+      setIsChangingGoogle(false);
     }
   };
 
@@ -806,9 +807,17 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                   <button
                     type="button"
                     onClick={handleChangeGoogleAccount}
-                    className="shrink-0 px-3.5 py-1.5 rounded-lg border border-blue-500/40 bg-blue-500/10 text-xs font-semibold text-blue-400 hover:bg-blue-500/20 active:scale-95 transition-all cursor-pointer"
+                    disabled={isChangingGoogle}
+                    className="profile-change-email-btn shrink-0 px-3.5 py-1.5 rounded-lg border border-blue-500/40 bg-blue-500/10 text-xs font-semibold text-blue-400 hover:bg-blue-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
                   >
-                    Cambiar
+                    {isChangingGoogle ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Abriendo...</span>
+                      </>
+                    ) : (
+                      <span>Cambiar</span>
+                    )}
                   </button>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1.5">
