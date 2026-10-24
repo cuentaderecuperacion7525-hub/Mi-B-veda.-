@@ -28,7 +28,6 @@ import {
   Camera,
   Image as ImageIcon,
   Trash2,
-  Pencil,
 } from 'lucide-react';
 import {
   userProfileService,
@@ -214,6 +213,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       if (res.success && res.profile) {
         setEditEmail(res.profile.email);
         setEditFirst(res.profile.firstName || editFirst);
+        setProfile(res.profile);
         setEditError(null);
         showToast(`Cuenta de Google autorizada: ${res.profile.email}`, 'success');
         return;
@@ -666,24 +666,6 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
               borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.7))',
             }}
           >
-            {/* Cabecera: Icono lápiz + Título + Botón Cerrar */}
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-sm">
-                  <Pencil className="w-5 h-5" />
-                </div>
-                <h3 className="text-xl font-bold text-white tracking-tight">
-                  Editar mis datos
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsEditing(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white cursor-pointer transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
 
             {/* Sección Foto de perfil con Camarita */}
             <div className="flex items-center gap-4 mb-6">

@@ -74,14 +74,16 @@ export async function signInWithNativeGoogle(): Promise<NativeGoogleAuthResult> 
           authProvider: 'google.com',
         });
 
-        // Sincronización secundaria en la nube si hay conexión
+        // Sincronización en segundo plano sin bloquear la interfaz
         try {
           const uid = `google_${btoa(cleanEmail).replace(/=/g, '')}`;
-          await syncUserProfile(uid, {
+          syncUserProfile(uid, {
             firstName: profile.firstName,
             email: profile.email,
             emailVerified: true,
             authProvider: 'google.com',
+          }).catch((syncErr) => {
+            console.warn('Sync profile warning (offline):', syncErr);
           });
         } catch {
           // Continúa sin bloquear
