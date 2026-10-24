@@ -603,3 +603,37 @@
   color: #0f172a !important;
   background-color: #f1f5f9 !important;
 }
+
+/* 15. Botón Tonal "Editar Perfil" con alta legibilidad en modo claro y modo cian */
+[data-theme="light"] .vault-btn-edit-profile,
+html.light .vault-btn-edit-profile {
+  background-color: rgba(2, 132, 199, 0.08) !important;
+  border-color: rgba(2, 132, 199, 0.35) !important;
+  color: #0369a1 !important;
+}
+[data-theme="light"] .vault-btn-edit-profile:hover,
+html.light .vault-btn-edit-profile:hover {
+  background-color: rgba(2, 132, 199, 0.15) !important;
+}
+[data-theme="light"] .vault-btn-edit-profile *,
+html.light .vault-btn-edit-profile * {
+  color: #0369a1 !important;
+  stroke: #0369a1 !important;
+}
+
+[data-theme="cyan"] .vault-btn-edit-profile,
+html.dark .vault-btn-edit-profile {
+  background-color: rgba(0, 229, 255, 0.08) !important;
+  border-color: rgba(0, 229, 255, 0.32) !important;
+  color: #00e5ff !important;
+}
+[data-theme="cyan"] .vault-btn-edit-profile:hover,
+html.dark .vault-btn-edit-profile:hover {
+  background-color: rgba(0, 229, 255, 0.15) !important;
+}
+[data-theme="cyan"] .vault-btn-edit-profile *,
+html.dark .vault-btn-edit-profile * {
+  color: #00e5ff !important;
+  stroke: #00e5ff !important;
+}
+

@@ -1482,25 +1482,21 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </p>
               </div>
 
-              {/* Botón de cambio de tema: Luna (en tema blanco) para cambiar a oscuro, Sol (en tema oscuro) para cambiar a blanco */}
+              {/* Botón de cambio de tema: solo los iconos de Luna y Sol sin contenedor circular */}
               <button
                 type="button"
                 onClick={() => {
                   const nextTheme: VaultTheme = currentTheme === 'light' ? 'cyan' : 'light';
                   themeService.setTheme(nextTheme);
                 }}
-                className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 border shadow-sm cursor-pointer"
-                style={{
-                  backgroundColor: 'var(--theme-bg-card, #ffffff)',
-                  borderColor: 'var(--theme-border, #cbd5e1)',
-                }}
+                className="p-2 flex items-center justify-center active:scale-90 transition-transform duration-150 cursor-pointer bg-transparent border-0 shadow-none outline-none focus:outline-none"
                 aria-label={currentTheme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
                 title={currentTheme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
               >
                 {currentTheme === 'light' ? (
-                  <Moon className="w-5 h-5 text-slate-700" strokeWidth={1.8} />
+                  <Moon className="w-6 h-6 text-slate-700 hover:text-slate-900 transition-colors" strokeWidth={2} />
                 ) : (
-                  <Sun className="w-5 h-5 text-amber-400" strokeWidth={1.8} />
+                  <Sun className="w-6 h-6 text-amber-400 hover:text-amber-300 transition-colors" strokeWidth={2} />
                 )}
               </button>
             </div>

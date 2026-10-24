@@ -342,18 +342,27 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
           </div>
         </div>
 
-        {/* Botón "Editar perfil" con estilo tonal adaptativo al tema activo (sin resplandor) */}
+        {/* Botón "Editar perfil" con estilo tonal adaptativo de alta legibilidad */}
         <button
           type="button"
           onClick={openEditModal}
-          className={`w-full mt-4 py-2.5 px-4 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-colors duration-150 shadow-none cursor-pointer select-none active:scale-[0.99] border ${
-            currentTheme === 'light'
-              ? 'bg-sky-500/[0.08] hover:bg-sky-500/[0.14] text-sky-600 border-sky-500/30'
-              : 'bg-[#00e5ff]/[0.08] hover:bg-[#00e5ff]/[0.15] text-[#00e5ff] border-[#00e5ff]/30'
-          }`}
+          className="vault-btn-edit-profile w-full mt-4 py-2.5 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors duration-150 shadow-none cursor-pointer select-none active:scale-[0.99] border"
+          style={{
+            backgroundColor: currentTheme === 'light' ? 'rgba(2, 132, 199, 0.08)' : 'rgba(0, 229, 255, 0.08)',
+            borderColor: currentTheme === 'light' ? 'rgba(2, 132, 199, 0.35)' : 'rgba(0, 229, 255, 0.35)',
+            color: currentTheme === 'light' ? '#0369a1' : '#00e5ff',
+          }}
         >
-          <Pencil className="w-3.5 h-3.5 shrink-0" />
-          <span>Editar perfil</span>
+          <Pencil
+            className="w-4 h-4 shrink-0"
+            style={{ color: currentTheme === 'light' ? '#0369a1' : '#00e5ff' }}
+          />
+          <span
+            className="font-semibold"
+            style={{ color: currentTheme === 'light' ? '#0369a1' : '#00e5ff' }}
+          >
+            Editar perfil
+          </span>
         </button>
       </div>
 
