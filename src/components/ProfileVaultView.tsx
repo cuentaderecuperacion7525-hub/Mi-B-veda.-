@@ -231,11 +231,34 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     try {
       const res = await signInWithNativeGoogle();
       if (res.success && res.profile) {
-        setEditEmail(res.profile.email);
-        setEditFirst(res.profile.firstName || editFirst);
-        setProfile(res.profile);
+        const newEmail = res.profile.email.trim().toLowerCase();
+        const handle = newEmail.split('@')[0] || 'Usuario';
+        const cleanFirstName =
+          res.profile.firstName ||
+          handle.charAt(0).toUpperCase() + handle.slice(1);
+
+        // Limpiar por completo los datos del perfil anterior (apellidos, fecha, edad y foto),
+        // conservando únicamente el nombre y el correo de la nueva cuenta seleccionada
+        const freshProfile = userProfileService.saveUserProfile({
+          firstName: cleanFirstName,
+          lastName: '',
+          birthDate: undefined,
+          age: undefined,
+          email: newEmail,
+          emailVerified: true,
+          photoURL: '',
+          authProvider: 'google.com',
+        });
+
+        setEditFirst(cleanFirstName);
+        setEditLast('');
+        setEditBirthDate('');
+        setEditCalculatedAge(null);
+        setEditEmail(newEmail);
+        setEditPhotoURL('');
+        setProfile(freshProfile);
         setEditError(null);
-        showToast(`Cuenta de Google autorizada: ${res.profile.email}`, 'success');
+        showToast(`Cuenta de Google autorizada: ${newEmail}`, 'success');
         return;
       }
       if (res.cancelled) {
@@ -293,18 +316,18 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
         }}
       >
         <div className="flex items-center gap-4 relative z-10">
-          {/* Avatar / Foto de Google o Iniciales */}
+          {/* Avatar / Foto de Google o Iniciales (tamaño compacto) */}
           <div className="relative shrink-0">
             {profile?.photoURL ? (
               <img
                 src={profile.photoURL}
                 alt={profile.firstName}
-                className="w-18 h-18 sm:w-20 sm:h-20 rounded-[22px] object-cover shadow-lg border border-cyan-500/30"
+                className="w-14 h-14 sm:w-15 sm:h-15 rounded-2xl object-cover shadow-lg border border-cyan-500/30"
                 referrerPolicy="no-referrer"
               />
             ) : (
               <div
-                className="w-18 h-18 sm:w-20 sm:h-20 rounded-[22px] flex items-center justify-center text-white text-3xl font-extrabold shadow-lg tracking-wider select-none"
+                className="w-14 h-14 sm:w-15 sm:h-15 rounded-2xl flex items-center justify-center text-white text-xl font-extrabold shadow-lg tracking-wider select-none"
                 style={{
                   background: 'linear-gradient(135deg, #00f0b5, #00b4d8)',
                 }}
@@ -314,10 +337,10 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
             )}
             {/* Insignia de Escudo Verificado en esquina inferior derecha */}
             <div
-              className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full border border-emerald-500/60 flex items-center justify-center shadow-md"
+              className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border border-emerald-500/60 flex items-center justify-center shadow-md"
               style={{ backgroundColor: 'var(--theme-bg-card, #0a111e)' }}
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <ShieldCheck className="w-3 h-3 text-emerald-400" />
             </div>
           </div>
 
@@ -648,24 +671,24 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
             }}
           >
 
-            {/* Sección Foto de perfil con Camarita */}
-            <div className="flex items-center gap-4 mb-6">
+            {/* Sección Foto de perfil con Camarita (tamaño compacto) */}
+            <div className="flex items-center gap-3.5 mb-5">
               <div className="relative shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowPhotoModal(true)}
-                  className="block relative rounded-[22px] group cursor-pointer focus:outline-none"
+                  className="block relative rounded-2xl group cursor-pointer focus:outline-none"
                   title="Cambiar foto de perfil"
                 >
                   {(editPhotoURL !== undefined ? editPhotoURL : profile?.photoURL) ? (
                     <img
                       src={editPhotoURL !== undefined ? editPhotoURL : profile?.photoURL}
                       alt={editFirst || profile?.firstName || 'Perfil'}
-                      className="w-20 h-20 rounded-[22px] object-cover shadow-lg border border-cyan-500/40"
+                      className="w-14 h-14 rounded-2xl object-cover shadow-lg border border-cyan-500/40"
                     />
                   ) : (
                     <div
-                      className="w-20 h-20 rounded-[22px] flex items-center justify-center text-white text-3xl font-extrabold shadow-lg select-none"
+                      className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-extrabold shadow-lg select-none"
                       style={{
                         background: 'linear-gradient(135deg, #00f0b5, #00b4d8)',
                       }}
@@ -674,8 +697,8 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                     </div>
                   )}
                   {/* Badge botón camarita */}
-                  <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[#132238] border-2 border-[#1e3456] flex items-center justify-center text-cyan-400 shadow-md group-hover:scale-110 active:scale-95 transition-transform">
-                    <Camera className="w-3.5 h-3.5" />
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#132238] border-2 border-[#1e3456] flex items-center justify-center text-cyan-400 shadow-md group-hover:scale-110 active:scale-95 transition-transform">
+                    <Camera className="w-3 h-3" />
                   </div>
                 </button>
               </div>

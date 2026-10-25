@@ -193,18 +193,27 @@ export const SetupVaultView: React.FC<SetupVaultViewProps> = ({
         <div className="flex items-center justify-center gap-2 mb-6">
           <span
             className={`h-1.5 rounded-full transition-all duration-300 ${
-              step === 'create' ? 'w-8 bg-indigo-500' : 'w-2 bg-slate-700'
+              step === 'create' ? 'w-8' : 'w-2'
             }`}
+            style={{
+              backgroundColor: step === 'create' ? 'var(--theme-primary)' : 'var(--theme-border)',
+            }}
           />
           <span
             className={`h-1.5 rounded-full transition-all duration-300 ${
-              step === 'confirm' ? 'w-8 bg-indigo-500' : 'w-2 bg-slate-700'
+              step === 'confirm' ? 'w-8' : 'w-2'
             }`}
+            style={{
+              backgroundColor: step === 'confirm' ? 'var(--theme-primary)' : 'var(--theme-border)',
+            }}
           />
           <span
             className={`h-1.5 rounded-full transition-all duration-300 ${
-              step === 'recovery_key' ? 'w-8 bg-[#00e5ff]' : 'w-2 bg-slate-700'
+              step === 'recovery_key' ? 'w-8' : 'w-2'
             }`}
+            style={{
+              backgroundColor: step === 'recovery_key' ? 'var(--theme-primary)' : 'var(--theme-border)',
+            }}
           />
         </div>
 
@@ -275,31 +284,54 @@ export const SetupVaultView: React.FC<SetupVaultViewProps> = ({
         {step === 'recovery_key' && (
           <div className="space-y-4 text-left">
             {/* Clave Card */}
-            <div className="bg-[#0b101d] border-2 border-[#00e5ff]/40 rounded-2xl p-4 shadow-xl shadow-cyan-500/10 text-center">
-              <p className="text-[10px] uppercase font-bold tracking-widest text-[#00e5ff] mb-1.5">
+            <div
+              className="border-2 rounded-2xl p-4 shadow-md text-center transition-colors"
+              style={{
+                backgroundColor: 'var(--theme-bg-secondary)',
+                borderColor: 'color-mix(in srgb, var(--theme-primary) 40%, transparent)',
+              }}
+            >
+              <p
+                className="text-[10px] uppercase font-bold tracking-widest mb-2"
+                style={{ color: 'var(--theme-primary)' }}
+              >
                 Clave de Seguridad Personal (16 dígitos)
               </p>
-              <div className="py-2 px-3 bg-black/60 rounded-xl border border-slate-800">
-                <span className="text-xl sm:text-2xl font-black font-mono tracking-widest text-white selection:bg-[#00e5ff] selection:text-black">
+              <div
+                className="py-3 px-3 rounded-xl border"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card)',
+                  borderColor: 'var(--theme-border)',
+                }}
+              >
+                <span
+                  className="text-xl sm:text-2xl font-black font-mono tracking-widest select-all"
+                  style={{ color: 'var(--theme-text-main)' }}
+                >
                   {formatRecoveryKeyDisplay(recoveryKey)}
                 </span>
               </div>
 
               {/* Action Buttons: Copiar y Descargar */}
-              <div className="grid grid-cols-2 gap-2 mt-3">
+              <div className="grid grid-cols-2 gap-2.5 mt-3">
                 <button
                   type="button"
                   onClick={handleCopyKey}
-                  className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#00e5ff]/20 hover:bg-[#00e5ff]/30 text-[#00e5ff] text-xs font-semibold rounded-xl border border-[#00e5ff]/40 transition-colors cursor-pointer active:scale-95"
+                  className="vault-btn-edit-profile flex items-center justify-center gap-1.5 py-2.5 px-3 text-xs font-semibold rounded-xl border transition-colors cursor-pointer active:scale-95"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--theme-primary) 10%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--theme-primary) 35%, transparent)',
+                    color: 'var(--theme-primary)',
+                  }}
                 >
                   {copiedKey ? (
                     <>
-                      <Check className="w-4 h-4 text-emerald-400" />
+                      <Check className="w-4 h-4 shrink-0" />
                       <span>¡Copiada!</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-4 h-4" />
+                      <Copy className="w-4 h-4 shrink-0" />
                       <span>Copiar Clave</span>
                     </>
                   )}
@@ -308,17 +340,22 @@ export const SetupVaultView: React.FC<SetupVaultViewProps> = ({
                 <button
                   type="button"
                   onClick={handleDownloadKey}
-                  className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition-colors cursor-pointer active:scale-95"
+                  className="flex items-center justify-center gap-1.5 py-2.5 px-3 text-xs font-semibold rounded-xl border transition-colors cursor-pointer active:scale-95"
+                  style={{
+                    backgroundColor: 'var(--theme-bg-card)',
+                    borderColor: 'var(--theme-border)',
+                    color: 'var(--theme-text-main)',
+                  }}
                 >
                   {downloadedKey ? (
                     <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      <span>Descargado</span>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span style={{ color: 'var(--theme-text-main)' }}>Descargado</span>
                     </>
                   ) : (
                     <>
-                      <Download className="w-4 h-4" />
-                      <span>Descargar .txt</span>
+                      <Download className="w-4 h-4 shrink-0" style={{ color: 'var(--theme-text-main)' }} />
+                      <span style={{ color: 'var(--theme-text-main)' }}>Descargar .txt</span>
                     </>
                   )}
                 </button>
@@ -326,14 +363,23 @@ export const SetupVaultView: React.FC<SetupVaultViewProps> = ({
             </div>
 
             {/* Checkbox confirmation */}
-            <label className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 cursor-pointer select-none">
+            <label
+              className="flex items-start gap-2.5 p-3.5 rounded-xl border cursor-pointer select-none transition-colors"
+              style={{
+                backgroundColor: 'var(--theme-bg-secondary)',
+                borderColor: 'var(--theme-border)',
+              }}
+            >
               <input
                 type="checkbox"
                 checked={savedConfirmed}
                 onChange={(e) => setSavedConfirmed(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded text-[#00e5ff] border-slate-700 focus:ring-0 focus:ring-offset-0 bg-slate-800 accent-[#00e5ff] cursor-pointer"
+                className="mt-0.5 w-4 h-4 rounded border-slate-400 focus:ring-0 focus:ring-offset-0 accent-[#0284c7] cursor-pointer shrink-0"
               />
-              <span className="text-xs text-slate-300 leading-snug">
+              <span
+                className="text-xs leading-snug font-medium"
+                style={{ color: 'var(--theme-text-muted)' }}
+              >
                 He copiado, anotado o guardado esta clave en un lugar seguro. Entiendo que es necesaria si olvido mi PIN.
               </span>
             </label>
@@ -350,10 +396,11 @@ export const SetupVaultView: React.FC<SetupVaultViewProps> = ({
               type="button"
               onClick={finalizeSetup}
               disabled={isProcessing || (!savedConfirmed && !copiedKey && !downloadedKey)}
-              className="w-full py-3.5 text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="vault-gradient-btn from-[#00e5ff] to-blue-600 bg-gradient-to-r w-full py-3.5 text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
                 background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
                 boxShadow: '0 4px 14px -2px var(--theme-glow)',
+                color: '#ffffff',
               }}
             >
               {isProcessing ? (

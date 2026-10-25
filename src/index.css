@@ -371,7 +371,7 @@
   color: #64748b !important;
 }
 
-/* Status alerts and chips - deep legible colors in light mode */
+/* Status alerts, chips, and tonal action buttons - deep legible colors in light mode */
 [data-theme="light"] [class*="text-emerald-300"],
 [data-theme="light"] [class*="text-emerald-400"] {
   color: #047857 !important;
@@ -380,8 +380,14 @@
 [data-theme="light"] [class*="bg-emerald-500/15"],
 [data-theme="light"] [class*="bg-emerald-500/20"] {
   background-color: #ecfdf5 !important;
-  border-color: #a7f3d0 !important;
+  border-color: #6ee7b7 !important;
   color: #065f46 !important;
+}
+[data-theme="light"] [class*="bg-emerald-500/10"] *,
+[data-theme="light"] [class*="bg-emerald-500/15"] *,
+[data-theme="light"] [class*="bg-emerald-500/20"] * {
+  color: #065f46 !important;
+  stroke: #065f46 !important;
 }
 
 [data-theme="light"] [class*="text-rose-300"],
@@ -390,10 +396,22 @@
 }
 [data-theme="light"] [class*="bg-rose-500/10"],
 [data-theme="light"] [class*="bg-rose-500/15"],
-[data-theme="light"] [class*="bg-rose-500/20"] {
-  background-color: #fff1f2 !important;
-  border-color: #fecdd3 !important;
-  color: #9f1239 !important;
+[data-theme="light"] [class*="bg-rose-500/20"],
+[data-theme="light"] [class*="bg-rose-600/20"] {
+  background-color: #ffe4e6 !important;
+  border-color: #fda4af !important;
+  color: #be123c !important;
+}
+[data-theme="light"] button[class*="bg-rose-500/20"]:hover,
+[data-theme="light"] button[class*="bg-rose-600/20"]:hover {
+  background-color: #fecdd3 !important;
+}
+[data-theme="light"] [class*="bg-rose-500/10"] *,
+[data-theme="light"] [class*="bg-rose-500/15"] *,
+[data-theme="light"] [class*="bg-rose-500/20"] *,
+[data-theme="light"] [class*="bg-rose-600/20"] * {
+  color: #be123c !important;
+  stroke: #be123c !important;
 }
 
 [data-theme="light"] [class*="text-amber-300"],
@@ -404,8 +422,14 @@
 [data-theme="light"] [class*="bg-amber-500/15"],
 [data-theme="light"] [class*="bg-amber-500/20"] {
   background-color: #fffbeb !important;
-  border-color: #fde68a !important;
+  border-color: #fcd34d !important;
   color: #92400e !important;
+}
+[data-theme="light"] [class*="bg-amber-500/10"] *,
+[data-theme="light"] [class*="bg-amber-500/15"] *,
+[data-theme="light"] [class*="bg-amber-500/20"] * {
+  color: #92400e !important;
+  stroke: #92400e !important;
 }
 
 /* Key display boxes and code containers inside modals */
@@ -429,7 +453,7 @@
 }
 
 [data-theme="light"] .bg-\[\#00e5ff\],
-[data-theme="light"] [class*="bg-[#00e5ff]"],
+[data-theme="light"] [class*="bg-[#00e5ff]"]:not([class*="bg-[#00e5ff]/"]):not([class*="selection:bg-"]),
 [data-theme="light"] .bg-cyan-500,
 [data-theme="light"] .bg-cyan-400,
 [data-theme="light"] .bg-cyan-600 {
@@ -444,6 +468,13 @@
   background-color: rgba(2, 132, 199, 0.1) !important;
   color: #0284c7 !important;
 }
+[data-theme="light"] [class*="bg-[#00e5ff]/"] *,
+[data-theme="light"] [class*="bg-cyan-500/"] *,
+[data-theme="light"] [class*="bg-cyan-400/"] *,
+[data-theme="light"] [class*="bg-cyan-950/"] * {
+  color: #0284c7 !important;
+  stroke: #0284c7 !important;
+}
 
 [data-theme="light"] [class*="border-[#00e5ff]"],
 [data-theme="light"] [class*="border-cyan-500"],
@@ -452,14 +483,15 @@
   border-color: rgba(2, 132, 199, 0.35) !important;
 }
 
-/* Gradient Action Buttons (from-[#00e5ff] / from-[#00f2fe]) in Light Mode */
+/* Gradient Action Buttons (from-[#00e5ff] / from-[#00f2fe] / inline linear-gradient) in Light Mode */
 [data-theme="light"] [class*="bg-gradient-"][class*="from-[#00e5ff]"],
 [data-theme="light"] [class*="bg-gradient-"][class*="from-[#00f2fe]"],
 [data-theme="light"] button[class*="from-[#00e5ff]"],
 [data-theme="light"] button[class*="from-[#00f2fe]"],
 [data-theme="light"] button[class*="from-cyan-"],
 [data-theme="light"] [class*="from-[#00e5ff]"],
-[data-theme="light"] [class*="from-[#00f2fe]"] {
+[data-theme="light"] [class*="from-[#00f2fe]"],
+[data-theme="light"] button[style*="linear-gradient"] {
   background-image: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
   color: #ffffff !important;
   box-shadow: 0 4px 14px -2px rgba(2, 132, 199, 0.35) !important;
@@ -471,24 +503,34 @@
 [data-theme="light"] button[class*="from-[#00f2fe]"] *,
 [data-theme="light"] button[class*="from-cyan-"] *,
 [data-theme="light"] [class*="from-[#00e5ff]"] *,
-[data-theme="light"] [class*="from-[#00f2fe]"] * {
+[data-theme="light"] [class*="from-[#00f2fe]"] *,
+[data-theme="light"] button[style*="linear-gradient"] *,
+[data-theme="light"] div[style*="linear-gradient(135deg, #00f0b5"] {
   color: #ffffff !important;
   stroke: #ffffff !important;
 }
 
 [data-theme="light"] button[class*="from-[#00e5ff]"]:hover,
 [data-theme="light"] button[class*="from-[#00f2fe]"]:hover,
-[data-theme="light"] button[class*="from-cyan-"]:hover {
+[data-theme="light"] button[class*="from-cyan-"]:hover,
+[data-theme="light"] button[style*="linear-gradient"]:hover {
   background-image: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%) !important;
 }
 
 [data-theme="light"] button[class*="from-[#00e5ff]"]:disabled,
 [data-theme="light"] button[class*="from-[#00e5ff]"][disabled],
 [data-theme="light"] button[class*="from-[#00f2fe]"]:disabled,
-[data-theme="light"] button[class*="from-[#00f2fe]"][disabled] {
+[data-theme="light"] button[class*="from-[#00f2fe]"][disabled],
+[data-theme="light"] button[style*="linear-gradient"]:disabled,
+[data-theme="light"] button[style*="linear-gradient"][disabled] {
   opacity: 0.55 !important;
   background-image: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
   color: #ffffff !important;
+}
+[data-theme="light"] button[style*="linear-gradient"]:disabled *,
+[data-theme="light"] button[style*="linear-gradient"][disabled] * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
 }
 
 /* 10. Light Keypad Buttons & Digits */
