@@ -95,6 +95,10 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   useEffect(() => {
     return userProfileService.subscribe((updated) => {
       setProfile(updated);
+      if (updated?.email) {
+        setEditEmail(updated.email);
+      }
+      setIsChangingGoogle(false);
     });
   }, []);
 
@@ -126,6 +130,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       setEditEmail('');
       setEditPhotoURL(undefined);
     }
+    setIsChangingGoogle(false);
     setEditError(null);
     setIsEditing(true);
   };
