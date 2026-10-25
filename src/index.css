@@ -294,14 +294,14 @@
 [data-theme="light"] [class*="from-blue-"],
 [data-theme="light"] [class*="from-blue-"] *,
 [data-theme="light"] button[class*="bg-gradient-"] *,
-[data-theme="light"] button[class*="bg-rose-"]:not(.grid button),
-[data-theme="light"] button[class*="bg-rose-"]:not(.grid button) *,
-[data-theme="light"] button[class*="bg-red-"]:not(.grid button),
-[data-theme="light"] button[class*="bg-red-"]:not(.grid button) *,
-[data-theme="light"] button[class*="bg-emerald-"],
-[data-theme="light"] button[class*="bg-emerald-"] *,
-[data-theme="light"] button[class*="bg-blue-"],
-[data-theme="light"] button[class*="bg-blue-"] *,
+[data-theme="light"] button[class*="bg-rose-"]:not(.grid button):not([class*="bg-rose-500/"]):not([class*="bg-rose-600/"]),
+[data-theme="light"] button[class*="bg-rose-"]:not(.grid button):not([class*="bg-rose-500/"]):not([class*="bg-rose-600/"]) *,
+[data-theme="light"] button[class*="bg-red-"]:not(.grid button):not([class*="bg-red-500/"]):not([class*="bg-red-600/"]),
+[data-theme="light"] button[class*="bg-red-"]:not(.grid button):not([class*="bg-red-500/"]):not([class*="bg-red-600/"]) *,
+[data-theme="light"] button[class*="bg-emerald-"]:not([class*="bg-emerald-500/"]):not([class*="bg-emerald-600/"]),
+[data-theme="light"] button[class*="bg-emerald-"]:not([class*="bg-emerald-500/"]):not([class*="bg-emerald-600/"]) *,
+[data-theme="light"] button[class*="bg-blue-"]:not(.profile-change-email-btn):not([class*="bg-blue-500/"]):not([class*="bg-blue-600/"]),
+[data-theme="light"] button[class*="bg-blue-"]:not(.profile-change-email-btn):not([class*="bg-blue-500/"]):not([class*="bg-blue-600/"]) *,
 [data-theme="light"] button[class*="bg-sky-"],
 [data-theme="light"] button[class*="bg-sky-"] *,
 [data-theme="light"] button[class*="bg-purple-"],
@@ -397,21 +397,27 @@
 [data-theme="light"] [class*="bg-rose-500/10"],
 [data-theme="light"] [class*="bg-rose-500/15"],
 [data-theme="light"] [class*="bg-rose-500/20"],
-[data-theme="light"] [class*="bg-rose-600/20"] {
+[data-theme="light"] [class*="bg-rose-600/20"],
+[data-theme="light"] button.vault-reset-pink-btn {
   background-color: #ffe4e6 !important;
-  border-color: #fda4af !important;
-  color: #be123c !important;
+  border-color: #fb7185 !important;
+  color: #9f1239 !important;
 }
 [data-theme="light"] button[class*="bg-rose-500/20"]:hover,
-[data-theme="light"] button[class*="bg-rose-600/20"]:hover {
+[data-theme="light"] button[class*="bg-rose-600/20"]:hover,
+[data-theme="light"] button.vault-reset-pink-btn:hover {
   background-color: #fecdd3 !important;
 }
 [data-theme="light"] [class*="bg-rose-500/10"] *,
 [data-theme="light"] [class*="bg-rose-500/15"] *,
 [data-theme="light"] [class*="bg-rose-500/20"] *,
-[data-theme="light"] [class*="bg-rose-600/20"] * {
-  color: #be123c !important;
-  stroke: #be123c !important;
+[data-theme="light"] [class*="bg-rose-600/20"] *,
+[data-theme="light"] button[class*="bg-rose-500/20"] *,
+[data-theme="light"] button[class*="bg-rose-600/20"] *,
+[data-theme="light"] button.vault-reset-pink-btn,
+[data-theme="light"] button.vault-reset-pink-btn * {
+  color: #9f1239 !important;
+  stroke: #9f1239 !important;
 }
 
 [data-theme="light"] [class*="text-amber-300"],

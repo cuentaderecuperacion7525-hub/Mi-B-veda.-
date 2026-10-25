@@ -757,7 +757,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                       setShowForgotModal(false);
                       onResetVaultRequest();
                     }}
-                    className="w-full py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="vault-reset-pink-btn w-full py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Restablecer y borrar bóveda</span>
