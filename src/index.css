@@ -144,39 +144,72 @@
   box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.05) !important;
 }
 
-/* 3. Bottom Navigation Bar */
+/* 3. Bottom Navigation Bar - Idea 1: Línea Neón Inferior (Minimal) */
+nav.fixed button.vault-nav-btn-active,
+nav.fixed button.vault-nav-btn-active span:not(.vault-nav-indicator-line) {
+  color: #00e5ff !important;
+}
+
+nav.fixed button.vault-nav-btn-active svg {
+  color: #00e5ff !important;
+  stroke: #00e5ff !important;
+  filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.45)) !important;
+}
+
+nav.fixed button.vault-nav-btn-active .vault-nav-indicator-line {
+  background-color: #00e5ff !important;
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.7) !important;
+}
+
+nav.fixed button.vault-nav-btn-inactive,
+nav.fixed button.vault-nav-btn-inactive span:not(.vault-nav-indicator-line) {
+  color: #64748b !important;
+}
+
+nav.fixed button.vault-nav-btn-inactive svg {
+  color: #64748b !important;
+  stroke: #64748b !important;
+  filter: none !important;
+}
+
 [data-theme="light"] nav.fixed {
   background-color: rgba(255, 255, 255, 0.96) !important;
   border-top: 1px solid #e2e8f0 !important;
   box-shadow: 0 -4px 16px -2px rgba(0, 0, 0, 0.05) !important;
 }
 
-[data-theme="light"] nav.fixed button {
+[data-theme="light"] nav.fixed button.vault-nav-btn-inactive,
+[data-theme="light"] nav.fixed button.vault-nav-btn-inactive span:not(.vault-nav-indicator-line) {
   color: #64748b !important;
 }
 
-[data-theme="light"] nav.fixed button svg {
+[data-theme="light"] nav.fixed button.vault-nav-btn-inactive svg {
+  color: #64748b !important;
+  stroke: #64748b !important;
   filter: none !important;
 }
 
-[data-theme="light"] nav.fixed button:hover {
-  color: #0f172a !important;
+[data-theme="light"] nav.fixed button.vault-nav-btn-inactive:hover,
+[data-theme="light"] nav.fixed button.vault-nav-btn-inactive:hover span:not(.vault-nav-indicator-line),
+[data-theme="light"] nav.fixed button.vault-nav-btn-inactive:hover svg {
+  color: #334155 !important;
+  stroke: #334155 !important;
 }
 
-[data-theme="light"] nav.fixed button.text-\[\#00e5ff\],
-[data-theme="light"] nav.fixed button[class*="text-[#00e5ff]"],
-[data-theme="light"] nav.fixed button[class*="font-semibold"],
-[data-theme="light"] nav.fixed button[class*="font-bold"] {
+[data-theme="light"] nav.fixed button.vault-nav-btn-active,
+[data-theme="light"] nav.fixed button.vault-nav-btn-active span:not(.vault-nav-indicator-line) {
   color: #0284c7 !important;
 }
 
-[data-theme="light"] nav.fixed button.text-\[\#00e5ff\] svg,
-[data-theme="light"] nav.fixed button[class*="text-[#00e5ff]"] svg {
+[data-theme="light"] nav.fixed button.vault-nav-btn-active svg {
   color: #0284c7 !important;
+  stroke: #0284c7 !important;
+  filter: none !important;
 }
 
-[data-theme="light"] nav.fixed button span {
-  color: inherit !important;
+[data-theme="light"] nav.fixed button.vault-nav-btn-active .vault-nav-indicator-line {
+  background-color: #0284c7 !important;
+  box-shadow: 0 1px 4px rgba(2, 132, 199, 0.35) !important;
 }
 
 [data-theme="light"] footer.fixed button {

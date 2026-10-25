@@ -2905,20 +2905,23 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 setActiveCategory(null);
                 navigateToTab('vault');
               }}
-              style={{
-                color: activeNavTab === 'vault' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
-              }}
-              className="flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group"
+              className={`flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group ${
+                activeNavTab === 'vault' ? 'vault-nav-btn-active font-bold' : 'vault-nav-btn-inactive font-medium'
+              }`}
             >
               <Home
-                className="w-5 h-5 transition-transform"
+                className="w-5 h-5 transition-all duration-200"
                 style={{
-                  transform: activeNavTab === 'vault' ? 'scale(1.1)' : undefined,
-                  filter: activeNavTab === 'vault' ? 'drop-shadow(0 0 6px var(--theme-glow))' : undefined,
+                  transform: activeNavTab === 'vault' ? 'scale(1.08)' : undefined,
                 }}
-                strokeWidth={1.5}
+                strokeWidth={activeNavTab === 'vault' ? 2.2 : 1.6}
               />
-              <span className={`text-[10px] sm:text-[11px] tracking-tight ${activeNavTab === 'vault' ? 'font-bold' : 'font-medium'}`}>
+              <span
+                className={`vault-nav-indicator-line h-[3px] rounded-full transition-all duration-200 ${
+                  activeNavTab === 'vault' ? 'w-9 opacity-100 scale-x-100' : 'w-0 opacity-0 scale-x-0'
+                }`}
+              />
+              <span className={`text-[10px] sm:text-[11px] tracking-tight leading-none ${activeNavTab === 'vault' ? 'font-bold' : 'font-medium'}`}>
                 Mi Bóveda
               </span>
             </button>
@@ -2930,20 +2933,23 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 setActiveCategory(null);
                 navigateToTab('security');
               }}
-              style={{
-                color: activeNavTab === 'security' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
-              }}
-              className="flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group"
+              className={`flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group ${
+                activeNavTab === 'security' ? 'vault-nav-btn-active font-bold' : 'vault-nav-btn-inactive font-medium'
+              }`}
             >
               <Shield
-                className="w-5 h-5 transition-transform"
+                className="w-5 h-5 transition-all duration-200"
                 style={{
-                  transform: activeNavTab === 'security' ? 'scale(1.1)' : undefined,
-                  filter: activeNavTab === 'security' ? 'drop-shadow(0 0 6px var(--theme-glow))' : undefined,
+                  transform: activeNavTab === 'security' ? 'scale(1.08)' : undefined,
                 }}
-                strokeWidth={1.5}
+                strokeWidth={activeNavTab === 'security' ? 2.2 : 1.6}
               />
-              <span className={`text-[10px] sm:text-[11px] tracking-tight ${activeNavTab === 'security' ? 'font-bold' : 'font-medium'}`}>
+              <span
+                className={`vault-nav-indicator-line h-[3px] rounded-full transition-all duration-200 ${
+                  activeNavTab === 'security' ? 'w-9 opacity-100 scale-x-100' : 'w-0 opacity-0 scale-x-0'
+                }`}
+              />
+              <span className={`text-[10px] sm:text-[11px] tracking-tight leading-none ${activeNavTab === 'security' ? 'font-bold' : 'font-medium'}`}>
                 Seguridad
               </span>
             </button>
@@ -2955,20 +2961,23 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 setActiveCategory(null);
                 navigateToTab('profile');
               }}
-              style={{
-                color: activeNavTab === 'profile' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
-              }}
-              className="flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group"
+              className={`flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group ${
+                activeNavTab === 'profile' ? 'vault-nav-btn-active font-bold' : 'vault-nav-btn-inactive font-medium'
+              }`}
             >
               <Info
-                className="w-5 h-5 transition-transform"
+                className="w-5 h-5 transition-all duration-200"
                 style={{
-                  transform: activeNavTab === 'profile' ? 'scale(1.1)' : undefined,
-                  filter: activeNavTab === 'profile' ? 'drop-shadow(0 0 6px var(--theme-glow))' : undefined,
+                  transform: activeNavTab === 'profile' ? 'scale(1.08)' : undefined,
                 }}
-                strokeWidth={1.5}
+                strokeWidth={activeNavTab === 'profile' ? 2.2 : 1.6}
               />
-              <span className={`text-[10px] sm:text-[11px] tracking-tight ${activeNavTab === 'profile' ? 'font-bold' : 'font-medium'}`}>
+              <span
+                className={`vault-nav-indicator-line h-[3px] rounded-full transition-all duration-200 ${
+                  activeNavTab === 'profile' ? 'w-9 opacity-100 scale-x-100' : 'w-0 opacity-0 scale-x-0'
+                }`}
+              />
+              <span className={`text-[10px] sm:text-[11px] tracking-tight leading-none ${activeNavTab === 'profile' ? 'font-bold' : 'font-medium'}`}>
                 Info
               </span>
             </button>
@@ -2980,19 +2989,17 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 setActiveCategory(null);
                 navigateToTab('settings');
               }}
-              style={{
-                color: activeNavTab === 'settings' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
-              }}
-              className="flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group"
+              className={`flex-1 flex flex-col items-center gap-1 py-1 px-1.5 transition-all duration-200 cursor-pointer active:scale-95 group ${
+                activeNavTab === 'settings' ? 'vault-nav-btn-active font-bold' : 'vault-nav-btn-inactive font-medium'
+              }`}
             >
-              <div className="relative">
+              <div className="relative flex items-center justify-center">
                 <Settings
-                  className="w-5 h-5 transition-transform"
+                  className="w-5 h-5 transition-all duration-200"
                   style={{
-                    transform: activeNavTab === 'settings' ? 'scale(1.1)' : undefined,
-                    filter: activeNavTab === 'settings' ? 'drop-shadow(0 0 6px var(--theme-glow))' : undefined,
+                    transform: activeNavTab === 'settings' ? 'scale(1.08)' : undefined,
                   }}
-                  strokeWidth={1.5}
+                  strokeWidth={activeNavTab === 'settings' ? 2.2 : 1.6}
                 />
                 {(hasUpdatePending || liveUpdateAvailable) && (
                   <span
@@ -3004,7 +3011,12 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   />
                 )}
               </div>
-              <span className={`text-[10px] sm:text-[11px] tracking-tight ${activeNavTab === 'settings' ? 'font-bold' : 'font-medium'}`}>
+              <span
+                className={`vault-nav-indicator-line h-[3px] rounded-full transition-all duration-200 ${
+                  activeNavTab === 'settings' ? 'w-9 opacity-100 scale-x-100' : 'w-0 opacity-0 scale-x-0'
+                }`}
+              />
+              <span className={`text-[10px] sm:text-[11px] tracking-tight leading-none ${activeNavTab === 'settings' ? 'font-bold' : 'font-medium'}`}>
                 Ajustes
               </span>
             </button>
