@@ -1,6 +1,6 @@
 {
-  "summary":  "Solución implementada para el entorno nativo de Android (Capacitor/GitHub WebAPK): bloqueo total de desplazamiento en body/html y captura aislada de gestos táctiles (touch-none, e.preventDefault) para que la pantalla del fondo permanezca completamente inmóvil al deslizar la hoja hacia abajo.",
-  "updatedAt":  "2026-10-26T21:35:18.013598985Z",
+  "summary":  "Limpieza visual del encabezado en la vista de carpetas/álbumes: se ocultaron los controles de vista (cuadrícula/proporción/búsqueda) y el contador numérico del encabezado cuando se está en la lista de carpetas, mostrándolos únicamente dentro de la carpeta que contiene las fotos o archivos.",
+  "updatedAt":  "2026-10-26T22:00:15.249842633Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

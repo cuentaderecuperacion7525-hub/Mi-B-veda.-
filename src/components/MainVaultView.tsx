@@ -2336,79 +2336,73 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                                 : 'Aplicaciones'
                             }`}
                       </h1>
-                      <span className="text-xs font-normal text-zinc-500 font-mono shrink-0">
-                        (
-                        {carpetaActiva !== 'todas'
-                          ? filteredItems.length
-                          : activeCategory === 'photo'
-                          ? counts.photos
-                          : activeCategory === 'video'
-                          ? counts.videos
-                          : activeCategory === 'audio'
-                          ? counts.audios
-                          : counts.apps}
-                        )
-                      </span>
+                      {carpetaActiva !== 'todas' && (
+                        <span className="text-xs font-normal text-zinc-500 font-mono shrink-0">
+                          ({filteredItems.length})
+                        </span>
+                      )}
                     </div>
                   </div>
                 </button>
 
-                {/* Controles de vista y búsqueda compactos a la derecha */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setIsSearchOpen((prev) => !prev)}
-                    className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-                      isSearchOpen || searchQuery
-                        ? 'bg-zinc-800 text-zinc-100 border-zinc-700'
-                        : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 border-zinc-800'
-                    }`}
-                    title="Buscar"
-                  >
-                    <Search size={15} strokeWidth={1.5} />
-                  </button>
-
-                  <div className="flex items-center bg-zinc-900/60 border border-zinc-800 rounded-xl p-0.5 gap-0.5">
+                {/* Controles de vista y búsqueda compactos a la derecha: solo dentro de una carpeta que contiene archivos */}
+                {carpetaActiva !== 'todas' && (
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={toggleAspectMode}
-                      className={`p-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer text-[10px] font-semibold ${
-                        aspectMode === 'real'
-                          ? 'bg-zinc-800 text-zinc-200 shadow-sm'
-                          : 'text-zinc-500 hover:text-zinc-300'
+                      onClick={() => setIsSearchOpen((prev) => !prev)}
+                      className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                        isSearchOpen || searchQuery
+                          ? 'bg-zinc-800 text-zinc-100 border-zinc-700'
+                          : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 border-zinc-800'
                       }`}
-                      title={aspectMode === 'real' ? 'Proporción real' : 'Cuadrícula 1:1'}
+                      title="Buscar"
                     >
-                      <Maximize2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      <Search size={15} strokeWidth={1.5} />
                     </button>
-                    <div className="w-[1px] h-3.5 bg-zinc-800 mx-0.5" />
-                    <button
-                      onClick={() => setGridColumns(2)}
-                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                        gridColumns === 2 ? 'bg-zinc-800 text-zinc-200 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
-                      }`}
-                      title="2 Columnas"
-                      aria-label="Vista 2 columnas"
-                    >
-                      <LayoutGrid size={15} strokeWidth={1.5} />
-                    </button>
-                    <button
-                      onClick={() => setGridColumns(3)}
-                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                        gridColumns === 3 ? 'bg-zinc-800 text-zinc-200 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
-                      }`}
-                      title="3 Columnas"
-                      aria-label="Vista 3 columnas"
-                    >
-                      <Grid3X3 size={15} strokeWidth={1.5} />
-                    </button>
+
+                    <div className="flex items-center bg-zinc-900/60 border border-zinc-800 rounded-xl p-0.5 gap-0.5">
+                      <button
+                        type="button"
+                        onClick={toggleAspectMode}
+                        className={`p-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer text-[10px] font-semibold ${
+                          aspectMode === 'real'
+                            ? 'bg-zinc-800 text-zinc-200 shadow-sm'
+                            : 'text-zinc-500 hover:text-zinc-300'
+                        }`}
+                        title={aspectMode === 'real' ? 'Proporción real' : 'Cuadrícula 1:1'}
+                      >
+                        <Maximize2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      </button>
+                      <div className="w-[1px] h-3.5 bg-zinc-800 mx-0.5" />
+                      <button
+                        onClick={() => setGridColumns(2)}
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                          gridColumns === 2 ? 'bg-zinc-800 text-zinc-200 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                        }`}
+                        title="2 Columnas"
+                        aria-label="Vista 2 columnas"
+                      >
+                        <LayoutGrid size={15} strokeWidth={1.5} />
+                      </button>
+                      <button
+                        onClick={() => setGridColumns(3)}
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                          gridColumns === 3 ? 'bg-zinc-800 text-zinc-200 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                        }`}
+                        title="3 Columnas"
+                        aria-label="Vista 3 columnas"
+                      >
+                        <Grid3X3 size={15} strokeWidth={1.5} />
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
             {/* Barra de búsqueda desplegable compacta */}
-            {(isSearchOpen || searchQuery) && (
+            {carpetaActiva !== 'todas' && (isSearchOpen || searchQuery) && (
               <div className="relative mt-2 mb-1 animate-in fade-in duration-150">
                 <Search size={15} strokeWidth={1.5} className="text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input

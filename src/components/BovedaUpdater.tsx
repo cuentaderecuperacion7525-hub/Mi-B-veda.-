@@ -225,7 +225,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
           </div>
 
           <div className="bg-[#080d19]/90 border border-slate-800/70 rounded-2xl p-3.5">
-            <span className="text-xs text-slate-400 block mb-1">GitHub</span>
+            <span className="text-xs text-slate-400 block mb-1">Servidor</span>
             <span className="text-base font-semibold text-emerald-400 flex items-center gap-1.5 truncate">
               <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse shrink-0" />
               En línea
