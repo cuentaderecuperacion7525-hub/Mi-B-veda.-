@@ -1,18 +1,20 @@
-# Sincronización de Fallos Biométricos con Pantalla de Bloqueo Total
+# Corrección de Error de Permissions Policy en Autenticación Biométrica
 
-## Estado: ¡Implementado y Verificado!
+## Estado: ¡Corregido y Verificado!
 
 ---
 
-### Resumen de la Implementación en `LockVaultView.tsx`:
+### Diagnóstico del Error:
+- **Causa**: Al ejecutarse en el entorno de previsualización web (iframe cruzado de desarrollo), el navegador bloqueaba las llamadas directas a `navigator.credentials.create` y `navigator.credentials.get` debido a la política de seguridad del navegador:
+  `The 'publickey-credentials-create' feature is not enabled in this document. Permissions Policy may be used to delegate Web Authentication capabilities to cross-origin child frames.`
 
-1. **Conteo Unificado de Fallos**:
-   - Cada intento con huella no reconocida o rechazada incrementa la racha de intentos fallidos (`nullvault_failed_streak`).
-   - Se registra en el historial con `type: 'failed'` y `method: 'biometric'`.
+### Solución Implementada:
+1. **Detección Automática de Restricción en Iframe**:
+   - `biometricService.ts` ahora detecta si la política de permisos de la ventana (`Permissions Policy`) restringe WebAuthn.
+   - En lugar de lanzar una excepción que interrumpa la experiencia, activa de inmediato un modo de respaldo local cifrado con AES-GCM (`BIO_TYPE_KEY = 'preview'`).
 
-2. **Bloqueo Total a los 3 Intentos Fallidos**:
-   - Al llegar a 3 fallos (ya sea por PIN o por huella digital), la app activa de inmediato la **pantalla de bloqueo total a pantalla completa** con el candado coral `#F87171` y la cuenta regresiva gigante (15s, 20s, 30s).
-   - Durante el bloqueo, **se ocultan tanto el teclado del PIN como el botón de huella**, impidiendo cualquier intento hasta que el temporizador finalice.
+2. **Compatibilidad Total en Android Nativo (Capacitor / GitHub Actions APK)**:
+   - En la aplicación nativa de Android (`Capacitor.isNativePlatform()`), continúa utilizando el plugin de huella nativo (`NativeVaultBiometrics`), comunicándose directamente con el sensor biométrico del dispositivo.
 
-3. **Detección de Bloqueo Nativo de Android**:
-   - Si el hardware de Android desactiva el sensor por exceso de intentos del sistema operativo (`BIOMETRIC_ERROR_LOCKOUT`), la app lo detecta automáticamente y activa la pantalla de bloqueo total.
+3. **Compatibilidad en Navegador Móvil Independiente (PWA / WebAPK)**:
+   - Cuando se ejecuta fuera de un iframe (en Chrome o instalado como WebAPK), WebAuthn continúa interactuando con el sensor de huella de Google Play Services.

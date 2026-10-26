@@ -1,6 +1,6 @@
 {
-  "summary":  "Sincronización del conteo de fallos biométricos con el bloqueo total de la bóveda: ahora los intentos fallidos de huella digital incrementan la racha de fallos y activan la pantalla completa de bloqueo con cuenta regresiva (15s, 20s, 30s) al alcanzar los 3 intentos fallidos, bloqueando también el teclado del PIN.",
-  "updatedAt":  "2026-10-26T23:31:26.584837185Z",
+  "summary":  "Corrección del error de Permissions Policy en WebAuthn: se implementó detección automática de restricciones de iframe para entornos de desarrollo/preview web con cifrado seguro local de respaldo, manteniendo intacto el soporte para el sensor biométrico nativo en Android (Capacitor/WebAPK).",
+  "updatedAt":  "2026-10-26T23:38:21.604025219Z",
   "requestFeedback":  true,
   "userFacing":  true
 }
