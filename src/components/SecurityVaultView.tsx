@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Shield,
   Camera,
@@ -14,6 +14,12 @@ import {
   EyeOff,
   RotateCcw,
   Check,
+  ShieldAlert,
+  ShieldCheck,
+  Filter,
+  Calendar,
+  AlertTriangle,
+  Lock,
 } from 'lucide-react';
 import { setScreenshotBlockEnabled } from '../services/screenshotBlockService';
 import {
@@ -55,13 +61,75 @@ interface SecurityVaultViewProps {
   onLockOnTabSwitchChange?: (enabled: boolean) => void;
 }
 
+/* ==================== BLOQUE DE HISTORIAL (TIPOS Y UTILIDADES) ==================== */
 interface AccessLogItem {
   id: string;
   type: 'success' | 'failed';
+  method?: 'pin' | 'biometric';
+  isLockout?: boolean;
+  attemptNumber?: number;
+  lockoutDuration?: number;
   title: string;
   time: string;
   timestamp: number;
 }
+
+// Formato de grupo por día ("Hoy", "Ayer", "24 oct")
+function getDayGroupLabel(timestamp: number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  
+  const diffDays = Math.round((today.getTime() - targetDay.getTime()) / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return 'Hoy';
+  if (diffDays === 1) return 'Ayer';
+  
+  const day = date.getDate();
+  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const monthName = months[date.getMonth()];
+  
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${day} ${monthName}`;
+  }
+  return `${day} ${monthName} ${date.getFullYear()}`;
+}
+
+// Formato de fecha largo en español (ej. "lunes 26 de octubre de 2026")
+function formatDetailDateLong(timestamp: number): string {
+  const date = new Date(timestamp);
+  const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const months = [
+    'enero',
+    'febrero',
+    'marzo',
+    'abril',
+    'mayo',
+    'junio',
+    'julio',
+    'agosto',
+    'septiembre',
+    'octubre',
+    'noviembre',
+    'diciembre',
+  ];
+  return `${days[date.getDay()]} ${date.getDate()} de ${months[date.getMonth()]} de ${date.getFullYear()}`;
+}
+
+// Formato de hora con segundos (ej. "12:26:41 p.m.")
+function formatDetailTimeWithSeconds(timestamp: number): string {
+  const d = new Date(timestamp);
+  let hours = d.getHours();
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  const seconds = d.getSeconds().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'p.m.' : 'a.m.';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${hours.toString().padStart(2, '0')}:${minutes}:${seconds} ${ampm}`;
+}
+/* ==================== FIN BLOQUE DE HISTORIAL (TIPOS Y UTILIDADES) ==================== */
 
 export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   showToast,
@@ -274,13 +342,49 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
     }
   }, [showAllLogsModal]);
 
-  // Load real access logs
+  /* ==================== BLOQUE DE HISTORIAL (ESTADOS Y MEMOS) ==================== */
+  // Modal de detalle de un registro específico (Bottom Sheet)
+  const [selectedLogDetail, setSelectedLogDetail] = useState<AccessLogItem | null>(null);
+  const [sheetDragDelta, setSheetDragDelta] = useState<number>(0);
+  const sheetTouchStartY = React.useRef<number | null>(null);
+  // Modal de confirmación con PIN para vaciar historial
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
+  const [clearPinInput, setClearPinInput] = useState<string>('');
+  const [clearPinError, setClearPinError] = useState<string | null>(null);
+  const [isVerifyingClearPin, setIsVerifyingClearPin] = useState<boolean>(false);
+
+  // Filtros: 'all' | 'success' | 'failed'
+  const [logsFilter, setLogsFilter] = useState<'all' | 'success' | 'failed'>('all');
+
+  useEffect(() => {
+    if (selectedLogDetail) {
+      try { window.history.pushState({ secModal: 'log_detail' }, ''); } catch {}
+      return registerBackHandler('sec_log_detail_modal', () => {
+        setSelectedLogDetail(null);
+        return true;
+      }, 90);
+    }
+  }, [selectedLogDetail]);
+
+  useEffect(() => {
+    if (showClearConfirmModal) {
+      try { window.history.pushState({ secModal: 'clear_confirm' }, ''); } catch {}
+      return registerBackHandler('sec_clear_logs_modal', () => {
+        setShowClearConfirmModal(false);
+        setClearPinInput('');
+        setClearPinError(null);
+        return true;
+      }, 95);
+    }
+  }, [showClearConfirmModal]);
+
+  // Cargar registros de acceso reales (limitado estrictamente a 100)
   const [logs, setLogs] = useState<AccessLogItem[]>(() => {
     try {
       const stored = localStorage.getItem('nullvault_access_logs');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.slice(0, 100);
       }
     } catch (e) {
       console.error(e);
@@ -291,6 +395,8 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
         {
           id: `log_init_${Date.now()}`,
           type: 'success',
+          method: 'pin',
+          isLockout: false,
           title: 'Acceso correcto',
           time: lastAcc,
           timestamp: Date.now(),
@@ -299,6 +405,75 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
     }
     return [];
   });
+
+  // Intentos fallidos desde el último acceso exitoso (Requisito 6)
+  const failedSinceLastAccess = useMemo(() => {
+    // 1. Verificamos primero la variable exacta guardada al momento del desbloqueo exitoso
+    const storedBefore = localStorage.getItem('nullvault_failed_before_last_success');
+    if (storedBefore !== null && storedBefore !== '') {
+      const num = Number(storedBefore);
+      if (!isNaN(num)) return num;
+    }
+
+    if (!logs || logs.length === 0) return 0;
+
+    // 2. Si no existe la variable, calculamos examinando los registros entre el éxito actual y el previo
+    let firstSuccessIdx = -1;
+    for (let i = 0; i < logs.length; i++) {
+      if (logs[i].type === 'success') {
+        firstSuccessIdx = i;
+        break;
+      }
+    }
+
+    // Si no hay ningún acceso exitoso en la lista, contamos los fallos reales (!isLockout)
+    if (firstSuccessIdx === -1) {
+      return logs.filter((l) => l.type === 'failed' && !l.isLockout).length;
+    }
+
+    // Si el primer registro es el éxito actual (índice 0):
+    // Contamos únicamente los intentos fallidos de PIN/huella (!isLockout) que ocurrieron antes de este acceso
+    let count = 0;
+    const startIndex = firstSuccessIdx === 0 ? 1 : 0;
+    for (let i = startIndex; i < logs.length; i++) {
+      if (logs[i].type === 'success') {
+        // Encontramos el éxito anterior, terminamos el conteo
+        break;
+      }
+      if (logs[i].type === 'failed' && !logs[i].isLockout) {
+        count++;
+      }
+    }
+
+    return count;
+  }, [logs]);
+
+  // Conteos para chips de filtro
+  const countSuccess = useMemo(() => logs.filter((l) => l.type === 'success').length, [logs]);
+  const countFailed = useMemo(() => logs.filter((l) => l.type === 'failed').length, [logs]);
+
+  // Registros según filtro seleccionado
+  const filteredLogs = useMemo(() => {
+    if (logsFilter === 'success') return logs.filter((l) => l.type === 'success');
+    if (logsFilter === 'failed') return logs.filter((l) => l.type === 'failed');
+    return logs;
+  }, [logs, logsFilter]);
+
+  // Agrupación de registros por día: "Hoy", "Ayer", "24 oct" (Requisito 2)
+  const groupedLogs = useMemo(() => {
+    const groups: { label: string; items: AccessLogItem[] }[] = [];
+    const map = new Map<string, AccessLogItem[]>();
+    for (const log of filteredLogs) {
+      const label = getDayGroupLabel(log.timestamp);
+      if (!map.has(label)) {
+        map.set(label, []);
+        groups.push({ label, items: map.get(label)! });
+      }
+      map.get(label)!.push(log);
+    }
+    return groups;
+  }, [filteredLogs]);
+  /* ==================== FIN BLOQUE DE HISTORIAL (ESTADOS Y MEMOS) ==================== */
 
   // Handlers for protection switches
   const handleToggleDuress = () => {
@@ -480,12 +655,56 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
     }
   };
 
-  const clearAllLogs = () => {
-    localStorage.removeItem('nullvault_access_logs');
-    setLogs([]);
-    setShowAllLogsModal(false);
-    showToast('Registro de accesos vaciado', 'info');
+  /* ==================== BLOQUE DE HISTORIAL (VACIAR HISTORIAL CON PIN) ==================== */
+  const handleRequestClearLogs = () => {
+    setClearPinInput('');
+    setClearPinError(null);
+    setShowClearConfirmModal(true);
   };
+
+  const handleConfirmClearLogsWithPin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!clearPinInput) {
+      setClearPinError('Ingresa tu PIN maestro para confirmar.');
+      return;
+    }
+
+    setIsVerifyingClearPin(true);
+    setClearPinError(null);
+
+    try {
+      const saltHex = localStorage.getItem('vault_salt');
+      const testIvHex = localStorage.getItem('vault_test_iv');
+      const testCipherHex = localStorage.getItem('vault_test_cipher');
+
+      if (!saltHex || !testIvHex || !testCipherHex) {
+        setClearPinError('Error de configuración de la bóveda.');
+        return;
+      }
+
+      const salt = hexToBuf(saltHex);
+      const derivedKey = await deriveKeyFromPin(clearPinInput, salt);
+      const isValid = await verifyKey(derivedKey, testIvHex, testCipherHex);
+
+      if (isValid) {
+        localStorage.removeItem('nullvault_access_logs');
+        localStorage.setItem('nullvault_failed_since_last_success', '0');
+        localStorage.setItem('nullvault_failed_streak', '0');
+        localStorage.setItem('nullvault_failed_before_last_success', '0');
+        setLogs([]);
+        setShowClearConfirmModal(false);
+        setClearPinInput('');
+        showToast('Historial de accesos vaciado con éxito', 'info');
+      } else {
+        setClearPinError('PIN maestro incorrecto. No se autorizó el borrado.');
+      }
+    } catch (err: any) {
+      setClearPinError(err?.message || 'Error al validar el PIN.');
+    } finally {
+      setIsVerifyingClearPin(false);
+    }
+  };
+  /* ==================== FIN BLOQUE DE HISTORIAL (VACIAR HISTORIAL CON PIN) ==================== */
 
   return (
     <div className="w-full max-w-md mx-auto px-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+4.75rem),5rem)] animate-in fade-in duration-200 select-none box-border">
@@ -823,6 +1042,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
         </div>
       </div>
 
+      {/* ==================== BLOQUE DE HISTORIAL (VISTA Y MODALES) ==================== */}
       {/* Card 3: REGISTRO DE ACCESOS */}
       <div className="flex items-center justify-between px-1 mb-2.5">
         <h3 className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
@@ -837,29 +1057,80 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
         </button>
       </div>
 
-      <div className="bg-[#0a121d] border border-slate-800/90 rounded-3xl divide-y divide-slate-800/70 overflow-hidden shadow-xl mb-4">
+      {/* Resumen superior rápido en la tarjeta de accesos (Requisito 6) */}
+      <div
+        className={`mb-3 p-3 rounded-2xl border flex items-center gap-3 transition-colors ${
+          failedSinceLastAccess > 0
+            ? 'bg-rose-500/10 border-rose-500/30'
+            : 'border-slate-200 dark:border-slate-800/80'
+        }`}
+        style={{
+          backgroundColor: failedSinceLastAccess > 0 ? undefined : 'var(--theme-bg-secondary, rgba(15, 23, 42, 0.4))',
+          borderColor: failedSinceLastAccess > 0 ? undefined : 'var(--theme-border, rgba(51, 65, 85, 0.8))',
+        }}
+      >
+        {failedSinceLastAccess > 0 ? (
+          <ShieldAlert className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />
+        ) : (
+          <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
+        )}
+        <div className="min-w-0 flex-1">
+          <p
+            className={`text-xs font-semibold truncate ${
+              failedSinceLastAccess > 0 ? 'text-rose-700 dark:text-rose-300 font-bold' : ''
+            }`}
+            style={{ color: failedSinceLastAccess > 0 ? undefined : 'var(--theme-text-main, #e2e8f0)' }}
+          >
+            {failedSinceLastAccess > 0
+              ? `${failedSinceLastAccess} ${failedSinceLastAccess === 1 ? 'intento fallido' : 'intentos fallidos'} desde tu último acceso`
+              : 'Sin intentos fallidos recientes'}
+          </p>
+        </div>
+      </div>
+
+      <div
+        className="rounded-3xl divide-y divide-slate-200 dark:divide-slate-800/70 overflow-hidden shadow-xl mb-4 border transition-colors"
+        style={{
+          backgroundColor: 'var(--theme-bg-card, #0a121d)',
+          borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.8))',
+        }}
+      >
         {logs.slice(0, 4).map((log) => {
           const isSuccess = log.type === 'success';
 
           return (
             <div
               key={log.id}
-              onClick={() => setShowAllLogsModal(true)}
-              className="flex items-center justify-between p-4 hover:bg-slate-800/40 transition-colors cursor-pointer group"
+              onClick={() => setSelectedLogDetail(log)}
+              className={`flex items-center justify-between p-4 transition-colors cursor-pointer group ${
+                isSuccess
+                  ? 'hover:bg-slate-500/5'
+                  : 'bg-rose-500/[0.05] hover:bg-rose-500/[0.09]'
+              }`}
             >
               <div className="flex items-center gap-3.5 min-w-0">
                 {isSuccess ? (
-                  <CheckCircle2 className="w-5 h-5 text-[#00e5ff] shrink-0" />
+                  <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
                 ) : (
-                  <div className="w-5 h-5 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
-                    <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                  <div className="w-5 h-5 rounded-full bg-rose-500/20 text-rose-500 dark:text-rose-400 flex items-center justify-center shrink-0">
+                    <XCircle className="w-5 h-5 text-rose-500 dark:text-rose-400 shrink-0" />
                   </div>
                 )}
                 <div className="min-w-0">
-                  <h4 className="text-sm font-semibold text-white group-hover:text-slate-200 transition-colors truncate">
-                    {log.title}
-                  </h4>
-                  <p className="text-xs text-slate-500 font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <h4
+                      className="text-sm font-semibold truncate transition-colors"
+                      style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                    >
+                      {log.title}
+                    </h4>
+                    {log.method === 'biometric' && (
+                      <span title="Acceso biométrico">
+                        <Fingerprint className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--theme-text-muted, #94a3b8)' }} />
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-mono" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
                     {log.time}
                   </p>
                 </div>
@@ -869,21 +1140,26 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                 <span
                   className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${
                     isSuccess
-                      ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                      ? 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/25'
+                      : log.isLockout
+                      ? 'bg-rose-500/25 text-rose-800 dark:text-rose-300 border border-rose-500/50'
+                      : 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30'
                   }`}
                 >
-                  {isSuccess ? 'Válido' : 'Bloqueado'}
+                  {isSuccess ? 'Válido' : log.isLockout ? 'Bloqueado' : 'Fallido'}
                 </span>
-                <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-transform group-hover:translate-x-0.5" />
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
               </div>
             </div>
           );
         })}
 
         {logs.length === 0 && (
-          <div className="p-6 text-center text-xs text-slate-500">
-            No hay registros de acceso recientes
+          <div className="p-8 text-center flex flex-col items-center justify-center gap-2">
+            <Clock className="w-8 h-8" style={{ color: 'var(--theme-text-muted, #64748b)' }} />
+            <p className="text-xs font-medium" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
+              Aún no hay accesos registrados
+            </p>
           </div>
         )}
       </div>
@@ -891,64 +1167,228 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
       {/* Modal Todos los Registros de Acceso (HISTORIAL DE ACCESOS) */}
       {showAllLogsModal && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#0a121d] border border-slate-800 rounded-3xl p-6 shadow-2xl relative max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+          <div
+            className="w-full max-w-md border rounded-3xl p-5 shadow-2xl relative max-h-[88vh] flex flex-col transition-colors"
+            style={{
+              backgroundColor: 'var(--theme-bg-card, #0a121d)',
+              borderColor: 'var(--theme-border, #1e293b)',
+              color: 'var(--theme-text-main, #ffffff)',
+            }}
+          >
+            {/* Cabecera del modal */}
+            <div
+              className="flex items-center justify-between pb-3 border-b mb-3"
+              style={{ borderColor: 'var(--theme-border, #1e293b)' }}
+            >
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#00e5ff]" />
-                <h3 className="font-bold text-sm text-white uppercase tracking-wider">
+                <Clock className="w-4 h-4 shrink-0" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
+                <h3
+                  className="font-bold text-sm uppercase tracking-wider"
+                  style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                >
                   Historial de Accesos
                 </h3>
               </div>
               <button
                 onClick={() => setShowAllLogsModal(false)}
-                className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-slate-500/10 text-slate-400 hover:text-slate-100 cursor-pointer transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1 space-y-2.5 pr-1">
-              {logs.map((log) => {
-                const isSuccess = log.type === 'success';
-
-                return (
-                  <div
-                    key={log.id}
-                    className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      {isSuccess ? (
-                        <CheckCircle2 className="w-4 h-4 text-[#00e5ff] shrink-0" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-white truncate">{log.title}</p>
-                        <p className="text-[10px] text-slate-500 font-mono">{log.time}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0 ml-2">
-                      <span
-                        className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${
-                          isSuccess
-                            ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                            : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                        }`}
-                      >
-                        {isSuccess ? 'Válido' : 'Bloqueado'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+            {/* Resumen superior (Requisito 6) */}
+            <div
+              className={`p-3 rounded-2xl border flex items-center gap-3 mb-3.5 transition-colors ${
+                failedSinceLastAccess > 0
+                  ? 'bg-rose-500/10 border-rose-500/30'
+                  : 'border-slate-200 dark:border-slate-800'
+              }`}
+              style={{
+                backgroundColor: failedSinceLastAccess > 0 ? undefined : 'var(--theme-bg-secondary, rgba(15, 23, 42, 0.4))',
+                borderColor: failedSinceLastAccess > 0 ? undefined : 'var(--theme-border, #1e293b)',
+              }}
+            >
+              {failedSinceLastAccess > 0 ? (
+                <ShieldAlert className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />
+              ) : (
+                <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
+              )}
+              <div className="min-w-0 flex-1">
+                <p
+                  className={`text-xs font-semibold ${
+                    failedSinceLastAccess > 0 ? 'text-rose-700 dark:text-rose-300 font-bold' : ''
+                  }`}
+                  style={{ color: failedSinceLastAccess > 0 ? undefined : 'var(--theme-text-main, #e2e8f0)' }}
+                >
+                  {failedSinceLastAccess > 0
+                    ? `${failedSinceLastAccess} ${failedSinceLastAccess === 1 ? 'intento fallido' : 'intentos fallidos'} desde tu último acceso`
+                    : 'Sin intentos fallidos recientes'}
+                </p>
+              </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-800 mt-4 flex items-center justify-between">
+            {/* Chips de filtro: Todos, Exitosos, Fallidos (Requisito 5) */}
+            <div className="flex items-center gap-2 mb-3 px-0.5">
               <button
                 type="button"
-                onClick={clearAllLogs}
-                className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1.5 cursor-pointer"
+                onClick={() => setLogsFilter('all')}
+                className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border"
+                style={{
+                  backgroundColor: logsFilter === 'all' ? 'var(--theme-glow, rgba(0, 229, 255, 0.15))' : 'var(--theme-bg-secondary, rgba(15, 23, 42, 0.4))',
+                  borderColor: logsFilter === 'all' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-border, #334155)',
+                  color: logsFilter === 'all' ? 'var(--theme-primary, #00e5ff)' : 'var(--theme-text-muted, #94a3b8)',
+                }}
+              >
+                Todos ({logs.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogsFilter('success')}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border ${
+                  logsFilter === 'success'
+                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/40 shadow-sm'
+                    : 'border-slate-200 dark:border-slate-800'
+                }`}
+                style={{
+                  backgroundColor: logsFilter === 'success' ? undefined : 'var(--theme-bg-secondary, rgba(15, 23, 42, 0.4))',
+                  borderColor: logsFilter === 'success' ? undefined : 'var(--theme-border, #334155)',
+                  color: logsFilter === 'success' ? undefined : 'var(--theme-text-muted, #94a3b8)',
+                }}
+              >
+                Exitosos ({countSuccess})
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogsFilter('failed')}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border ${
+                  logsFilter === 'failed'
+                    ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/40 shadow-sm'
+                    : 'border-slate-200 dark:border-slate-800'
+                }`}
+                style={{
+                  backgroundColor: logsFilter === 'failed' ? undefined : 'var(--theme-bg-secondary, rgba(15, 23, 42, 0.4))',
+                  borderColor: logsFilter === 'failed' ? undefined : 'var(--theme-border, #334155)',
+                  color: logsFilter === 'failed' ? undefined : 'var(--theme-text-muted, #94a3b8)',
+                }}
+              >
+                Fallidos ({countFailed})
+              </button>
+            </div>
+
+            {/* Lista agrupada por día con encabezados a la DERECHA: "Hoy", "Ayer", "24 oct" (Requisito 2) */}
+            <div className="overflow-y-auto flex-1 space-y-4 pr-1">
+              {groupedLogs.map((group) => (
+                <div key={group.label} className="space-y-2">
+                  {/* Encabezado cronológico alineado hacia el lado DERECHO */}
+                  <div className="flex items-center justify-end gap-1.5 px-2 pt-1.5 pb-0.5 text-right">
+                    <span
+                      className="text-xs font-bold tracking-wide uppercase font-mono"
+                      style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                    >
+                      {group.label}
+                    </span>
+                    <Calendar
+                      className="w-3.5 h-3.5 shrink-0"
+                      style={{ color: 'var(--theme-primary, #00e5ff)' }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    {group.items.map((log) => {
+                      const isSuccess = log.type === 'success';
+
+                      return (
+                        <div
+                          key={log.id}
+                          onClick={() => setSelectedLogDetail(log)}
+                          className={`flex items-center justify-between p-3.5 rounded-2xl transition-all cursor-pointer border ${
+                            isSuccess
+                              ? 'hover:brightness-105'
+                              : 'bg-rose-500/[0.06] border-rose-500/30 hover:bg-rose-500/[0.1]'
+                          }`}
+                          style={{
+                            backgroundColor: isSuccess ? 'var(--theme-bg-secondary, rgba(15, 23, 42, 0.5))' : undefined,
+                            borderColor: isSuccess ? 'var(--theme-border, rgba(51, 65, 85, 0.7))' : undefined,
+                          }}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {isSuccess ? (
+                              <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
+                            ) : (
+                              <XCircle className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p
+                                  className="text-xs font-semibold truncate"
+                                  style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                                >
+                                  {log.title}
+                                </p>
+                                {log.method === 'biometric' && (
+                                  <span title="Acceso biométrico">
+                                    <Fingerprint className="w-3 h-3 shrink-0" style={{ color: 'var(--theme-text-muted, #94a3b8)' }} />
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] font-mono" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
+                                {log.time}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 ml-2">
+                            <span
+                              className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${
+                                isSuccess
+                                  ? 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/25'
+                                  : log.isLockout
+                                  ? 'bg-rose-500/25 text-rose-800 dark:text-rose-300 border border-rose-500/50'
+                                  : 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30'
+                              }`}
+                            >
+                              {isSuccess ? 'Válido' : log.isLockout ? 'Bloqueado' : 'Fallido'}
+                            </span>
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {/* Estado vacío (Requisito 10) */}
+              {groupedLogs.length === 0 && (
+                <div className="py-12 px-4 text-center flex flex-col items-center justify-center gap-2.5">
+                  <div
+                    className="w-12 h-12 rounded-2xl border flex items-center justify-center"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-secondary, rgba(15, 23, 42, 0.5))',
+                      borderColor: 'var(--theme-border, #1e293b)',
+                      color: 'var(--theme-text-muted, #94a3b8)',
+                    }}
+                  >
+                    <Clock className="w-6 h-6" />
+                  </div>
+                  <p className="text-xs font-medium" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
+                    Aún no hay accesos registrados
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Pie del modal con botón de vaciar historial y cerrar */}
+            <div
+              className="pt-3.5 border-t mt-3 flex items-center justify-between"
+              style={{ borderColor: 'var(--theme-border, #1e293b)' }}
+            >
+              <button
+                type="button"
+                onClick={handleRequestClearLogs}
+                disabled={logs.length === 0}
+                className="text-xs text-rose-500 hover:text-rose-400 flex items-center gap-1.5 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-opacity font-medium"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Vaciar historial</span>
@@ -956,7 +1396,12 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAllLogsModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 text-xs font-medium cursor-pointer hover:bg-slate-700"
+                className="px-4 py-2 rounded-xl text-xs font-medium cursor-pointer transition-colors"
+                style={{
+                  backgroundColor: 'var(--theme-bg-secondary, #1e293b)',
+                  color: 'var(--theme-text-main, #ffffff)',
+                  border: '1px solid var(--theme-border, #334155)',
+                }}
               >
                 Cerrar
               </button>
@@ -964,6 +1409,271 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Hoja Inferior (Bottom Sheet) - Detalle de Acceso */}
+      {selectedLogDetail && (
+        <div
+          className="fixed inset-0 z-55 bg-black/60 backdrop-blur-sm flex items-end justify-center animate-in fade-in duration-200"
+          onClick={() => setSelectedLogDetail(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => {
+              sheetTouchStartY.current = e.touches[0].clientY;
+            }}
+            onTouchMove={(e) => {
+              if (sheetTouchStartY.current !== null) {
+                const delta = e.touches[0].clientY - sheetTouchStartY.current;
+                if (delta > 0) {
+                  setSheetDragDelta(delta);
+                }
+              }
+            }}
+            onTouchEnd={() => {
+              if (sheetDragDelta > 70) {
+                setSelectedLogDetail(null);
+              }
+              sheetTouchStartY.current = null;
+              setSheetDragDelta(0);
+            }}
+            style={{
+              transform: `translateY(${Math.max(0, sheetDragDelta)}px)`,
+              transition: sheetDragDelta > 0 ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              backgroundColor: 'var(--theme-bg-card, #0a121d)',
+              borderColor: 'var(--theme-border, #1e293b)',
+              color: 'var(--theme-text-main, #ffffff)',
+            }}
+            className="w-full max-w-lg border-t border-x rounded-t-3xl px-6 pt-3 pb-8 shadow-2xl relative flex flex-col animate-in slide-in-from-bottom duration-200 select-none"
+          >
+            {/* Manija táctil superior (indicador de deslizamiento) */}
+            <div className="w-12 h-1.5 rounded-full mx-auto mb-4 bg-slate-400/40 dark:bg-slate-600/50" />
+
+            {/* Ícono circular grande arriba */}
+            <div className="text-center mb-1">
+              {selectedLogDetail.type === 'success' ? (
+                <div
+                  className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center bg-cyan-500/10 border-2 border-cyan-500/30"
+                  style={{ color: 'var(--theme-primary, #00e5ff)' }}
+                >
+                  <Check className="w-8 h-8 stroke-[2.8]" />
+                </div>
+              ) : selectedLogDetail.isLockout ? (
+                <div className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center bg-rose-500/15 border-2 border-rose-500/40 text-rose-500 dark:text-rose-400">
+                  <Lock className="w-8 h-8 stroke-[2.4]" />
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center bg-rose-500/10 border-2 border-rose-500/30 text-rose-500 dark:text-rose-400">
+                  <X className="w-8 h-8 stroke-[2.8]" />
+                </div>
+              )}
+
+              {/* Título según el tipo */}
+              <h3
+                className="text-center font-bold text-lg mb-5"
+                style={{ color: 'var(--theme-text-main, #ffffff)' }}
+              >
+                {selectedLogDetail.type === 'success'
+                  ? 'Acceso correcto'
+                  : selectedLogDetail.isLockout
+                  ? 'Bloqueo activado'
+                  : 'PIN incorrecto'}
+              </h3>
+            </div>
+
+            {/* Filas con etiqueta gris pequeña y valor debajo */}
+            <div
+              className="border rounded-2xl p-4 space-y-3.5 mb-5 text-left"
+              style={{
+                backgroundColor: 'var(--theme-bg-secondary, rgba(15, 23, 42, 0.5))',
+                borderColor: 'var(--theme-border, #1e293b)',
+              }}
+            >
+              {/* Fecha: formato largo en español */}
+              <div>
+                <span className="block text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                  Fecha
+                </span>
+                <span
+                  className="block text-sm font-semibold capitalize mt-0.5"
+                  style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                >
+                  {formatDetailDateLong(selectedLogDetail.timestamp)}
+                </span>
+              </div>
+
+              {/* Hora: con segundos */}
+              <div>
+                <span className="block text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                  Hora
+                </span>
+                <span
+                  className="block text-sm font-semibold font-mono mt-0.5"
+                  style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                >
+                  {formatDetailTimeWithSeconds(selectedLogDetail.timestamp)}
+                </span>
+              </div>
+
+              {/* Método */}
+              <div>
+                <span className="block text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                  Método
+                </span>
+                <span
+                  className="block text-sm font-semibold mt-0.5"
+                  style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                >
+                  {selectedLogDetail.method === 'biometric' ? 'Biométrico' : 'PIN'}
+                </span>
+              </div>
+
+              {/* Resultado */}
+              <div>
+                <span className="block text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                  Resultado
+                </span>
+                <div className="mt-0.5">
+                  <span
+                    className={`inline-block font-bold px-2.5 py-0.5 rounded-full text-xs ${
+                      selectedLogDetail.type === 'success'
+                        ? 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/30'
+                        : selectedLogDetail.isLockout
+                        ? 'bg-rose-500/20 text-rose-800 dark:text-rose-300 border border-rose-500/50'
+                        : 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30'
+                    }`}
+                  >
+                    {selectedLogDetail.type === 'success'
+                      ? 'Válido'
+                      : selectedLogDetail.isLockout
+                      ? 'Bloqueado'
+                      : 'Fallido'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Solo si es fallido (no bloqueo) */}
+              {selectedLogDetail.type === 'failed' && !selectedLogDetail.isLockout && (
+                <div>
+                  <span className="block text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                    Intentos antes del bloqueo
+                  </span>
+                  <span className="block text-sm font-semibold text-rose-600 dark:text-rose-400 mt-0.5">
+                    {`Intento ${selectedLogDetail.attemptNumber || 1} de 3 antes del bloqueo`}
+                  </span>
+                </div>
+              )}
+
+              {/* Solo si es bloqueado */}
+              {selectedLogDetail.isLockout && (
+                <div>
+                  <span className="block text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                    Duración del bloqueo
+                  </span>
+                  <span className="block text-sm font-semibold text-rose-600 dark:text-rose-400 mt-0.5">
+                    {`Duración del bloqueo: ${selectedLogDetail.lockoutDuration || 30} segundos`}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Botón Cerrar */}
+            <button
+              type="button"
+              onClick={() => setSelectedLogDetail(null)}
+              className="w-full py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-[0.99]"
+              style={{
+                backgroundColor: 'var(--theme-bg-secondary, #1e293b)',
+                color: 'var(--theme-text-main, #ffffff)',
+                border: '1px solid var(--theme-border, #334155)',
+              }}
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmar PIN antes de Vaciar Historial (Requisito 8) */}
+      {showClearConfirmModal && (
+        <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div
+            className="w-full max-w-sm border rounded-3xl p-6 shadow-2xl relative transition-colors"
+            style={{
+              backgroundColor: 'var(--theme-bg-card, #0a121d)',
+              borderColor: 'var(--theme-border, #1e293b)',
+              color: 'var(--theme-text-main, #ffffff)',
+            }}
+          >
+            <div className="text-center mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 dark:text-rose-400 flex items-center justify-center mx-auto mb-3">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <h3 className="font-extrabold text-base" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
+                ¿Vaciar Historial de Accesos?
+              </h3>
+              <p className="text-xs mt-1.5 leading-relaxed" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
+                Esta acción borrará de forma irreversible todos los registros de intentos de acceso. Introduce tu PIN maestro para confirmar.
+              </p>
+            </div>
+
+            <form onSubmit={handleConfirmClearLogsWithPin} className="space-y-4">
+              <div>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  value={clearPinInput}
+                  onChange={(e) => {
+                    setClearPinInput(e.target.value);
+                    setClearPinError(null);
+                  }}
+                  placeholder="Introduce tu PIN maestro"
+                  autoFocus
+                  required
+                  className="w-full rounded-xl px-4 py-2.5 text-center text-sm focus:outline-none focus:border-rose-500 font-mono tracking-widest border transition-colors"
+                  style={{
+                    backgroundColor: 'var(--theme-bg-input, #0f172a)',
+                    borderColor: 'var(--theme-border, #334155)',
+                    color: 'var(--theme-text-main, #ffffff)',
+                  }}
+                />
+              </div>
+
+              {clearPinError && (
+                <div className="text-rose-700 dark:text-rose-400 text-xs bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/30 text-center font-semibold">
+                  {clearPinError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowClearConfirmModal(false);
+                    setClearPinInput('');
+                    setClearPinError(null);
+                  }}
+                  className="w-full py-2.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors"
+                  style={{
+                    backgroundColor: 'var(--theme-bg-secondary, #1e293b)',
+                    color: 'var(--theme-text-main, #cbd5e1)',
+                    border: '1px solid var(--theme-border, #334155)',
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isVerifyingClearPin || !clearPinInput}
+                  className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-900/20 cursor-pointer disabled:opacity-40 transition-colors"
+                >
+                  {isVerifyingClearPin ? 'Verificando...' : 'Vaciar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* ==================== FIN BLOQUE DE HISTORIAL (VISTA Y MODALES) ==================== */}
 
       {/* Modal Confirmar PIN para Desactivar Bloqueo de Capturas */}
       {showDisableScreenshotModal && (

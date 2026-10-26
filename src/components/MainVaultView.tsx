@@ -1363,6 +1363,53 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     });
   }, [items, activeTab, activeSubfolder, searchQuery]);
 
+  // PRUEBA DE FECHA: Formateo de fecha para agrupación cronológica
+  const formatDateGroupLabel = (timestamp: number): string => {
+    const fileDate = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    const isToday =
+      fileDate.getFullYear() === today.getFullYear() &&
+      fileDate.getMonth() === today.getMonth() &&
+      fileDate.getDate() === today.getDate();
+
+    if (isToday) return 'Hoy';
+
+    const isYesterday =
+      fileDate.getFullYear() === yesterday.getFullYear() &&
+      fileDate.getMonth() === yesterday.getMonth() &&
+      fileDate.getDate() === yesterday.getDate();
+
+    if (isYesterday) return 'Ayer';
+
+    const isSameYear = fileDate.getFullYear() === today.getFullYear();
+    const options: Intl.DateTimeFormatOptions = isSameYear
+      ? { day: 'numeric', month: 'long' }
+      : { day: 'numeric', month: 'long', year: 'numeric' };
+
+    return fileDate.toLocaleDateString('es-ES', options);
+  };
+
+  // PRUEBA DE FECHA: Agrupación cronológica de archivos ordenados por fecha
+  const groupedByDate = useMemo(() => {
+    const sorted = [...filteredItems].sort(
+      (a, b) => (b.record.timestamp || 0) - (a.record.timestamp || 0)
+    );
+    const groups: { dateLabel: string; items: typeof filteredItems }[] = [];
+    sorted.forEach((item) => {
+      const label = formatDateGroupLabel(item.record.timestamp || Date.now());
+      const lastGroup = groups[groups.length - 1];
+      if (lastGroup && lastGroup.dateLabel === label) {
+        lastGroup.items.push(item);
+      } else {
+        groups.push({ dateLabel: label, items: [item] });
+      }
+    });
+    return groups;
+  }, [filteredItems]);
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -2626,166 +2673,190 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div
-                    className={`grid gap-2.5 sm:gap-3 ${
-                      gridColumns === 2
-                        ? 'grid-cols-2'
-                        : gridColumns === 3
-                        ? 'grid-cols-3'
-                        : 'grid-cols-4'
-                    }`}
-                  >
-            {filteredItems.map((item) => {
-              const isSelected = selectedIds.has(item.id);
-              const isPhoto = item.record.category === 'photo';
-              const isVideo = item.record.category === 'video';
-              const isAudio = item.record.category === 'audio';
-              const isApp = item.record.category === 'app';
+                  <div className="space-y-4">
+                    {groupedByDate.map((group) => (
+                      <div key={group.dateLabel} className="space-y-1.5">
+                        {/* PRUEBA DE FECHA: Fecha delgada y limpia alineada a la derecha */}
+                        <div className="flex justify-end px-1 pt-1 select-none">
+                          <span
+                            className="text-xs sm:text-sm font-medium tracking-tight"
+                            style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                          >
+                            {group.dateLabel}
+                          </span>
+                        </div>
 
-              return (
-                <div
-                  key={item.id}
-                  onPointerDown={() => handleCardPointerDown(item.id)}
-                  onPointerUp={handleCardPointerUp}
-                  onPointerCancel={handleCardPointerUp}
-                  onClick={() => {
-                    if (isLongPressTriggered.current) {
-                      isLongPressTriggered.current = false;
-                      return;
-                    }
-                    if (isSelectMode) {
-                      toggleSelectItem(item.id, {} as React.MouseEvent);
-                    } else {
-                      setActiveViewerItem(item);
-                    }
-                  }}
-                  className={`group relative aspect-square rounded-2xl overflow-hidden bg-zinc-900 border cursor-pointer transition-all duration-200 select-none ${
-                    isSelected
-                      ? 'border-zinc-300 ring-2 ring-white/30 scale-[0.98]'
-                      : 'border-zinc-800/80 hover:border-zinc-700 active:scale-95'
-                  }`}
-                >
-                  {/* Photo Display */}
-                  {isPhoto && (
-                    <img
-                      src={item.blobUrl}
-                      alt={item.record.name}
-                      className={`w-full h-full ${
-                        aspectMode === 'real' ? 'object-contain p-0.5' : 'object-cover'
-                      } transition-transform duration-300 group-hover:scale-105 pointer-events-none`}
-                      loading="lazy"
-                    />
-                  )}
+                        <div
+                          className={`grid gap-2.5 sm:gap-3 ${
+                            gridColumns === 2
+                              ? 'grid-cols-2'
+                              : gridColumns === 3
+                              ? 'grid-cols-3'
+                              : 'grid-cols-4'
+                          }`}
+                        >
+                          {group.items.map((item) => {
+                            const isSelected = selectedIds.has(item.id);
+                            const isPhoto = item.record.category === 'photo';
+                            const isVideo = item.record.category === 'video';
+                            const isAudio = item.record.category === 'audio';
+                            const isApp = item.record.category === 'app';
 
-                  {/* Video Thumbnail Display */}
-                  {isVideo && (
-                    <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center relative pointer-events-none">
-                      <video
-                        src={item.blobUrl}
-                        preload="metadata"
-                        className={`w-full h-full ${
-                          aspectMode === 'real' ? 'object-contain p-0.5' : 'object-cover'
-                        } opacity-75 group-hover:opacity-95 transition-opacity`}
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white group-hover:scale-110 transition-transform">
-                          <Play className="w-4 h-4 fill-white ml-0.5" />
+                            return (
+                              <div key={item.id} className="flex flex-col gap-1 min-w-0">
+                                <div
+                                  onPointerDown={() => handleCardPointerDown(item.id)}
+                                  onPointerUp={handleCardPointerUp}
+                                  onPointerCancel={handleCardPointerUp}
+                                  onClick={() => {
+                                    if (isLongPressTriggered.current) {
+                                      isLongPressTriggered.current = false;
+                                      return;
+                                    }
+                                    if (isSelectMode) {
+                                      toggleSelectItem(item.id, {} as React.MouseEvent);
+                                    } else {
+                                      setActiveViewerItem(item);
+                                    }
+                                  }}
+                                  className={`group relative aspect-square rounded-2xl overflow-hidden bg-zinc-900 border cursor-pointer transition-all duration-200 select-none ${
+                                    isSelected
+                                      ? 'border-zinc-300 ring-2 ring-white/30 scale-[0.98]'
+                                      : 'border-zinc-800/80 hover:border-zinc-700 active:scale-95'
+                                  }`}
+                                >
+                                  {/* Photo Display */}
+                                  {isPhoto && (
+                                    <img
+                                      src={item.blobUrl}
+                                      alt={item.record.name}
+                                      className={`w-full h-full ${
+                                        aspectMode === 'real' ? 'object-contain p-0.5' : 'object-cover'
+                                      } transition-transform duration-300 group-hover:scale-105 pointer-events-none`}
+                                      loading="lazy"
+                                    />
+                                  )}
+
+                                  {/* Video Thumbnail Display */}
+                                  {isVideo && (
+                                    <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center relative pointer-events-none">
+                                      <video
+                                        src={item.blobUrl}
+                                        preload="metadata"
+                                        className={`w-full h-full ${
+                                          aspectMode === 'real' ? 'object-contain p-0.5' : 'object-cover'
+                                        } opacity-75 group-hover:opacity-95 transition-opacity`}
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white group-hover:scale-110 transition-transform">
+                                          <Play className="w-4 h-4 fill-white ml-0.5" />
+                                        </div>
+                                      </div>
+                                      <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-md text-[10px] font-mono text-purple-300 flex items-center gap-1">
+                                        <Film className="w-3 h-3" />
+                                        <span>VIDEO</span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Audio Card Display */}
+                                  {isAudio && (
+                                    <div className="w-full h-full bg-gradient-to-br from-[#1d170e] to-slate-950 p-3.5 flex flex-col justify-between items-center text-center pointer-events-none">
+                                      <div className="w-full flex items-center justify-between text-[10px] text-amber-400">
+                                        <span className="font-mono font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                          {item.record.name.split('.').pop()?.toUpperCase() || 'AUDIO'}
+                                        </span>
+                                        <span className="text-slate-400">{formatSize(item.record.size)}</span>
+                                      </div>
+
+                                      <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform shadow-md shadow-amber-500/10">
+                                        <Music className="w-6 h-6 text-amber-400" />
+                                      </div>
+
+                                      <div className="w-full text-center">
+                                        <p className="text-xs font-semibold text-slate-200 truncate w-full">
+                                          {item.record.name}
+                                        </p>
+                                        <p className="text-[10px] text-amber-400/80">Audio seguro</p>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* App / File Card Display */}
+                                  {isApp && (
+                                    <div className="w-full h-full bg-gradient-to-br from-[#131c2e] to-slate-950 p-3.5 flex flex-col justify-between items-center text-center pointer-events-none">
+                                      <div className="w-full flex items-center justify-between text-[10px] text-emerald-400">
+                                        <span className="font-mono font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                          {item.record.name.split('.').pop()?.toUpperCase() || 'FILE'}
+                                        </span>
+                                        <span className="text-slate-400">{formatSize(item.record.size)}</span>
+                                      </div>
+
+                                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                                        {item.record.name.endsWith('.apk') ? (
+                                          <Smartphone className="w-6 h-6" />
+                                        ) : (
+                                          <Folder className="w-6 h-6" />
+                                        )}
+                                      </div>
+
+                                      <div className="w-full text-center">
+                                        <p className="text-xs font-semibold text-slate-200 truncate w-full">
+                                          {item.record.name}
+                                        </p>
+                                        <p className="text-[10px] text-slate-500">Cifrado local</p>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Top-right Favorite indicator */}
+                                  {item.record.isFavorite && (
+                                    <div className="absolute top-2 right-2 p-1 bg-black/60 backdrop-blur-md rounded-lg text-rose-500 z-10 pointer-events-none">
+                                      <Heart className="w-3.5 h-3.5 fill-rose-500" />
+                                    </div>
+                                  )}
+
+                                  {/* Selection indicator - circular checkmark */}
+                                  {isSelectMode && (
+                                    <div className="absolute top-2 left-2 z-20 pointer-events-none">
+                                      <div
+                                        className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                                          isSelected
+                                            ? 'bg-zinc-100 text-zinc-950 shadow-md border-2 border-zinc-900 font-bold'
+                                            : 'bg-black/60 border border-white/60 text-transparent'
+                                        }`}
+                                      >
+                                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Nombre del archivo debajo del cuadro (Opción B) */}
+                                <div
+                                  onClick={() => {
+                                    if (isSelectMode) {
+                                      toggleSelectItem(item.id, {} as React.MouseEvent);
+                                    } else {
+                                      setActiveViewerItem(item);
+                                    }
+                                  }}
+                                  className="px-0.5 cursor-pointer text-center select-none"
+                                >
+                                  <p
+                                    className="text-[10px] sm:text-[11px] font-medium truncate leading-tight"
+                                    style={{ color: 'var(--theme-text-main, #f1f5f9)' }}
+                                    title={item.record.name}
+                                  >
+                                    {item.record.name}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                      <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-md text-[10px] font-mono text-purple-300 flex items-center gap-1">
-                        <Film className="w-3 h-3" />
-                        <span>VIDEO</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Audio Card Display */}
-                  {isAudio && (
-                    <div className="w-full h-full bg-gradient-to-br from-[#1d170e] to-slate-950 p-3.5 flex flex-col justify-between items-center text-center pointer-events-none">
-                      <div className="w-full flex items-center justify-between text-[10px] text-amber-400">
-                        <span className="font-mono font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                          {item.record.name.split('.').pop()?.toUpperCase() || 'AUDIO'}
-                        </span>
-                        <span className="text-slate-400">{formatSize(item.record.size)}</span>
-                      </div>
-
-                      <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform shadow-md shadow-amber-500/10">
-                        <Music className="w-6 h-6 text-amber-400" />
-                      </div>
-
-                      <div className="w-full text-center">
-                        <p className="text-xs font-semibold text-slate-200 truncate w-full">
-                          {item.record.name}
-                        </p>
-                        <p className="text-[10px] text-amber-400/80">Audio seguro</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* App / File Card Display */}
-                  {isApp && (
-                    <div className="w-full h-full bg-gradient-to-br from-[#131c2e] to-slate-950 p-3.5 flex flex-col justify-between items-center text-center pointer-events-none">
-                      <div className="w-full flex items-center justify-between text-[10px] text-emerald-400">
-                        <span className="font-mono font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                          {item.record.name.split('.').pop()?.toUpperCase() || 'FILE'}
-                        </span>
-                        <span className="text-slate-400">{formatSize(item.record.size)}</span>
-                      </div>
-
-                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
-                        {item.record.name.endsWith('.apk') ? (
-                          <Smartphone className="w-6 h-6" />
-                        ) : (
-                          <Folder className="w-6 h-6" />
-                        )}
-                      </div>
-
-                      <div className="w-full text-center">
-                        <p className="text-xs font-semibold text-slate-200 truncate w-full">
-                          {item.record.name}
-                        </p>
-                        <p className="text-[10px] text-slate-500">Cifrado local</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Gradient overlay for photos/videos */}
-                  {(isPhoto || isVideo) && (
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                  )}
-
-                  {/* Top-right Favorite indicator */}
-                  {item.record.isFavorite && (
-                    <div className="absolute top-2 right-2 p-1 bg-black/60 backdrop-blur-md rounded-lg text-rose-500 z-10 pointer-events-none">
-                      <Heart className="w-3.5 h-3.5 fill-rose-500" />
-                    </div>
-                  )}
-
-                  {/* Selection indicator - circular checkmark */}
-                  {isSelectMode && (
-                    <div className="absolute top-2 left-2 z-20 pointer-events-none">
-                      <div
-                        className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                          isSelected
-                            ? 'bg-zinc-100 text-zinc-950 shadow-md border-2 border-zinc-900 font-bold'
-                            : 'bg-black/60 border border-white/60 text-transparent'
-                        }`}
-                      >
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Bottom quick metadata */}
-                  {(isPhoto || isVideo) && (
-                    <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-[10px] text-white/90 opacity-0 group-hover:opacity-100 transition-opacity drop-shadow z-10 pointer-events-none">
-                      <span className="truncate max-w-[120px]">{item.record.name}</span>
-                      <span>{formatSize(item.record.size)}</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                    ))}
                   </div>
                 )}
               </div>

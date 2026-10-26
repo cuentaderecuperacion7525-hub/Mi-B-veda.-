@@ -14,6 +14,7 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
+  ShieldCheck,
 } from 'lucide-react';
 import { deriveKeyFromPin, verifyKey, hexToBuf } from '../crypto/vaultCrypto';
 import {
@@ -145,46 +146,140 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   const isUnlockingRef = useRef<boolean>(false);
   const isAuthenticatingBiometricsRef = useRef<boolean>(false);
   const hasAutoTriggeredBioRef = useRef<boolean>(false);
-  const attemptUnlockRef = useRef<(pin: string) => Promise<void>>(async () => {});
+  const attemptUnlockRef = useRef<(pin: string, method?: 'pin' | 'biometric') => Promise<void>>(async () => {});
 
-  const recordAccessLog = (type: 'success' | 'failed') => {
+  // Helper de tiempos de bloqueo progresivo:
+  // 3er fallo consecutivo: 15 segundos
+  // 4to fallo consecutivo: 20 segundos
+  // 5to o más fallos: 30 segundos
+  const getLockoutDurationSeconds = (streak: number): number => {
+    if (streak === 3) return 15;
+    if (streak === 4) return 20;
+    if (streak >= 5) return 30;
+    return 0;
+  };
+
+  // Formato MM:SS para cuenta regresiva
+  const formatCountdown = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Estado de bloqueo temporal con persistencia
+  const [remainingLockout, setRemainingLockout] = useState<number>(() => {
+    try {
+      const until = Number(localStorage.getItem('nullvault_lockout_until') || '0');
+      const diff = Math.ceil((until - Date.now()) / 1000);
+      return diff > 0 ? diff : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  // Temporizador de cuenta regresiva en vivo
+  useEffect(() => {
+    if (remainingLockout <= 0) return;
+
+    const timer = setInterval(() => {
+      const until = Number(localStorage.getItem('nullvault_lockout_until') || '0');
+      const diff = Math.ceil((until - Date.now()) / 1000);
+      if (diff <= 0) {
+        setRemainingLockout(0);
+        localStorage.removeItem('nullvault_lockout_until');
+        setErrorMessage(null);
+      } else {
+        setRemainingLockout(diff);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [remainingLockout]);
+
+  /* ==================== BLOQUE DE HISTORIAL (REGISTRO) ==================== */
+  const recordAccessLog = (
+    type: 'success' | 'failed',
+    method: 'pin' | 'biometric' = 'pin',
+    isLockout: boolean = false,
+    attemptNumber?: number,
+    lockoutDuration?: number
+  ) => {
     try {
       const logs = JSON.parse(localStorage.getItem('nullvault_access_logs') || '[]');
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       if (type === 'success') {
-        logs.unshift({
-          id: `${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-          type: 'success',
-          title: 'Acceso correcto',
-          time: timeStr,
-          timestamp: Date.now(),
-        });
-        localStorage.setItem('nullvault_access_logs', JSON.stringify(logs.slice(0, 30)));
-        localStorage.setItem('nullvault_last_access', timeStr);
+        const prevFailedSince = Number(localStorage.getItem('nullvault_failed_since_last_success') || '0');
+        const prevStreak = Number(localStorage.getItem('nullvault_failed_streak') || '0');
+        const totalFailedBefore = prevFailedSince > 0 ? prevFailedSince : prevStreak;
+
+        // Guardar cuántos fallos ocurrieron antes de este acceso exitoso para el banner (Requisito 7)
+        localStorage.setItem('nullvault_failed_before_last_success', totalFailedBefore.toString());
+        // Reiniciar contadores de fallos consecutivos a 0 (Requisito 1)
         localStorage.setItem('nullvault_failed_streak', '0');
-      } else {
-        const streak = Number(localStorage.getItem('nullvault_failed_streak') || '0') + 1;
-        localStorage.setItem('nullvault_failed_streak', streak.toString());
-        localStorage.setItem('nullvault_last_failed_time', timeStr);
+        localStorage.setItem('nullvault_failed_since_last_success', '0');
+        localStorage.removeItem('nullvault_lockout_until');
 
         logs.unshift({
           id: `${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-          type: 'failed',
-          title: 'PIN incorrecto',
+          type: 'success',
+          method,
+          isLockout: false,
+          title: method === 'biometric' ? 'Acceso biométrico correcto' : 'Acceso correcto',
           time: timeStr,
           timestamp: Date.now(),
         });
-        localStorage.setItem('nullvault_access_logs', JSON.stringify(logs.slice(0, 30)));
+        // Límite estricto de 100 registros eliminando los más antiguos
+        localStorage.setItem('nullvault_access_logs', JSON.stringify(logs.slice(0, 100)));
+        localStorage.setItem('nullvault_last_access', timeStr);
+      } else {
+        if (!isLockout) {
+          const streak = Number(localStorage.getItem('nullvault_failed_streak') || '0') + 1;
+          localStorage.setItem('nullvault_failed_streak', streak.toString());
+          localStorage.setItem('nullvault_last_failed_time', timeStr);
+
+          const failedSince = Number(localStorage.getItem('nullvault_failed_since_last_success') || '0') + 1;
+          localStorage.setItem('nullvault_failed_since_last_success', failedSince.toString());
+
+          logs.unshift({
+            id: `${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            type: 'failed',
+            method,
+            isLockout: false,
+            attemptNumber: attemptNumber ?? streak,
+            title: method === 'biometric' ? 'Huella no reconocida' : 'PIN incorrecto',
+            time: timeStr,
+            timestamp: Date.now(),
+          });
+        } else {
+          // Registro extra de tipo "bloqueado" (Requisito 4)
+          // Nota: No incrementa los contadores de intentos fallidos, ya que es el registro del estado de bloqueo
+          logs.unshift({
+            id: `${Date.now()}_${Math.random().toString(36).substr(2, 5)}_lock`,
+            type: 'failed',
+            method,
+            isLockout: true,
+            lockoutDuration: lockoutDuration ?? 30,
+            title: 'Bóveda bloqueada por intentos',
+            time: timeStr,
+            timestamp: Date.now() + 1,
+          });
+        }
+
+        // Límite estricto de 100 registros eliminando los más antiguos
+        localStorage.setItem('nullvault_access_logs', JSON.stringify(logs.slice(0, 100)));
       }
     } catch (e) {
       console.error(e);
     }
   };
+  /* ==================== FIN BLOQUE DE HISTORIAL (REGISTRO) ==================== */
 
   const attemptUnlock = useCallback(
-    async (pinToVerify: string) => {
+    async (pinToVerify: string, method: 'pin' | 'biometric' = 'pin') => {
+      // Bloquear si la cuenta regresiva está activa
+      if (remainingLockout > 0) return;
       if (isUnlockingRef.current) return;
       isUnlockingRef.current = true;
 
@@ -211,7 +306,9 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
           const decoySalt = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
           const decoyKey = await deriveKeyFromPin(pinToVerify, decoySalt);
           sessionStorage.setItem('vault_is_duress_mode', 'true');
-          recordAccessLog('success');
+          recordAccessLog('success', 'pin', false);
+          localStorage.removeItem('nullvault_lockout_until');
+          setRemainingLockout(0);
           onUnlock(decoyKey, pinToVerify);
           return;
         }
@@ -221,20 +318,60 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         const isValid = await verifyKey(derivedKey, testIvHex, testCipherHex);
 
         if (isValid) {
-          recordAccessLog('success');
+          recordAccessLog('success', method, false);
+          localStorage.removeItem('nullvault_lockout_until');
+          setRemainingLockout(0);
           onUnlock(derivedKey, pinToVerify);
         } else {
-          recordAccessLog('failed');
+          const currentStreak = Number(localStorage.getItem('nullvault_failed_streak') || '0');
+          const nextStreak = currentStreak + 1;
+          const lockoutDuration = getLockoutDurationSeconds(nextStreak);
+          const shouldLockout = lockoutDuration > 0;
+
+          // 1. Guardar intento fallido
+          recordAccessLog('failed', method, false, nextStreak);
+
+          if (shouldLockout) {
+            // 2. Guardar hora de finalización en almacenamiento persistente
+            const lockoutUntil = Date.now() + lockoutDuration * 1000;
+            localStorage.setItem('nullvault_lockout_until', lockoutUntil.toString());
+            setRemainingLockout(lockoutDuration);
+
+            // 3. Registro extra de tipo "bloqueado" (Requisito 4)
+            recordAccessLog('failed', method, true, undefined, lockoutDuration);
+          }
+
           setIsShaking(true);
-          setErrorMessage('PIN incorrecto. Inténtalo de nuevo.');
+          setErrorMessage(
+            shouldLockout
+              ? `Demasiados intentos. Intenta de nuevo en ${formatCountdown(lockoutDuration)}`
+              : 'PIN incorrecto. Inténtalo de nuevo.'
+          );
           setPin('');
           setTimeout(() => setIsShaking(false), 500);
         }
       } catch (err) {
         console.error('Error unlocking vault:', err);
-        recordAccessLog('failed');
+        const currentStreak = Number(localStorage.getItem('nullvault_failed_streak') || '0');
+        const nextStreak = currentStreak + 1;
+        const lockoutDuration = getLockoutDurationSeconds(nextStreak);
+        const shouldLockout = lockoutDuration > 0;
+
+        recordAccessLog('failed', method, false, nextStreak);
+
+        if (shouldLockout) {
+          const lockoutUntil = Date.now() + lockoutDuration * 1000;
+          localStorage.setItem('nullvault_lockout_until', lockoutUntil.toString());
+          setRemainingLockout(lockoutDuration);
+          recordAccessLog('failed', method, true, undefined, lockoutDuration);
+        }
+
         setIsShaking(true);
-        setErrorMessage('Error al descifrar la bóveda.');
+        setErrorMessage(
+          shouldLockout
+            ? `Demasiados intentos. Intenta de nuevo en ${formatCountdown(lockoutDuration)}`
+            : 'Error al descifrar la bóveda.'
+        );
         setPin('');
         setTimeout(() => setIsShaking(false), 500);
       } finally {
@@ -244,13 +381,13 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         }, 500);
       }
     },
-    [onUnlock]
+    [onUnlock, remainingLockout]
   );
 
   // Keyboard listener for desktop users
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (showForgotModal) return;
+      if (showForgotModal || remainingLockout > 0) return;
 
       if (e.key >= '0' && e.key <= '9') {
         if (pin.length < expectedLength) {
@@ -274,7 +411,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   }, [pin, expectedLength, attemptUnlock, showForgotModal]);
 
   const handleKeypadChange = (newPin: string) => {
-    if (isVerifying || isUnlockingRef.current) return;
+    if (isVerifying || isUnlockingRef.current || remainingLockout > 0) return;
     setPin(newPin);
     setErrorMessage(null);
     if (newPin.length === expectedLength) {
@@ -282,10 +419,10 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
     }
   };
 
-    attemptUnlockRef.current = attemptUnlock;
+  attemptUnlockRef.current = attemptUnlock;
 
-    const handleBiometricClick = useCallback(async () => {
-    if (isVerifying || isBioLoading || isUnlockingRef.current) return;
+  const handleBiometricClick = useCallback(async () => {
+    if (isVerifying || isBioLoading || isUnlockingRef.current || remainingLockout > 0) return;
     const enrolled = hasBiometricCredentials();
     if (enrolled) {
       isAuthenticatingBiometricsRef.current = true;
@@ -293,7 +430,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       setErrorMessage(null);
       try {
         const decryptedPin = await authenticateWithBiometrics(true);
-        await attemptUnlockRef.current(decryptedPin);
+        await attemptUnlockRef.current(decryptedPin, 'biometric');
       } catch (err: any) {
         console.warn('Biometric unlock canceled or failed:', err);
         setIsBioEnrolled(hasBiometricCredentials());
@@ -315,7 +452,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       setEnrollError(null);
       setShowEnrollBioModal(true);
     }
-  }, [pin, isVerifying, isBioLoading]);
+  }, [pin, isVerifying, isBioLoading, remainingLockout]);
 
   // Sensor de huella automático y reconexión al volver a la app o maximizar
   useEffect(() => {
@@ -324,6 +461,8 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
     let lastAutoTriggerTime = 0;
 
     const triggerAutoBiometrics = async (forceFresh = false) => {
+      const lockoutUntil = Number(localStorage.getItem('nullvault_lockout_until') || '0');
+      if (lockoutUntil > Date.now()) return;
       if (!isBiometricsAutoPromptEnabled()) return;
       if (document.visibilityState !== 'visible') return;
       if (isUnlockingRef.current || isAuthenticatingBiometricsRef.current) return;
@@ -338,7 +477,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         if (isMounted) setIsBioLoading(true);
         const decryptedPin = await authenticateWithBiometrics(forceFresh);
         if (isMounted && decryptedPin) {
-          await attemptUnlockRef.current(decryptedPin);
+          await attemptUnlockRef.current(decryptedPin, 'biometric');
         }
       } catch (err: any) {
         console.debug('Auto-biometric prompt dismissed/cancelled by user:', err);
@@ -442,112 +581,180 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         color: 'var(--theme-text-main, #f8fafc)',
       }}
     >
-      {/* Ambient background blur using theme glow */}
+      {/* Ambient background blur using theme glow or coral during lockout */}
       <div className="fixed inset-0 pointer-events-none flex justify-center items-center overflow-hidden">
         <div
-          className="w-[500px] h-[500px] rounded-full blur-[140px] opacity-20"
-          style={{ backgroundColor: 'var(--theme-primary, #00e5ff)' }}
+          className="w-[500px] h-[500px] rounded-full blur-[140px] transition-all duration-500"
+          style={{
+            backgroundColor: remainingLockout > 0 ? '#F87171' : 'var(--theme-primary, #00e5ff)',
+            opacity: remainingLockout > 0 ? 0.14 : 0.2,
+          }}
         />
       </div>
 
-      <div
-        className={`relative w-full max-w-sm rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl text-center border transition-all ${
-          isShaking ? 'animate-shake' : ''
-        }`}
-        style={{
-          backgroundColor: 'var(--theme-bg-card, #0a121d)',
-          borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
-        }}
-      >
-        {/* Lock / Fingerprint Sensor Icon */}
-        <button
-          type="button"
-          onClick={handleBiometricClick}
-          disabled={isVerifying}
-          className={`w-18 h-18 sm:w-20 sm:h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 transition-all cursor-pointer relative group active:scale-95 shadow-xl ${
-            isBioLoading
-              ? 'border-2'
-              : isBioEnrolled
-              ? 'border'
-              : 'border border-slate-700/60'
+      {remainingLockout > 0 ? (
+        /* ==================== PANTALLA COMPLETA DE BLOQUEO (REQUISITOS 1 A 9) ==================== */
+        <div className="relative w-full max-w-sm sm:max-w-md mx-auto flex flex-col items-center justify-between min-h-[82vh] py-8 px-4 text-center select-none animate-in fade-in duration-300">
+          {/* Espaciador superior para centrado */}
+          <div className="w-full h-4" />
+
+          {/* Bloque central de contenido */}
+          <div className="flex flex-col items-center justify-center my-auto w-full">
+            {/* 2. Ícono de candado en recuadro redondeado coral #F87171 con borde rgba(248,113,113,0.55) y fondo rgba(248,113,113,0.08) */}
+            <div
+              className="w-20 h-20 rounded-3xl flex items-center justify-center mb-6 shadow-xl shadow-rose-950/20 backdrop-blur-md transition-all"
+              style={{
+                backgroundColor: 'rgba(248, 113, 113, 0.08)',
+                border: '1.5px solid rgba(248, 113, 113, 0.55)',
+              }}
+            >
+              <Lock className="w-9 h-9 stroke-[2.2]" style={{ color: '#F87171' }} />
+            </div>
+
+            {/* 3. Título "Intentos fallidos" en blanco (o color principal según tema) tamaño grande */}
+            <h2
+              className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2.5 text-slate-900 dark:text-white"
+              style={{ color: 'var(--theme-text-main, #ffffff)' }}
+            >
+              Intentos fallidos
+            </h2>
+
+            {/* 4. Subtítulo en gris claro (#9AA7BD) adaptable */}
+            <p
+              className="text-xs sm:text-sm font-medium max-w-[280px] leading-relaxed mb-8 text-slate-600 dark:text-[#9AA7BD]"
+              style={{ color: 'var(--theme-text-muted, #9AA7BD)' }}
+            >
+              Por seguridad, tu bóveda se bloqueó temporalmente
+            </p>
+
+            {/* 5. Texto pequeño en mayúsculas "INTENTA DE NUEVO EN" */}
+            <p className="text-[11px] font-extrabold tracking-[0.22em] uppercase mb-2 text-slate-400 dark:text-slate-500">
+              INTENTA DE NUEVO EN
+            </p>
+
+            {/* 5. Cuenta regresiva muy grande, fuente monoespaciada, color #F87171 */}
+            <div
+              className="font-mono text-6xl sm:text-7xl font-black tracking-wider drop-shadow-md py-1 select-none"
+              style={{ color: '#F87171' }}
+            >
+              {formatCountdown(remainingLockout)}
+            </div>
+          </div>
+
+          {/* 6. Al fondo, texto pequeño y apagado con ícono de escudo: "Tus archivos siguen protegidos" */}
+          <div className="w-full pt-8 flex items-center justify-center gap-2 text-xs font-semibold text-slate-400 dark:text-slate-500 opacity-80">
+            <ShieldCheck className="w-4 h-4 shrink-0 text-slate-400 dark:text-slate-500" />
+            <span>Tus archivos siguen protegidos</span>
+          </div>
+        </div>
+      ) : (
+        /* ==================== PANTALLA HABITUAL DE DESBLOQUEO ==================== */
+        <div
+          className={`relative w-full max-w-sm rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl text-center border transition-all animate-in fade-in duration-300 ${
+            isShaking ? 'animate-shake' : ''
           }`}
           style={{
-            backgroundColor: isBioEnrolled ? 'rgba(var(--theme-primary-rgb, 0, 229, 255), 0.12)' : undefined,
-            borderColor: isBioEnrolled ? 'var(--theme-primary, #00e5ff)' : undefined,
-            color: isBioEnrolled ? 'var(--theme-primary, #00e5ff)' : undefined,
-            boxShadow: isBioEnrolled ? '0 0 20px var(--theme-glow)' : undefined,
+            backgroundColor: 'var(--theme-bg-card, #0a121d)',
+            borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
           }}
-          title={isBioEnrolled ? 'Toca para activar sensor de huella' : 'Toca para vincular sensor de huella'}
-          aria-label="Sensor de huella digital"
         >
-          {isBioLoading ? (
-            <div className="relative flex items-center justify-center">
-              <span
-                className="absolute w-12 h-12 rounded-full border-2 border-t-transparent animate-spin"
-                style={{ borderColor: 'var(--theme-primary, #00e5ff)' }}
-              />
-              <Fingerprint className="w-8 h-8 sm:w-9 sm:h-9 animate-pulse" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
-            </div>
-          ) : isBioEnrolled ? (
-            <Fingerprint className="w-8 h-8 sm:w-9 sm:h-9 group-hover:scale-110 transition-transform" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
-          ) : (
-            <Fingerprint className="w-8 h-8 sm:w-9 sm:h-9 text-slate-400 group-hover:text-white group-hover:scale-110 transition-transform" />
-          )}
-        </button>
-
-        <h1 className="text-2xl font-black tracking-tight mb-0.5" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
-          Bóveda de <span style={{ color: 'var(--theme-primary, #00e5ff)' }}>Seguridad</span>
-        </h1>
-        <p className="text-[10px] font-semibold tracking-[0.18em] uppercase mb-1" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
-          TUS ARCHIVOS, SIEMPRE PROTEGIDOS
-        </p>
-        <p className="text-xs text-slate-400 mb-6">
-          {isBioLoading
-            ? 'Esperando sensor de huella en tu celular...'
-            : 'Introduce tu PIN o toca el sensor de huella para acceder'}
-        </p>
-
-        {/* Tactile Keypad */}
-        <PinKeypad
-          pin={pin}
-          onPinChange={handleKeypadChange}
-          maxDigits={expectedLength}
-          disabled={isVerifying}
-          onBiometricRequest={handleBiometricClick}
-          isBiometricsEnrolled={isBioEnrolled}
-          isBiometricsLoading={isBioLoading}
-        />
-
-        {/* Error Feedback */}
-        {errorMessage && (
-          <div className="mt-4 flex flex-col items-center justify-center gap-1.5 text-rose-400 text-xs bg-rose-500/10 py-2.5 px-3 rounded-xl border border-rose-500/20">
-            <div className="flex items-center gap-1.5">
-              <ShieldAlert className="w-4 h-4 shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-            {errorMessage.includes('no está inicializada') && (
-              <button
-                type="button"
-                onClick={onResetVaultRequest}
-                className="mt-1 text-[11px] font-bold text-[#00e5ff] hover:underline cursor-pointer"
-              >
-                Volver a la pantalla de inicio o registro
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Quick Action Footer */}
-        <div className="mt-7 pt-4 border-t border-slate-800/80 flex items-center justify-center text-xs text-slate-400">
+          {/* Lock / Fingerprint Sensor Icon */}
           <button
             type="button"
-            onClick={handleOpenForgotPin}
-            className="hover:text-[#00e5ff] transition-colors font-medium cursor-pointer"
+            onClick={handleBiometricClick}
+            disabled={isVerifying}
+            className={`w-18 h-18 sm:w-20 sm:h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 transition-all relative group shadow-xl cursor-pointer active:scale-95 ${
+              isBioLoading
+                ? 'border-2'
+                : isBioEnrolled
+                ? 'border'
+                : 'border border-slate-700/60'
+            }`}
+            style={{
+              backgroundColor: isBioEnrolled ? 'rgba(var(--theme-primary-rgb, 0, 229, 255), 0.12)' : undefined,
+              borderColor: isBioEnrolled ? 'var(--theme-primary, #00e5ff)' : undefined,
+              color: isBioEnrolled ? 'var(--theme-primary, #00e5ff)' : undefined,
+              boxShadow: isBioEnrolled ? '0 0 20px var(--theme-glow)' : undefined,
+            }}
+            title={
+              isBioEnrolled
+                ? 'Toca para activar sensor de huella'
+                : 'Toca para vincular sensor de huella'
+            }
+            aria-label="Sensor de huella digital"
           >
-            ¿Olvidaste tu PIN?
+            {isBioLoading ? (
+              <div className="relative flex items-center justify-center">
+                <span
+                  className="absolute w-12 h-12 rounded-full border-2 border-t-transparent animate-spin"
+                  style={{ borderColor: 'var(--theme-primary, #00e5ff)' }}
+                />
+                <Fingerprint className="w-8 h-8 sm:w-9 sm:h-9 animate-pulse" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
+              </div>
+            ) : isBioEnrolled ? (
+              <Fingerprint className="w-8 h-8 sm:w-9 sm:h-9 group-hover:scale-110 transition-transform" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
+            ) : (
+              <Fingerprint className="w-8 h-8 sm:w-9 sm:h-9 text-slate-400 group-hover:text-white group-hover:scale-110 transition-transform" />
+            )}
           </button>
+
+          <h1 className="text-2xl font-black tracking-tight mb-0.5" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
+            Bóveda de <span style={{ color: 'var(--theme-primary, #00e5ff)' }}>Seguridad</span>
+          </h1>
+          <p className="text-[10px] font-semibold tracking-[0.18em] uppercase mb-1" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
+            TUS ARCHIVOS, SIEMPRE PROTEGIDOS
+          </p>
+          <p className="text-xs text-slate-400 mb-6">
+            {isBioLoading
+              ? 'Esperando sensor de huella en tu celular...'
+              : 'Introduce tu PIN o toca el sensor de huella para acceder'}
+          </p>
+
+          {/* Tactile Keypad */}
+          <PinKeypad
+            pin={pin}
+            onPinChange={handleKeypadChange}
+            maxDigits={expectedLength}
+            disabled={isVerifying}
+            onBiometricRequest={handleBiometricClick}
+            isBiometricsEnrolled={isBioEnrolled}
+            isBiometricsLoading={isBioLoading}
+          />
+
+          {/* Error Feedback cuando aún no hay bloqueo pero hubo un fallo */}
+          {errorMessage && (
+            <div className="mt-4 flex flex-col items-center justify-center gap-1.5 text-center animate-in fade-in duration-150">
+              <div
+                className="flex items-center justify-center gap-2 text-xs font-semibold text-slate-900 dark:text-white"
+                style={{ color: 'var(--theme-text-main, #ffffff)' }}
+              >
+                <ShieldAlert className="w-4 h-4 shrink-0 text-rose-500 dark:text-rose-400" />
+                <span>{errorMessage}</span>
+              </div>
+              {errorMessage?.includes('no está inicializada') && (
+                <button
+                  type="button"
+                  onClick={onResetVaultRequest}
+                  className="mt-1 text-[11px] font-bold text-[#00e5ff] hover:underline cursor-pointer"
+                >
+                  Volver a la pantalla de inicio o registro
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Quick Action Footer */}
+          <div className="mt-7 pt-4 border-t border-slate-800/80 flex items-center justify-center text-xs text-slate-400">
+            <button
+              type="button"
+              onClick={handleOpenForgotPin}
+              className="hover:text-[#00e5ff] transition-colors font-medium cursor-pointer"
+            >
+              ¿Olvidaste tu PIN?
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Forgot PIN / Recovery Key Modal */}
       {showForgotModal && (
