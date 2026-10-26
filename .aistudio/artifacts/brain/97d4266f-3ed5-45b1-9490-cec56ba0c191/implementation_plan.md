@@ -1,18 +1,18 @@
-# Optimización del Encabezado en Vista de Carpetas
+# Sincronización de Fallos Biométricos con Pantalla de Bloqueo Total
 
 ## Estado: ¡Implementado y Verificado!
 
 ---
 
-### Resumen de Cambios en `MainVaultView.tsx`:
+### Resumen de la Implementación en `LockVaultView.tsx`:
 
-1. **Eliminación del contador en el encabezado de carpetas**:
-   - En la vista general de álbumes (`carpetaActiva === 'todas'`), el título ahora muestra limpiamente **`Carpetas de Fotos`** (o Videos, Audios, etc.) sin el número `(9)` entre paréntesis.
-   - La cantidad de archivos se muestra únicamente en cada tarjeta de carpeta (ej. *"General · 9 archivos"*) o dentro del encabezado una vez que se accede a dicha carpeta.
+1. **Conteo Unificado de Fallos**:
+   - Cada intento con huella no reconocida o rechazada incrementa la racha de intentos fallidos (`nullvault_failed_streak`).
+   - Se registra en el historial con `type: 'failed'` y `method: 'biometric'`.
 
-2. **Ocultamiento de controles de vista innecesarios**:
-   - Los botones de cuadrícula (**2 columnas**, **3 columnas**, **proporción real**) y el botón de búsqueda ya no se muestran en la pantalla de carpetas.
-   - Estos controles ahora aparecen exclusivamente **dentro de una carpeta activa** (`carpetaActiva !== 'todas'`), donde sí se visualiza la galería de fotos o archivos.
+2. **Bloqueo Total a los 3 Intentos Fallidos**:
+   - Al llegar a 3 fallos (ya sea por PIN o por huella digital), la app activa de inmediato la **pantalla de bloqueo total a pantalla completa** con el candado coral `#F87171` y la cuenta regresiva gigante (15s, 20s, 30s).
+   - Durante el bloqueo, **se ocultan tanto el teclado del PIN como el botón de huella**, impidiendo cualquier intento hasta que el temporizador finalice.
 
-3. **Espacio despejado**:
-   - El título principal ya no se corta ni se trunca, luciendo completamente legible y con un diseño nativo y elegante.
+3. **Detección de Bloqueo Nativo de Android**:
+   - Si el hardware de Android desactiva el sensor por exceso de intentos del sistema operativo (`BIOMETRIC_ERROR_LOCKOUT`), la app lo detecta automáticamente y activa la pantalla de bloqueo total.

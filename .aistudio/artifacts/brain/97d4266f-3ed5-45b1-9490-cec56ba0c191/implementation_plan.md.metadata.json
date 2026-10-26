@@ -1,6 +1,6 @@
 {
-  "summary":  "Limpieza visual del encabezado en la vista de carpetas/álbumes: se ocultaron los controles de vista (cuadrícula/proporción/búsqueda) y el contador numérico del encabezado cuando se está en la lista de carpetas, mostrándolos únicamente dentro de la carpeta que contiene las fotos o archivos.",
-  "updatedAt":  "2026-10-26T22:00:15.249842633Z",
+  "summary":  "Sincronización del conteo de fallos biométricos con el bloqueo total de la bóveda: ahora los intentos fallidos de huella digital incrementan la racha de fallos y activan la pantalla completa de bloqueo con cuenta regresiva (15s, 20s, 30s) al alcanzar los 3 intentos fallidos, bloqueando también el teclado del PIN.",
+  "updatedAt":  "2026-10-26T23:31:26.584837185Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

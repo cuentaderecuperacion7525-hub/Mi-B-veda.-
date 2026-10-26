@@ -434,8 +434,31 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       } catch (err: any) {
         console.warn('Biometric unlock canceled or failed:', err);
         setIsBioEnrolled(hasBiometricCredentials());
-        if (err?.name !== 'NotAllowedError' && !err?.message?.includes('cancelada')) {
-          setErrorMessage(err?.message || 'Error en sensor de huella. Usa tu PIN.');
+
+        const isAbort = err?.name === 'AbortError' || err?.message?.includes('cancelada para iniciar');
+        if (!isAbort) {
+          const currentStreak = Number(localStorage.getItem('nullvault_failed_streak') || '0');
+          const nextStreak = currentStreak + 1;
+          const lockoutDuration = getLockoutDurationSeconds(nextStreak);
+          const shouldLockout = lockoutDuration > 0;
+
+          // Registrar intento fallido con método 'biometric'
+          recordAccessLog('failed', 'biometric', false, nextStreak);
+
+          if (shouldLockout) {
+            const lockoutUntil = Date.now() + lockoutDuration * 1000;
+            localStorage.setItem('nullvault_lockout_until', lockoutUntil.toString());
+            setRemainingLockout(lockoutDuration);
+            recordAccessLog('failed', 'biometric', true, undefined, lockoutDuration);
+          }
+
+          setIsShaking(true);
+          setErrorMessage(
+            shouldLockout
+              ? `Demasiados intentos. Intenta de nuevo en ${formatCountdown(lockoutDuration)}`
+              : `Huella no reconocida. Intento ${nextStreak} de 3 antes del bloqueo.`
+          );
+          setTimeout(() => setIsShaking(false), 500);
         }
       } finally {
         setIsBioLoading(false);
@@ -481,6 +504,16 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         }
       } catch (err: any) {
         console.debug('Auto-biometric prompt dismissed/cancelled by user:', err);
+        const msg = err?.message?.toLowerCase() || '';
+        if (msg.includes('demasiados intentos') || msg.includes('too many') || msg.includes('bloqueado')) {
+          const currentStreak = Number(localStorage.getItem('nullvault_failed_streak') || '0');
+          const nextStreak = Math.max(3, currentStreak + 1);
+          const lockoutDuration = getLockoutDurationSeconds(nextStreak) || 15;
+          const lockoutUntil = Date.now() + lockoutDuration * 1000;
+          localStorage.setItem('nullvault_lockout_until', lockoutUntil.toString());
+          setRemainingLockout(lockoutDuration);
+          recordAccessLog('failed', 'biometric', true, undefined, lockoutDuration);
+        }
       } finally {
         if (isMounted) {
           setIsBioLoading(false);
