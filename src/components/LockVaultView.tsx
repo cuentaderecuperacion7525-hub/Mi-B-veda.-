@@ -593,7 +593,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       </div>
 
       {remainingLockout > 0 ? (
-        /* ==================== PANTALLA COMPLETA DE BLOQUEO (REQUISITOS 1 A 9) ==================== */
+        /* ==================== BLOQUE DE HISTORIAL: PANTALLA COMPLETA DE BLOQUEO ==================== */
         <div className="relative w-full max-w-sm sm:max-w-md mx-auto flex flex-col items-center justify-between min-h-[82vh] py-8 px-4 text-center select-none animate-in fade-in duration-300">
           {/* Espaciador superior para centrado */}
           <div className="w-full h-4" />
@@ -648,7 +648,8 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
           </div>
         </div>
       ) : (
-        /* ==================== PANTALLA HABITUAL DE DESBLOQUEO ==================== */
+        /* ==================== FIN BLOQUE DE HISTORIAL: PANTALLA COMPLETA DE BLOQUEO ==================== */
+        /* ==================== PANTALLA HABITUAL DE DESBLOQUEO CON PIN ==================== */
         <div
           className={`relative w-full max-w-sm rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl text-center border transition-all animate-in fade-in duration-300 ${
             isShaking ? 'animate-shake' : ''

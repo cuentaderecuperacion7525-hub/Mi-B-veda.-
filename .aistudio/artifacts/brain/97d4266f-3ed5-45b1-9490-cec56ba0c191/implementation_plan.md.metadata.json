@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementación completada con éxito: pantalla completa de bloqueo por exceso de intentos fallidos adaptada a todos los temas (modo oscuro, neón y claro), con candado coral, temporizador gigante y retorno suave al llegar a 00:00.",
-  "updatedAt":  "2026-10-26T20:46:18.395006200Z",
+  "summary":  "Solución implementada para el entorno nativo de Android (Capacitor/GitHub WebAPK): bloqueo total de desplazamiento en body/html y captura aislada de gestos táctiles (touch-none, e.preventDefault) para que la pantalla del fondo permanezca completamente inmóvil al deslizar la hoja hacia abajo.",
+  "updatedAt":  "2026-10-26T21:35:18.013598985Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

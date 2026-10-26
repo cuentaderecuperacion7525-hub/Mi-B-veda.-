@@ -97,10 +97,10 @@ function getDayGroupLabel(timestamp: number): string {
   return `${day} ${monthName} ${date.getFullYear()}`;
 }
 
-// Formato de fecha largo en español (ej. "lunes 26 de octubre de 2026")
+// Formato de fecha largo en español (ej. "Lunes 26 de octubre de 2026")
 function formatDetailDateLong(timestamp: number): string {
   const date = new Date(timestamp);
-  const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   const months = [
     'enero',
     'febrero',
@@ -359,10 +359,30 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   useEffect(() => {
     if (selectedLogDetail) {
       try { window.history.pushState({ secModal: 'log_detail' }, ''); } catch {}
-      return registerBackHandler('sec_log_detail_modal', () => {
+
+      // Bloqueo total de desplazamiento para Android nativo (Capacitor / WebAPK)
+      const prevBodyOverflow = document.body.style.overflow;
+      const prevHtmlOverflow = document.documentElement.style.overflow;
+      const prevOverscroll = document.body.style.overscrollBehavior;
+      const prevTouchAction = document.body.style.touchAction;
+
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overscrollBehavior = 'none';
+      document.body.style.touchAction = 'none';
+
+      const unregisterBack = registerBackHandler('sec_log_detail_modal', () => {
         setSelectedLogDetail(null);
         return true;
       }, 90);
+
+      return () => {
+        document.body.style.overflow = prevBodyOverflow;
+        document.documentElement.style.overflow = prevHtmlOverflow;
+        document.body.style.overscrollBehavior = prevOverscroll;
+        document.body.style.touchAction = prevTouchAction;
+        unregisterBack();
+      };
     }
   }, [selectedLogDetail]);
 
@@ -1413,8 +1433,15 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
       {/* Hoja Inferior (Bottom Sheet) - Detalle de Acceso */}
       {selectedLogDetail && (
         <div
-          className="fixed inset-0 z-55 bg-black/60 backdrop-blur-sm flex items-end justify-center animate-in fade-in duration-200"
+          className="fixed inset-0 z-55 flex items-end justify-center animate-in fade-in duration-200 transition-opacity overscroll-none touch-none select-none"
+          style={{ backgroundColor: 'rgba(15, 23, 42, 0.45)', touchAction: 'none' }}
           onClick={() => setSelectedLogDetail(null)}
+          onTouchMove={(e) => {
+            // Evitar que el gesto táctil en la capa oscura se propague a la vista nativa de fondo
+            if (e.target === e.currentTarget) {
+              e.preventDefault();
+            }
+          }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1424,8 +1451,15 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
             onTouchMove={(e) => {
               if (sheetTouchStartY.current !== null) {
                 const delta = e.touches[0].clientY - sheetTouchStartY.current;
+                // Desplazamiento exclusivo hacia abajo para cerrar la hoja
                 if (delta > 0) {
+                  e.preventDefault();
+                  e.stopPropagation();
                   setSheetDragDelta(delta);
+                } else {
+                  // Prevenir que el arrastre hacia arriba intente desplazar el fondo nativo
+                  e.preventDefault();
+                  e.stopPropagation();
                 }
               }
             }}
@@ -1442,6 +1476,8 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
               backgroundColor: 'var(--theme-bg-card, #0a121d)',
               borderColor: 'var(--theme-border, #1e293b)',
               color: 'var(--theme-text-main, #ffffff)',
+              touchAction: 'none',
+              overscrollBehavior: 'contain',
             }}
             className="w-full max-w-lg border-t border-x rounded-t-3xl px-6 pt-3 pb-8 shadow-2xl relative flex flex-col animate-in slide-in-from-bottom duration-200 select-none"
           >
@@ -1494,7 +1530,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                   Fecha
                 </span>
                 <span
-                  className="block text-sm font-semibold capitalize mt-0.5"
+                  className="block text-sm font-semibold mt-0.5"
                   style={{ color: 'var(--theme-text-main, #ffffff)' }}
                 >
                   {formatDetailDateLong(selectedLogDetail.timestamp)}

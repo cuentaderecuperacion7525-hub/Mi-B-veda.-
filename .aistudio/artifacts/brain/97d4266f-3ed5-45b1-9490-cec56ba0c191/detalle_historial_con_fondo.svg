@@ -1,0 +1,203 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 2340" width="100%" height="100%">
+  <defs>
+    <!-- Sombra de la hoja inferior -->
+    <filter id="sheetShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="-8" stdDeviation="24" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#000000" flood-opacity="0.06"/>
+    </filter>
+  </defs>
+
+  <!-- ==================== 1. PANTALLA DE HISTORIAL DE FONDO (TOTALMENTE VISIBLE) ==================== -->
+  <rect width="1080" height="2340" fill="#f8fafc"/>
+
+  <!-- Barra de estado superior del móvil -->
+  <g font-family="system-ui, -apple-system, sans-serif" font-size="36" font-weight="600" fill="#1e293b">
+    <text x="70" y="96">2:55</text>
+    <path d="M 880 72 Q 910 48 940 72 L 910 102 Z" fill="#1e293b"/>
+    <!-- Icono de WiFi -->
+    <path d="M 945 88 A 20 20 0 0 1 975 88 M 937 80 A 32 32 0 0 1 983 80 M 929 72 A 44 44 0 0 1 991 72" stroke="#1e293b" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <!-- Batería -->
+    <rect x="1000" y="70" width="50" height="28" rx="8" fill="none" stroke="#1e293b" stroke-width="3"/>
+    <rect x="1005" y="75" width="28" height="18" rx="4" fill="#1e293b"/>
+    <path d="M 1052 80 L 1052 88" stroke="#1e293b" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <!-- Encabezado de la Pantalla de Historial -->
+  <g transform="translate(60, 150)">
+    <circle cx="44" cy="44" r="38" fill="#e2e8f0"/>
+    <path d="M 52 30 L 38 44 L 52 58" stroke="#334155" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <text x="110" y="55" font-family="system-ui, -apple-system, sans-serif" font-size="44" font-weight="700" fill="#0f172a">
+      Historial de accesos
+    </text>
+    <rect x="860" y="10" width="100" height="68" rx="20" fill="#fee2e2"/>
+    <text x="888" y="53" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="700" fill="#ef4444">Vaciar</text>
+  </g>
+
+  <!-- Banner de resumen de intentos en pantalla de historial -->
+  <g transform="translate(60, 270)">
+    <rect width="960" height="120" rx="28" fill="#ffffff" stroke="#e2e8f0" stroke-width="2" filter="url(#cardShadow)"/>
+    <circle cx="60" cy="60" r="28" fill="#ecfdf5"/>
+    <path d="M 60 44 L 74 50 C 74 66 60 76 60 76 C 60 76 46 66 46 50 Z" stroke="#10b981" stroke-width="3.5" fill="none"/>
+    <text x="110" y="68" font-family="system-ui, -apple-system, sans-serif" font-size="30" font-weight="600" fill="#0f172a">
+      Sin intentos fallidos recientes
+    </text>
+  </g>
+
+  <!-- Filtros de pestañas -->
+  <g transform="translate(60, 420)">
+    <rect x="0" y="0" width="190" height="70" rx="35" fill="#0284c7"/>
+    <text x="42" y="45" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="700" fill="#ffffff">Todos (6)</text>
+
+    <rect x="210" y="0" width="220" height="70" rx="35" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="245" y="45" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="600" fill="#64748b">Exitosos (5)</text>
+
+    <rect x="450" y="0" width="210" height="70" rx="35" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="488" y="45" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="600" fill="#64748b">Fallidos (1)</text>
+  </g>
+
+  <!-- Sección de Fecha en Lista -->
+  <text x="960" y="550" text-anchor="end" font-family="system-ui, -apple-system, monospace" font-size="26" font-weight="800" fill="#64748b" letter-spacing="2">
+    HOY · 26 OCT
+  </text>
+
+  <!-- Ítems de la lista de historial que se ven detrás -->
+  <!-- Item 1 (El seleccionado) -->
+  <g transform="translate(60, 580)">
+    <rect width="960" height="150" rx="28" fill="#ffffff" stroke="#0284c7" stroke-width="3"/>
+    <circle cx="64" cy="75" r="30" fill="#e0f2fe"/>
+    <path d="M 52 75 L 61 84 L 78 66" stroke="#0284c7" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <text x="116" y="64" font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="700" fill="#0f172a">Acceso correcto</text>
+    <text x="116" y="104" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="500" fill="#64748b">02:55:37 p.m. · Biométrico</text>
+    <rect x="800" y="50" width="120" height="50" rx="25" fill="#e0f2fe"/>
+    <text x="832" y="84" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="700" fill="#0369a1">Válido</text>
+  </g>
+
+  <!-- Item 2 -->
+  <g transform="translate(60, 755)">
+    <rect width="960" height="150" rx="28" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+    <circle cx="64" cy="75" r="30" fill="#e0f2fe"/>
+    <path d="M 52 75 L 61 84 L 78 66" stroke="#0284c7" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <text x="116" y="64" font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="700" fill="#0f172a">Acceso correcto</text>
+    <text x="116" y="104" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="500" fill="#64748b">01:14:02 p.m. · PIN</text>
+    <rect x="800" y="50" width="120" height="50" rx="25" fill="#e0f2fe"/>
+    <text x="832" y="84" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="700" fill="#0369a1">Válido</text>
+  </g>
+
+  <!-- Item 3 -->
+  <g transform="translate(60, 930)">
+    <rect width="960" height="150" rx="28" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+    <circle cx="64" cy="75" r="30" fill="#fee2e2"/>
+    <path d="M 52 63 L 76 87 M 76 63 L 52 87" stroke="#ef4444" stroke-width="4" stroke-linecap="round" fill="none"/>
+    <text x="116" y="64" font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="700" fill="#0f172a">PIN incorrecto</text>
+    <text x="116" y="104" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="500" fill="#64748b">10:40:15 a.m. · PIN</text>
+    <rect x="790" y="50" width="130" height="50" rx="25" fill="#fee2e2"/>
+    <text x="822" y="84" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="700" fill="#b91c1c">Fallido</text>
+  </g>
+
+  <!-- Item 4 -->
+  <g transform="translate(60, 1105)">
+    <rect width="960" height="150" rx="28" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+    <circle cx="64" cy="75" r="30" fill="#e0f2fe"/>
+    <path d="M 52 75 L 61 84 L 78 66" stroke="#0284c7" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <text x="116" y="64" font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="700" fill="#0f172a">Acceso correcto</text>
+    <text x="116" y="104" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="500" fill="#64748b">08:02:11 a.m. · Biométrico</text>
+    <rect x="800" y="50" width="120" height="50" rx="25" fill="#e0f2fe"/>
+    <text x="832" y="84" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="700" fill="#0369a1">Válido</text>
+  </g>
+
+
+  <!-- ==================== 2. CAPA OSCURA EXACTA rgba(15, 23, 42, 0.45) ==================== -->
+  <!-- Cubre toda la pantalla incluida la barra de estado superior. Permite ver perfectamente el historial -->
+  <rect width="1080" height="2340" fill="rgba(15, 23, 42, 0.45)"/>
+
+  <!-- Indicador táctil de que al pulsar afuera se cierra -->
+  <g opacity="0.85">
+    <circle cx="540" cy="800" r="48" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.35)" stroke-width="2"/>
+    <!-- Icono de toque -->
+    <path d="M 540 782 L 540 812 M 525 797 L 555 797" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+    <text x="540" y="875" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="600" fill="#ffffff" letter-spacing="0.5">
+      Tocar afuera cierra la hoja
+    </text>
+  </g>
+
+
+  <!-- ==================== 3. HOJA INFERIOR (BOTTOM SHEET) ==================== -->
+  <!-- Forma y estilo idénticos a los tuyos originales, sin alterar tamaños, colores ni textos -->
+  <g transform="translate(0, 1020)" filter="url(#sheetShadow)">
+    <!-- Contenedor blanco con bordes superiores redondeados -->
+    <path d="M 0 60 Q 0 0 60 0 L 1020 0 Q 1080 0 1080 60 L 1080 1320 L 0 1320 Z" fill="#ffffff"/>
+
+    <!-- Manija táctil superior -->
+    <rect x="465" y="32" width="150" height="14" rx="7" fill="#94a3b8" opacity="0.6"/>
+
+    <!-- Ícono circular de verificación -->
+    <g transform="translate(540, 160)">
+      <circle cx="0" cy="0" r="80" fill="#e0f2fe" stroke="#38bdf8" stroke-width="4"/>
+      <path d="M -30 0 L -8 24 L 32 -18" stroke="#0284c7" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+
+    <!-- Título principal -->
+    <text x="540" y="300" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="800" fill="#0284c7">
+      Acceso correcto
+    </text>
+
+    <!-- Tarjeta interior de información -->
+    <g transform="translate(65, 360)">
+      <rect width="950" height="640" rx="36" fill="#ffffff" stroke="#e2e8f0" stroke-width="3"/>
+
+      <!-- 1. Campo Fecha (CORREGIDO: 'Lunes 26 de octubre de 2026' en minúsculas) -->
+      <g transform="translate(46, 50)">
+        <text x="0" y="32" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="600" fill="#64748b">
+          Fecha
+        </text>
+        <text x="0" y="86" font-family="system-ui, -apple-system, sans-serif" font-size="40" font-weight="800" fill="#0284c7">
+          Lunes 26 de octubre de 2026
+        </text>
+      </g>
+
+      <!-- 2. Campo Hora -->
+      <g transform="translate(46, 205)">
+        <text x="0" y="32" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="600" fill="#64748b">
+          Hora
+        </text>
+        <text x="0" y="86" font-family="system-ui, -apple-system, monospace" font-size="40" font-weight="700" fill="#0284c7" letter-spacing="1">
+          02:55:37  p.m.
+        </text>
+      </g>
+
+      <!-- 3. Campo Método -->
+      <g transform="translate(46, 360)">
+        <text x="0" y="32" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="600" fill="#64748b">
+          Método
+        </text>
+        <text x="0" y="86" font-family="system-ui, -apple-system, sans-serif" font-size="40" font-weight="700" fill="#0284c7">
+          Biométrico
+        </text>
+      </g>
+
+      <!-- 4. Campo Resultado -->
+      <g transform="translate(46, 510)">
+        <text x="0" y="24" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="600" fill="#64748b">
+          Resultado
+        </text>
+        <rect x="0" y="44" width="150" height="52" rx="26" fill="#e0f2fe" stroke="#bae6fd" stroke-width="2"/>
+        <text x="36" y="80" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="700" fill="#0284c7">
+          Válido
+        </text>
+      </g>
+    </g>
+
+    <!-- Botón Cerrar inferior -->
+    <g transform="translate(65, 1050)">
+      <rect width="950" height="120" rx="36" fill="#ffffff" stroke="#cbd5e1" stroke-width="3"/>
+      <text x="475" y="74" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="36" font-weight="700" fill="#0284c7">
+        Cerrar
+      </text>
+    </g>
+
+    <!-- Barra de navegación gestual de Android -->
+    <rect x="360" y="1250" width="360" height="12" rx="6" fill="#94a3b8"/>
+  </g>
+</svg>
