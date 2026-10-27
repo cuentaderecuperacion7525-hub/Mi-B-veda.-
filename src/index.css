@@ -471,12 +471,12 @@ nav.fixed button.vault-nav-btn-inactive svg {
   stroke: #92400e !important;
 }
 
-/* Key display boxes and code containers inside modals */
-[data-theme="light"] div[class*="bg-black/60"],
-[data-theme="light"] div[class*="bg-black/80"],
-[data-theme="light"] div[class*="bg-slate-900/60"],
-[data-theme="light"] div[class*="bg-slate-900/90"],
-[data-theme="light"] [class*="bg-[#0b101d]"] {
+/* Key display boxes and code containers inside modals (excluding full-screen backdrops and badges) */
+[data-theme="light"] div[class*="bg-black/60"]:not(.fixed):not(.inset-0):not(.absolute):not(.vault-fab-backdrop),
+[data-theme="light"] div[class*="bg-black/80"]:not(.fixed):not(.inset-0):not(.absolute):not(.vault-fab-backdrop),
+[data-theme="light"] div[class*="bg-slate-900/60"]:not(.fixed):not(.inset-0):not(.absolute):not(.vault-fab-backdrop),
+[data-theme="light"] div[class*="bg-slate-900/90"]:not(.fixed):not(.inset-0):not(.absolute):not(.vault-fab-backdrop),
+[data-theme="light"] [class*="bg-[#0b101d]"]:not(.fixed):not(.inset-0) {
   background-color: #f8fafc !important;
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
@@ -661,9 +661,13 @@ nav.fixed button.vault-nav-btn-inactive svg {
   color: #94a3b8 !important;
 }
 
-/* 12. Light Dialog & Modal Backdrop overlay */
-[data-theme="light"] [class*="bg-black/"] {
+/* 12. Light Dialog, FAB & Modal Backdrop overlay */
+[data-theme="light"] .vault-fab-backdrop,
+[data-theme="light"] .fixed.inset-0[class*="bg-black/"],
+[data-theme="light"] [class*="bg-black/"]:not(:has(> code)) {
   background-color: rgba(15, 23, 42, 0.55) !important;
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
 }
 
 /* 13. Light Scrollbar */

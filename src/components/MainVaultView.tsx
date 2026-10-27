@@ -3191,10 +3191,14 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       {/* Botón flotante (+) estilo WhatsApp para todas las funciones de añadir e importar en carpetas y subcarpetas */}
       {activeNavTab === 'vault' && activeCategory !== null && !isSelectMode && selectedIds.size === 0 && (
         <>
-          {/* Telón oscuro al desplegar opciones */}
+          {/* Telón oscuro difuminado al desplegar opciones */}
           {isWhatsAppFabOpen && (
             <div
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] animate-in fade-in duration-200"
+              className="vault-fab-backdrop fixed inset-0 z-40 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+              style={{
+                WebkitBackdropFilter: 'blur(6px)',
+                backdropFilter: 'blur(6px)',
+              }}
               onClick={() => setIsWhatsAppFabOpen(false)}
             />
           )}
