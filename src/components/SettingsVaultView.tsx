@@ -45,6 +45,7 @@ import {
   downloadRecoveryKeyFile,
   formatRecoveryKeyDisplay,
   disableRecoveryKey,
+  rebindRecoveryKeyToNewMasterKey,
 } from '../services/recoveryKeyService';
 import {
   saveInternalBackup,
@@ -52,6 +53,7 @@ import {
   getStoredLocalBackups,
   getStoredLocalBackupBlob,
   deleteStoredLocalBackup,
+  clearAllStoredLocalBackups,
   StoredBackupMetadata,
   createBackupDownloadUrl,
 } from '../services/backupStorageService';
@@ -83,10 +85,14 @@ import {
   decryptBuffer,
   encryptBuffer,
   checkIsUnencryptedMedia,
+  verifyDuressPinHash,
+  clearDuressPinHash,
 } from '../crypto/vaultCrypto';
 import {
   isBiometricsEnrolled,
   authenticateWithBiometrics,
+  updateBiometricPinIfEnrolled,
+  disableBiometrics,
 } from '../services/biometricService';
 import { registerBackHandler, triggerBackAction } from '../services/backButtonService';
 import { formatFileSize } from '../utils/formatUtils';
@@ -576,13 +582,20 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         return;
       }
 
+      const isSameAsDuress = await verifyDuressPinHash(newPin);
+      if (isSameAsDuress) {
+        setPinChangeError('El nuevo PIN maestro no puede ser igual a tu PIN de coacción.');
+        setIsChangingPin(false);
+        return;
+      }
+
       const newSalt = generateSalt();
       const newDerivedKey = await deriveKeyFromPin(newPin, newSalt);
       const newVerification = await createVerificationPayload(newDerivedKey);
 
-      // Re-encrypt all items in IndexedDB from testKey to newDerivedKey
+      // Re-encrypt all items in IndexedDB (including Recycle Bin) from testKey to newDerivedKey
       try {
-        const allItems = await getAllEncryptedItems();
+        const allItems = await getAllEncryptedItems(true);
         const updatedItems: EncryptedVaultItem[] = [];
         for (const item of allItems) {
           try {
@@ -614,6 +627,9 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       try {
         sessionStorage.setItem('vault_session_pin', newPin);
       } catch {}
+
+      await updateBiometricPinIfEnrolled(newPin);
+      await rebindRecoveryKeyToNewMasterKey(testKey, newDerivedKey);
 
       onMasterKeyUpdated(newDerivedKey);
 
@@ -910,10 +926,17 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       setIsImporting(true);
 
       const result = await importEncryptedBackupBlobStream(pendingBackupBlob, undefined, true);
+      const oldMasterKey = masterKey;
       onMasterKeyUpdated(testKey);
       try {
         sessionStorage.setItem('vault_session_pin', backupPinInput);
         localStorage.setItem('vault_pin_length', backupPinInput.length.toString());
+      } catch {}
+      try {
+        await updateBiometricPinIfEnrolled(backupPinInput);
+        if (oldMasterKey) {
+          await rebindRecoveryKeyToNewMasterKey(oldMasterKey, testKey);
+        }
       } catch {}
 
       await onPhotosUpdated();
@@ -1013,10 +1036,15 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         clearInterval(interval);
         try {
           await clearVaultDatabase();
+          await clearAllStoredLocalBackups();
           try {
             sessionStorage.removeItem('vault_session_pin');
+            sessionStorage.removeItem('vault_is_duress_mode');
             sessionStorage.clear();
           } catch {}
+          disableBiometrics();
+          disableRecoveryKey();
+          clearDuressPinHash();
           localStorage.removeItem('vault_salt');
           localStorage.removeItem('vault_test_iv');
           localStorage.removeItem('vault_test_cipher');

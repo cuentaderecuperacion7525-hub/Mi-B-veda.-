@@ -32,6 +32,9 @@ import {
   decryptBuffer,
   encryptBuffer,
   checkIsUnencryptedMedia,
+  saveDuressPinHash,
+  clearDuressPinHash,
+  verifyDuressPinHash,
 } from '../crypto/vaultCrypto';
 import {
   enrollBiometrics,
@@ -41,7 +44,9 @@ import {
   isBiometricsAutoPromptEnabled,
   setBiometricsAutoPromptEnabled,
   authenticateWithBiometrics,
+  updateBiometricPinIfEnrolled,
 } from '../services/biometricService';
+import { rebindRecoveryKeyToNewMasterKey } from '../services/recoveryKeyService';
 import { flipToLockService } from '../services/flipToLockService';
 import { registerBackHandler } from '../services/backButtonService';
 import { PinKeypad } from './PinKeypad';
@@ -217,13 +222,20 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
         return;
       }
 
+      const isSameAsDuress = await verifyDuressPinHash(newPin);
+      if (isSameAsDuress) {
+        setPinChangeError('El nuevo PIN maestro no puede ser igual a tu PIN de coacción.');
+        setIsChangingPin(false);
+        return;
+      }
+
       const newSalt = generateSalt();
       const newDerivedKey = await deriveKeyFromPin(newPin, newSalt);
       const newVerification = await createVerificationPayload(newDerivedKey);
 
-      // Re-encrypt all items in IndexedDB from testKey to newDerivedKey
+      // Re-encrypt all items in IndexedDB (including Recycle Bin) from testKey to newDerivedKey
       try {
-        const allItems = await getAllEncryptedItems();
+        const allItems = await getAllEncryptedItems(true);
         const updatedItems: EncryptedVaultItem[] = [];
         for (const item of allItems) {
           try {
@@ -255,6 +267,10 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
       try {
         sessionStorage.setItem('vault_session_pin', newPin);
       } catch {}
+
+      // Sync Biometric PIN & Recovery Key Escrow with the new master PIN/key
+      await updateBiometricPinIfEnrolled(newPin);
+      await rebindRecoveryKeyToNewMasterKey(testKey, newDerivedKey);
 
       if (onMasterKeyUpdated) {
         onMasterKeyUpdated(newDerivedKey);
@@ -335,10 +351,26 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   useEffect(() => {
     if (showAllLogsModal) {
       try { window.history.pushState({ secModal: 'logs' }, ''); } catch {}
-      return registerBackHandler('sec_all_logs_modal', () => {
+
+      const prevBodyOverflow = document.body.style.overflow;
+      const prevHtmlOverflow = document.documentElement.style.overflow;
+      const prevOverscroll = document.body.style.overscrollBehavior;
+
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overscrollBehavior = 'none';
+
+      const unregisterBack = registerBackHandler('sec_all_logs_modal', () => {
         setShowAllLogsModal(false);
         return true;
       }, 85);
+
+      return () => {
+        document.body.style.overflow = prevBodyOverflow;
+        document.documentElement.style.overflow = prevHtmlOverflow;
+        document.body.style.overscrollBehavior = prevOverscroll;
+        unregisterBack();
+      };
     }
   }, [showAllLogsModal]);
 
@@ -499,8 +531,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   const handleToggleDuress = () => {
     if (duressPinActive) {
       setDuressPinActive(false);
-      localStorage.setItem('vault_duress_pin_active', 'false');
-      localStorage.removeItem('vault_duress_pin');
+      clearDuressPinHash();
       showToast('PIN de coacción desactivado', 'info');
     } else {
       setDuressStep('create');
@@ -647,11 +678,26 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
     }
   };
 
-  const handleConfirmDuressPin = (pin: string) => {
+  const handleConfirmDuressPin = async (pin: string) => {
     const sessionPinVal = sessionPin || sessionStorage.getItem('vault_session_pin');
     if (sessionPinVal && pin === sessionPinVal) {
       setDuressPinError('El PIN de coacción no puede ser igual a tu PIN maestro.');
       return;
+    }
+
+    const saltHex = localStorage.getItem('vault_salt');
+    const testIvHex = localStorage.getItem('vault_test_iv');
+    const testCipherHex = localStorage.getItem('vault_test_cipher');
+    if (saltHex && testIvHex && testCipherHex) {
+      try {
+        const salt = hexToBuf(saltHex);
+        const testMaster = await deriveKeyFromPin(pin, salt);
+        const matchesMaster = await verifyKey(testMaster, testIvHex, testCipherHex);
+        if (matchesMaster) {
+          setDuressPinError('El PIN de coacción no puede ser igual a tu PIN maestro.');
+          return;
+        }
+      } catch {}
     }
 
     if (duressStep === 'create') {
@@ -660,8 +706,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
       setDuressPinError(null);
     } else {
       if (pin === duressPinInput) {
-        localStorage.setItem('vault_duress_pin', pin);
-        localStorage.setItem('vault_duress_pin_active', 'true');
+        await saveDuressPinHash(pin);
         setDuressPinActive(true);
         setShowDuressModal(false);
         setDuressPinInput('');
@@ -1433,7 +1478,7 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
       {/* Hoja Inferior (Bottom Sheet) - Detalle de Acceso */}
       {selectedLogDetail && (
         <div
-          className="fixed inset-0 z-55 flex items-end justify-center animate-in fade-in duration-200 transition-opacity overscroll-none touch-none select-none"
+          className="fixed inset-0 z-[55] flex items-end justify-center animate-in fade-in duration-200 transition-opacity overscroll-none touch-none select-none"
           style={{ backgroundColor: 'rgba(15, 23, 42, 0.45)', touchAction: 'none' }}
           onClick={() => setSelectedLogDetail(null)}
           onTouchMove={(e) => {

@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import {
   bufToHex,
   hexToBuf,
@@ -10,8 +11,11 @@ import {
   deriveRecoveryWrapKey,
   encryptBuffer,
   decryptBuffer,
+  checkIsUnencryptedMedia,
 } from '../crypto/vaultCrypto';
 import { getAllEncryptedItems, saveEncryptedItems } from '../db/vaultDb';
+import { updateBiometricPinIfEnrolled } from './biometricService';
+import { NativeVaultMedia } from './nativeVaultBridge';
 
 const STORAGE_WRAPPED_KEY = 'vault_recovery_key_wrapped_data';
 const STORAGE_WRAPPED_IV = 'vault_recovery_key_wrapped_iv';
@@ -20,6 +24,8 @@ const STORAGE_VERIFY_IV = 'vault_recovery_key_verify_iv';
 const STORAGE_VERIFY_CIPHER = 'vault_recovery_key_verify_cipher';
 const STORAGE_CONFIGURED = 'vault_recovery_key_configured';
 const STORAGE_CREATED_AT = 'vault_recovery_key_created_at';
+const STORAGE_WRAP_ESCROW_DATA = 'vault_recovery_wrap_escrow_data';
+const STORAGE_WRAP_ESCROW_IV = 'vault_recovery_wrap_escrow_iv';
 
 const RECOVERY_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 chars, excludes 0, O, 1, I
 const RECOVERY_KEY_LENGTH = 16;
@@ -87,6 +93,8 @@ export function disableRecoveryKey(): void {
     localStorage.removeItem(STORAGE_VERIFY_IV);
     localStorage.removeItem(STORAGE_VERIFY_CIPHER);
     localStorage.removeItem(STORAGE_CREATED_AT);
+    localStorage.removeItem(STORAGE_WRAP_ESCROW_DATA);
+    localStorage.removeItem(STORAGE_WRAP_ESCROW_IV);
   } catch (err) {
     console.error('Error disabling recovery key:', err);
   }
@@ -123,6 +131,16 @@ export async function backupMasterKeyWithRecoveryKey(
   const wrapKey = await deriveRecoveryWrapKey(secretPhrase, salt);
   const encrypted = await encryptBuffer(rawMaster, wrapKey);
 
+  // Also encrypt wrapKey raw bytes with masterKey so a future PIN change can rebind the new masterKey seamlessly
+  try {
+    const rawWrap = await exportMasterKeyRaw(wrapKey);
+    const wrappedEscrow = await encryptBuffer(rawWrap, masterKey);
+    localStorage.setItem(STORAGE_WRAP_ESCROW_IV, bufToHex(new Uint8Array(wrappedEscrow.iv)));
+    localStorage.setItem(STORAGE_WRAP_ESCROW_DATA, bufToHex(new Uint8Array(wrappedEscrow.data)));
+  } catch (escrowErr) {
+    console.warn('Could not store wrap escrow for PIN rotation:', escrowErr);
+  }
+
   // Verification test payload to validate entered keys without corrupting anything
   const verifyIv = generateIV();
   const verifyEnc = await window.crypto.subtle.encrypt(
@@ -138,6 +156,44 @@ export async function backupMasterKeyWithRecoveryKey(
   localStorage.setItem(STORAGE_VERIFY_IV, bufToHex(verifyIv));
   localStorage.setItem(STORAGE_VERIFY_CIPHER, bufToHex(new Uint8Array(verifyEnc)));
   localStorage.setItem(STORAGE_CREATED_AT, Date.now().toString());
+}
+
+/**
+ * Re-wraps a newly derived masterKey using the existing recovery wrapKey when the user changes their PIN.
+ */
+export async function rebindRecoveryKeyToNewMasterKey(
+  oldMasterKey: CryptoKey,
+  newMasterKey: CryptoKey
+): Promise<void> {
+  try {
+    if (!isRecoveryKeyConfigured()) return;
+
+    const escrowIvHex = localStorage.getItem(STORAGE_WRAP_ESCROW_IV);
+    const escrowDataHex = localStorage.getItem(STORAGE_WRAP_ESCROW_DATA);
+    if (!escrowIvHex || !escrowDataHex) return;
+
+    const iv = Array.from(hexToBuf(escrowIvHex));
+    const encBuf = hexToBuf(escrowDataHex);
+    const encData = encBuf.buffer.slice(
+      encBuf.byteOffset,
+      encBuf.byteOffset + encBuf.byteLength
+    ) as ArrayBuffer;
+
+    const rawWrapKey = await decryptBuffer(encData, iv, oldMasterKey);
+    const wrapKey = await importMasterKeyRaw(rawWrapKey);
+
+    const rawNewMaster = await exportMasterKeyRaw(newMasterKey);
+    const reWrappedMaster = await encryptBuffer(rawNewMaster, wrapKey);
+
+    const reWrappedEscrow = await encryptBuffer(rawWrapKey, newMasterKey);
+
+    localStorage.setItem(STORAGE_WRAPPED_IV, bufToHex(new Uint8Array(reWrappedMaster.iv)));
+    localStorage.setItem(STORAGE_WRAPPED_KEY, bufToHex(new Uint8Array(reWrappedMaster.data)));
+    localStorage.setItem(STORAGE_WRAP_ESCROW_IV, bufToHex(new Uint8Array(reWrappedEscrow.iv)));
+    localStorage.setItem(STORAGE_WRAP_ESCROW_DATA, bufToHex(new Uint8Array(reWrappedEscrow.data)));
+  } catch (err) {
+    console.warn('Could not rebind recovery key to new master key:', err);
+  }
 }
 
 /**
@@ -257,14 +313,15 @@ export async function executePinResetWithRecoveryKey(
     const newSalt = generateSalt();
     const newMasterKey = await deriveKeyFromPin(newPin, newSalt);
 
-    // 3. Re-encrypt all items in IndexedDB from original master key to new master key
+    // 3. Re-encrypt all items in IndexedDB (including Recycle Bin) from original master key to new master key
     if (originalMasterKey) {
-      const allItems = await getAllEncryptedItems();
+      const allItems = await getAllEncryptedItems(true);
       const updatedItems = [];
 
       for (const item of allItems) {
         try {
-          const decrypted = await decryptBuffer(item.data, item.iv, originalMasterKey);
+          const isUnencrypted = !item.iv || item.iv.length === 0 || checkIsUnencryptedMedia(item.data);
+          const decrypted = isUnencrypted ? item.data : await decryptBuffer(item.data, item.iv, originalMasterKey);
           const reEncrypted = await encryptBuffer(decrypted, newMasterKey);
           updatedItems.push({
             ...item,
@@ -293,10 +350,14 @@ export async function executePinResetWithRecoveryKey(
 
     try {
       sessionStorage.setItem('vault_session_pin', newPin);
+      sessionStorage.removeItem('vault_is_duress_mode');
     } catch {}
 
     // 6. Keep the recovery escrow active and wrapped for the new master key
     await backupMasterKeyWithRecoveryKey(newMasterKey, recoveryKey);
+
+    // 7. Synchronize biometric credentials if enrolled
+    await updateBiometricPinIfEnrolled(newPin);
 
     return {
       success: true,
@@ -346,11 +407,34 @@ INSTRUCCIONES IMPORTANTES:
 =====================================================
 `;
 
+  const fileName = `Clave_Recuperacion_Boveda_${formatted}.txt`;
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const utf8Bytes = new TextEncoder().encode(content);
+      let binary = '';
+      for (let i = 0; i < utf8Bytes.byteLength; i++) {
+        binary += String.fromCharCode(utf8Bytes[i]);
+      }
+      const base64Data = window.btoa(binary);
+      NativeVaultMedia.saveBackupToDownloads({
+        fileName,
+        base64Data,
+        mimeType: 'text/plain',
+      }).catch((err) => {
+        console.warn('Native recovery key file save fallback:', err);
+      });
+      return;
+    } catch (err) {
+      console.warn('Error saving recovery key natively, falling back to blob download:', err);
+    }
+  }
+
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Clave_Recuperacion_Boveda_${formatted}.txt`;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

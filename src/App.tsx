@@ -22,6 +22,10 @@ import { userProfileService } from './services/userProfileService';
 import { testFirestoreConnection } from './services/firebase';
 import { UpdateNotificationModal } from './components/UpdateNotificationModal';
 import { CURRENT_APP_VERSION } from './version';
+import { disableBiometrics } from './services/biometricService';
+import { disableRecoveryKey } from './services/recoveryKeyService';
+import { clearDuressPinHash } from './crypto/vaultCrypto';
+import { clearAllStoredLocalBackups } from './services/backupStorageService';
 
 export default function App() {
   const [vaultStatus, setVaultStatus] = useState<'checking' | 'register' | 'setup' | 'locked' | 'unlocked'>('checking');
@@ -111,6 +115,7 @@ export default function App() {
     }
     try {
       sessionStorage.removeItem('vault_session_pin');
+      sessionStorage.removeItem('vault_is_duress_mode');
     } catch {}
     setMasterKey(null);
     setSessionPin(null);
@@ -458,16 +463,24 @@ export default function App() {
   const handleResetVault = async () => {
     try {
       await clearVaultDatabase();
+      await clearAllStoredLocalBackups();
       try {
         sessionStorage.removeItem('vault_session_pin');
+        sessionStorage.removeItem('vault_is_duress_mode');
       } catch {}
+      disableBiometrics();
+      disableRecoveryKey();
+      clearDuressPinHash();
       localStorage.removeItem('vault_salt');
       localStorage.removeItem('vault_test_iv');
       localStorage.removeItem('vault_test_cipher');
       localStorage.removeItem('vault_initialized');
       localStorage.removeItem('vault_pin_length');
+      localStorage.removeItem('nullvault_lockout_until');
+      localStorage.removeItem('nullvault_failed_streak');
 
       setMasterKey(null);
+      setSessionPin(null);
       setIsSettingsOpen(false);
       if (!userProfileService.isUserRegistered()) {
         setVaultStatus('register');

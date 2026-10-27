@@ -169,6 +169,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
     } catch (err: any) {
       clearInterval(progressTimer);
       setStatus(err.message || 'No se pudo completar la instalación automática.');
+      setDownloadStage('');
       setIsInstalling(false);
       setDownloadPercent(0);
       setInstallCompleted(false);

@@ -471,3 +471,38 @@ export function disableBiometrics(): void {
   localStorage.removeItem(BIO_WRAP_KEY);
   localStorage.removeItem(BIO_TYPE_KEY);
 }
+
+/**
+ * Updates the encrypted PIN stored for biometric authentication if biometrics is already enrolled.
+ * Prevents biometric unlock failures after a master PIN change or recovery reset.
+ */
+export async function updateBiometricPinIfEnrolled(newPin: string): Promise<void> {
+  try {
+    if (!hasBiometricCredentials()) return;
+
+    const rawWrapKey = window.crypto.getRandomValues(new Uint8Array(32));
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+
+    const cryptoWrapKey = await window.crypto.subtle.importKey(
+      'raw',
+      rawWrapKey as BufferSource,
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt']
+    );
+
+    const encodedPin = new TextEncoder().encode(newPin);
+    const encryptedPin = await window.crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: iv as BufferSource },
+      cryptoWrapKey,
+      encodedPin as BufferSource
+    );
+
+    localStorage.setItem(BIO_WRAP_KEY, bufToHex(rawWrapKey));
+    localStorage.setItem(BIO_IV_KEY, bufToHex(iv));
+    localStorage.setItem(BIO_CIPHER_KEY, bufToHex(new Uint8Array(encryptedPin)));
+  } catch (err) {
+    console.warn('Could not sync biometric PIN after PIN change:', err);
+  }
+}
+

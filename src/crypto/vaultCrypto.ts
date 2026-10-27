@@ -86,7 +86,7 @@ export async function deriveRecoveryWrapKey(secret: string, salt: Uint8Array): P
     },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
-    false,
+    true,
     ['encrypt', 'decrypt']
   );
 }
@@ -177,6 +177,63 @@ export async function verifyKey(
     );
     const str = new TextDecoder().decode(decrypted);
     return str === TEST_VERIFICATION_STRING;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Stores the Duress PIN securely using PBKDF2 + AES-GCM verification tokens instead of plaintext
+ */
+export async function saveDuressPinHash(pin: string): Promise<void> {
+  const salt = generateSalt();
+  const key = await deriveKeyFromPin(pin, salt);
+  const payload = await createVerificationPayload(key);
+  localStorage.setItem('vault_duress_salt', bufToHex(salt));
+  localStorage.setItem('vault_duress_iv', payload.ivHex);
+  localStorage.setItem('vault_duress_cipher', payload.cipherHex);
+  localStorage.setItem('vault_duress_pin_active', 'true');
+  localStorage.removeItem('vault_duress_pin');
+}
+
+/**
+ * Clears all Duress PIN tokens and plaintext legacy key
+ */
+export function clearDuressPinHash(): void {
+  localStorage.setItem('vault_duress_pin_active', 'false');
+  localStorage.removeItem('vault_duress_pin');
+  localStorage.removeItem('vault_duress_salt');
+  localStorage.removeItem('vault_duress_iv');
+  localStorage.removeItem('vault_duress_cipher');
+}
+
+/**
+ * Verifies if an entered PIN matches the configured Duress PIN (supports transparent migration from legacy plaintext)
+ */
+export async function verifyDuressPinHash(pinToVerify: string): Promise<boolean> {
+  try {
+    if (localStorage.getItem('vault_duress_pin_active') !== 'true') {
+      return false;
+    }
+
+    // Legacy migration check if a plaintext duress PIN still exists
+    const legacyPlain = localStorage.getItem('vault_duress_pin');
+    if (legacyPlain) {
+      await saveDuressPinHash(legacyPlain);
+      return pinToVerify === legacyPlain;
+    }
+
+    const saltHex = localStorage.getItem('vault_duress_salt');
+    const ivHex = localStorage.getItem('vault_duress_iv');
+    const cipherHex = localStorage.getItem('vault_duress_cipher');
+
+    if (!saltHex || !ivHex || !cipherHex) {
+      return false;
+    }
+
+    const salt = hexToBuf(saltHex);
+    const key = await deriveKeyFromPin(pinToVerify, salt);
+    return await verifyKey(key, ivHex, cipherHex);
   } catch {
     return false;
   }

@@ -334,46 +334,48 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     inputRef.current?.click();
   };
 
+  // Revoke all decrypted Blob URLs in RAM immediately when the vault unmounts/locks
+  useEffect(() => {
+    return () => {
+      blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      blobUrlsRef.current = [];
+    };
+  }, []);
+
   // Load and decrypt items into memory
   const loadVaultItems = async () => {
     setIsLoading(true);
     try {
-      const records = await getAllEncryptedItems();
-      records.sort((a, b) => b.timestamp - a.timestamp);
-
       // Clean up previous blob URLs to prevent memory leaks
       blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
       blobUrlsRef.current = [];
 
+      // CRITICAL SECURITY ISOLATION: If unlocked with Duress PIN (PIN de Coacción),
+      // display a clean empty decoy vault without reading or touching real IndexedDB records!
+      if (sessionStorage.getItem('vault_is_duress_mode') === 'true') {
+        setItems([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const records = await getAllEncryptedItems();
+      records.sort((a, b) => b.timestamp - a.timestamp);
+
       const decryptedItems: DecryptedVaultItem[] = [];
 
-      // Lazy candidate key derivation in case items were saved under a previous PIN or alternate key
+      // Lazy candidate key derivation in case items were saved under the active session PIN
       let candidateKeys: CryptoKey[] | null = null;
       const getCandidateKeys = async (): Promise<CryptoKey[]> => {
         if (candidateKeys !== null) return candidateKeys;
         const saltHex = localStorage.getItem('vault_salt');
-        if (!saltHex) {
+        if (!saltHex || !sessionPin) {
           candidateKeys = [];
           return candidateKeys;
         }
         try {
           const salt = hexToBuf(saltHex);
-          const rawPins = [
-            sessionPin,
-            localStorage.getItem('vault_duress_pin'),
-            '0000', '1234', '1111', '123456', '000000', '2580', '1122', '4321',
-            '9999', '8888', '7777', '6666', '5555', '4444', '3333', '2222',
-            '1212', '1313', '1414', '1515', '2020', '2024', '2025', '2026', '6969',
-          ];
-          const uniquePins = Array.from(new Set(rawPins.filter((p): p is string => Boolean(p) && typeof p === 'string')));
-          const derived: CryptoKey[] = [];
-          for (const p of uniquePins) {
-            try {
-              const k = await deriveKeyFromPin(p, salt);
-              derived.push(k);
-            } catch {}
-          }
-          candidateKeys = derived;
+          const k = await deriveKeyFromPin(sessionPin, salt);
+          candidateKeys = [k];
         } catch {
           candidateKeys = [];
         }
@@ -405,7 +407,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               }).catch(() => {});
             }
 
-            // Attempt 3: test candidate fallback keys
+            // Attempt 3: test candidate fallback key
             if (!decryptedData) {
               const altKeys = await getCandidateKeys();
               for (const altKey of altKeys) {
@@ -437,14 +439,11 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               record: rec,
             });
           } else {
-            // Unrecoverable corrupted record from an old wiped key.
-            // Using console.warn instead of console.error to avoid false unhandled error triggers.
-            console.warn(`[Vault] Item ${rec.id} cannot be decrypted with current credentials. Purging corrupt record.`);
-            deleteEncryptedItem(rec.id).catch(() => {});
+            // Never delete user records on decryption mismatch; skip safely.
+            console.warn(`[Vault] Item ${rec.id} could not be decrypted with current key. Preserving encrypted record.`);
           }
         } catch (itemErr) {
           console.warn(`[Vault] Skipped item ${rec.id}:`, itemErr);
-          deleteEncryptedItem(rec.id).catch(() => {});
         }
 
         if (i > 0 && i % 10 === 0) {

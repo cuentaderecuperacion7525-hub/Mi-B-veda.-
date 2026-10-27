@@ -70,7 +70,9 @@ jobs:
               'export const CURRENT_BUILD_NUMBER = ' + newVersionCode + ';\n' +
               'export const CURRENT_RELEASE_DATE = \'' + data.releaseDate + '\';\n\n' +
               'export const CURRENT_CHANGELOG: string[] = [\n  \'Compilación automática #' + buildNum + ' generada en GitHub.\',\n  \'Actualización del sistema sin pérdida de fotos, videos ni notas.\'\n];\n\n' +
-              'export const APP_VERSION_METADATA: VersionInfo = {\n  version: CURRENT_APP_VERSION,\n  buildNumber: CURRENT_BUILD_NUMBER,\n  releaseDate: CURRENT_RELEASE_DATE,\n  changelog: CURRENT_CHANGELOG,\n  mandatory: false\n};\n';
+              'export const APP_VERSION_METADATA: VersionInfo = {\n  version: CURRENT_APP_VERSION,\n  buildNumber: CURRENT_BUILD_NUMBER,\n  releaseDate: CURRENT_RELEASE_DATE,\n  changelog: CURRENT_CHANGELOG,\n  mandatory: false\n};\n\n' +
+              'export const APP_VERSION = CURRENT_APP_VERSION;\n' +
+              'export default APP_VERSION;\n';
             fs.writeFileSync('src/version.ts', tsCode);
           "
         env:

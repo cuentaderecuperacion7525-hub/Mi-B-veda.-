@@ -157,6 +157,24 @@ export async function deleteStoredLocalBackup(id: string): Promise<void> {
 }
 
 /**
+ * Clears all internal backup records stored in VaultLocalBackupsDB during a factory reset.
+ */
+export async function clearAllStoredLocalBackups(): Promise<void> {
+  try {
+    const db = await openBackupDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction([BACKUP_STORE_NAME], 'readwrite');
+      const store = tx.objectStore(BACKUP_STORE_NAME);
+      store.clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.error('Error clearing all stored local backups:', err);
+  }
+}
+
+/**
  * Converts a Blob to a base64 string
  */
 async function blobToBase64(blob: Blob): Promise<string> {

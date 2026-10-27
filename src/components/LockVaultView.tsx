@@ -16,7 +16,7 @@ import {
   ArrowRight,
   ShieldCheck,
 } from 'lucide-react';
-import { deriveKeyFromPin, verifyKey, hexToBuf } from '../crypto/vaultCrypto';
+import { deriveKeyFromPin, verifyKey, hexToBuf, verifyDuressPinHash } from '../crypto/vaultCrypto';
 import {
   isBiometricsEnrolled,
   isBiometricsAutoPromptEnabled,
@@ -177,11 +177,11 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
     }
   });
 
-  // Temporizador de cuenta regresiva en vivo
+  // Temporizador de cuenta regresiva en vivo y sincronización al volver de segundo plano
   useEffect(() => {
     if (remainingLockout <= 0) return;
 
-    const timer = setInterval(() => {
+    const syncLockoutRemaining = () => {
       const until = Number(localStorage.getItem('nullvault_lockout_until') || '0');
       const diff = Math.ceil((until - Date.now()) / 1000);
       if (diff <= 0) {
@@ -191,9 +191,24 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       } else {
         setRemainingLockout(diff);
       }
-    }, 1000);
+    };
 
-    return () => clearInterval(timer);
+    const timer = setInterval(syncLockoutRemaining, 1000);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        syncLockoutRemaining();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', syncLockoutRemaining);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', syncLockoutRemaining);
+    };
   }, [remainingLockout]);
 
   /* ==================== BLOQUE DE HISTORIAL (REGISTRO) ==================== */
@@ -297,11 +312,10 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       setErrorMessage(null);
 
       try {
-        // Verificar si se introdujo el PIN de Coacción
-        const isDuressActive = localStorage.getItem('vault_duress_pin_active') === 'true';
-        const duressPin = localStorage.getItem('vault_duress_pin');
+        // Verificar si se introdujo el PIN de Coacción (mediante hash criptográfico)
+        const isDuressMatch = await verifyDuressPinHash(pinToVerify);
 
-        if (isDuressActive && duressPin && pinToVerify === duressPin) {
+        if (isDuressMatch) {
           // Generar clave señuelo para modo coacción
           const decoySalt = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
           const decoyKey = await deriveKeyFromPin(pinToVerify, decoySalt);
@@ -318,6 +332,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         const isValid = await verifyKey(derivedKey, testIvHex, testCipherHex);
 
         if (isValid) {
+          sessionStorage.removeItem('vault_is_duress_mode');
           recordAccessLog('success', method, false);
           localStorage.removeItem('nullvault_lockout_until');
           setRemainingLockout(0);

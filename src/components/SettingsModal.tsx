@@ -64,7 +64,11 @@ import {
   hexToBuf,
   decryptBuffer,
   encryptBuffer,
+  verifyDuressPinHash,
+  checkIsUnencryptedMedia,
 } from '../crypto/vaultCrypto';
+import { updateBiometricPinIfEnrolled } from '../services/biometricService';
+import { rebindRecoveryKeyToNewMasterKey } from '../services/recoveryKeyService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -228,16 +232,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         return;
       }
 
+      const isSameAsDuress = await verifyDuressPinHash(newPin);
+      if (isSameAsDuress) {
+        setPinChangeError('El nuevo PIN maestro no puede ser igual a tu PIN de coacción.');
+        setIsChangingPin(false);
+        return;
+      }
+
       // 2. Generate new salt and derive new key
       const newSalt = generateSalt();
       const newSaltHex = bufToHex(newSalt);
       const newKey = await deriveKeyFromPin(newPin, newSalt);
 
-      // 3. Re-encrypt all photos in the vault from old key to new key
-      const allPhotos = await getAllEncryptedPhotos();
+      // 3. Re-encrypt all photos in the vault (including Recycle Bin) from old key to new key
+      const allPhotos = await getAllEncryptedPhotos(true);
       for (const photo of allPhotos) {
         try {
-          const decrypted = await decryptBuffer(photo.data, photo.iv, masterKey);
+          const isUnencrypted = !photo.iv || photo.iv.length === 0 || checkIsUnencryptedMedia(photo.data);
+          const decrypted = isUnencrypted ? photo.data : await decryptBuffer(photo.data, photo.iv, testCurrentKey);
           const reEncrypted = await encryptBuffer(decrypted, newKey);
           await saveEncryptedPhoto({
             ...photo,
@@ -261,6 +273,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       try {
         sessionStorage.setItem('vault_session_pin', newPin);
       } catch {}
+
+      // 6. Sync Biometric PIN & Recovery Key Escrow with the new master PIN/key
+      await updateBiometricPinIfEnrolled(newPin);
+      await rebindRecoveryKeyToNewMasterKey(testCurrentKey, newKey);
 
       onMasterKeyUpdated(newKey);
       setPinChangeSuccess(true);
@@ -577,7 +593,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       );
 
       // Pass the new active derived key back to the application parent
+      const oldMasterKey = masterKey;
       onMasterKeyUpdated(derivedKey);
+      try {
+        sessionStorage.setItem('vault_session_pin', backupPinInput);
+        localStorage.setItem('vault_pin_length', backupPinInput.length.toString());
+      } catch {}
+      try {
+        await updateBiometricPinIfEnrolled(backupPinInput);
+        if (oldMasterKey) {
+          await rebindRecoveryKeyToNewMasterKey(oldMasterKey, derivedKey);
+        }
+      } catch {}
 
       if (result.importedCount === 0) {
         setSelectedBackupInfo({
