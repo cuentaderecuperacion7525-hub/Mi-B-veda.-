@@ -418,7 +418,7 @@ INSTRUCCIONES IMPORTANTES:
       }
       const base64Data = window.btoa(binary);
       NativeVaultMedia.saveBackupToDownloads({
-        fileName,
+        filename: fileName,
         base64Data,
         mimeType: 'text/plain',
       }).catch((err) => {

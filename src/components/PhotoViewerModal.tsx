@@ -5,30 +5,27 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
-  ZoomIn,
-  ZoomOut,
-  RotateCw,
-  Heart,
+  RotateCcw,
   Copy,
   Info,
   Calendar,
   HardDrive,
   Folder,
+  FolderPlus,
+  ArrowRight,
   Play,
   Pause,
   Volume2,
   VolumeX,
   Maximize2,
-  Minimize2,
-  RotateCcw,
   Smartphone,
   Box,
   FileCode,
   PackageCheck,
   Film,
-  Image as ImageIcon,
   Music,
   Check,
+  Edit2,
 } from 'lucide-react';
 import { EncryptedVaultItem } from '../db/vaultDb';
 import { registerBackHandler } from '../services/backButtonService';
@@ -49,6 +46,12 @@ interface VaultItemViewerModalProps {
   onClose: () => void;
   onDelete: (id: string) => Promise<void>;
   onToggleFavorite: (id: string, isFav: boolean) => Promise<void>;
+  onRenameItem?: (id: string, newName: string) => Promise<void>;
+  onMoveItem?: (id: string, targetFolder: string) => Promise<void>;
+  onCopyItemToFolder?: (id: string, targetFolder: string) => Promise<void>;
+  onUpdateItemBlob?: (id: string, newBlob: Blob) => Promise<string | void>;
+  availableFolders?: string[];
+  onCreateFolder?: (folderName: string) => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'alert' | 'error') => void;
 }
 
@@ -58,6 +61,12 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   onClose,
   onDelete,
   onToggleFavorite,
+  onRenameItem,
+  onMoveItem,
+  onCopyItemToFolder,
+  onUpdateItemBlob,
+  availableFolders = ['General'],
+  onCreateFolder,
   showToast,
 }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
@@ -73,12 +82,46 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   const [exportStage, setExportStage] = useState<string>('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
 
+  // Nuevos estados para el menú "Más (⋮)" y modales funcionales
+  const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false);
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState<boolean>(false);
+  const [renameValue, setRenameValue] = useState<string>('');
+  const [renameError, setRenameError] = useState<string>('');
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState<boolean>(false);
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState<boolean>(false);
+  const [newFolderInputOpen, setNewFolderInputOpen] = useState<boolean>(false);
+  const [newFolderName, setNewFolderName] = useState<string>('');
+  const [isRotatingSave, setIsRotatingSave] = useState<boolean>(false);
+
   // Video playback controls
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [videoProgress, setVideoProgress] = useState<number>(0);
   const [videoDuration, setVideoDuration] = useState<number>(0);
+
+  // Back button handlers for sub-modals and menus inside the viewer
+
+  useEffect(() => {
+    if (isRenameModalOpen || isMoveModalOpen || isCopyModalOpen) {
+      return registerBackHandler('viewer_submodal', () => {
+        setIsRenameModalOpen(false);
+        setIsMoveModalOpen(false);
+        setIsCopyModalOpen(false);
+        setNewFolderInputOpen(false);
+        return true;
+      }, 98);
+    }
+  }, [isRenameModalOpen, isMoveModalOpen, isCopyModalOpen]);
+
+  useEffect(() => {
+    if (showMoreMenu) {
+      return registerBackHandler('viewer_more_menu', () => {
+        setShowMoreMenu(false);
+        return true;
+      }, 97);
+    }
+  }, [showMoreMenu]);
 
   // Back button in immersive mode exits immersive mode first
   useEffect(() => {
@@ -92,48 +135,91 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     }
   }, [isImmersive]);
 
+  const activeItemIdRef = useRef<string | null>(null);
+  const prevInitialItemIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!currentItem) {
       onClose();
       return;
     }
-    const idx = allItems.findIndex((p) => p.id === currentItem.id);
-    if (idx === -1 && allItems.length > 0) {
+
+    const isNewOpen = prevInitialItemIdRef.current !== currentItem.id;
+    prevInitialItemIdRef.current = currentItem.id;
+
+    if (isNewOpen) {
+      const idx = allItems.findIndex((p) => p.id === currentItem.id);
+      if (idx === -1 && allItems.length > 0) {
+        onClose();
+        return;
+      }
+      activeItemIdRef.current = currentItem.id;
+      setCurrentIndex(idx);
+      setScale(1);
+      setPosition({ x: 0, y: 0 });
+      setRotation(0);
+      setIsPlaying(false);
+      setVideoProgress(0);
+      setIsImmersive(false);
+      setShowMoreMenu(false);
+      return;
+    }
+
+    // Si cambió la lista (p. ej. al mover, copiar o eliminar mientras se navega en el visor)
+    if (allItems.length === 0) {
       onClose();
       return;
     }
-    setCurrentIndex(idx);
-    setScale(1);
-    setPosition({ x: 0, y: 0 });
-    setRotation(0);
-    setIsPlaying(false);
-    setVideoProgress(0);
-    setIsImmersive(false);
-  }, [currentItem, allItems, onClose]);
 
-  const activeItem = currentIndex >= 0 ? allItems[currentIndex] : currentItem;
+    const trackedId = activeItemIdRef.current || currentItem.id;
+    const existingIdx = allItems.findIndex((p) => p.id === trackedId);
+    if (existingIdx !== -1) {
+      setCurrentIndex(existingIdx);
+    } else {
+      // El elemento actual salió de la carpeta actual (ej. se movió a otra carpeta): avanzar al contiguo
+      const clampedIdx = Math.min(Math.max(0, currentIndex), allItems.length - 1);
+      setCurrentIndex(clampedIdx);
+      activeItemIdRef.current = allItems[clampedIdx]?.id || null;
+      setScale(1);
+      setPosition({ x: 0, y: 0 });
+      setRotation(0);
+      setIsPlaying(false);
+      setShowMoreMenu(false);
+    }
+  }, [currentItem?.id, allItems.length]);
+
+  const activeItem = currentIndex >= 0 && allItems[currentIndex] ? allItems[currentIndex] : currentItem;
+  if (activeItem) {
+    activeItemIdRef.current = activeItem.id;
+  }
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
-      setCurrentIndex((prev) => prev - 1);
+      const nextIdx = currentIndex - 1;
+      activeItemIdRef.current = allItems[nextIdx]?.id || null;
+      setCurrentIndex(nextIdx);
       setScale(1);
       setPosition({ x: 0, y: 0 });
       setRotation(0);
       setIsPlaying(false);
       setIsImmersive(false);
+      setShowMoreMenu(false);
     }
-  }, [currentIndex]);
+  }, [currentIndex, allItems]);
 
   const handleNext = useCallback(() => {
     if (currentIndex < allItems.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
+      const nextIdx = currentIndex + 1;
+      activeItemIdRef.current = allItems[nextIdx]?.id || null;
+      setCurrentIndex(nextIdx);
       setScale(1);
       setPosition({ x: 0, y: 0 });
       setRotation(0);
       setIsPlaying(false);
       setIsImmersive(false);
+      setShowMoreMenu(false);
     }
-  }, [currentIndex, allItems.length]);
+  }, [currentIndex, allItems]);
 
   // Gestos táctiles: Pellizco (Pinch-to-zoom) y arrastre acotado a los bordes de la imagen
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -154,7 +240,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   const positionRef = useRef(position);
   positionRef.current = position;
 
-  // Calcula los límites máximos permitidos en X e Y para que los bordes de la imagen nunca dejen ver pantalla negra vacía
   const getBounds = useCallback((curScale: number) => {
     const container = containerRef.current;
     const img = imageRef.current;
@@ -169,7 +254,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     const vw = container.clientWidth;
     const vh = container.clientHeight;
 
-    // Dimensiones de la imagen renderizada sin escalar
     const w0 = img.clientWidth || img.offsetWidth || img.naturalWidth || vw;
     const h0 = img.clientHeight || img.offsetHeight || img.naturalHeight || vh;
 
@@ -180,14 +264,12 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     const displayW = baseW * curScale;
     const displayH = baseH * curScale;
 
-    // El desplazamiento máximo en X e Y para mantener la imagen llenando la vista sin mostrar vacío negro
     const maxX = Math.max(0, (displayW - vw) / 2);
     const maxY = Math.max(0, (displayH - vh) / 2);
 
     return { maxX, maxY };
   }, [rotation]);
 
-  // Resistencia elástica ligera al arrastrar mientras el dedo está en pantalla
   const clampWithDamping = (val: number, max: number) => {
     if (max <= 0) {
       return val * 0.15;
@@ -201,7 +283,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     return val;
   };
 
-  // Ajuste estricto dentro de los bordes de la imagen al soltar el dedo
   const clampPosition = useCallback((pos: { x: number; y: number }, curScale: number) => {
     if (curScale <= 1.05) {
       return { x: 0, y: 0 };
@@ -213,18 +294,18 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     };
   }, [getBounds]);
 
-  // Deslizamiento lateral a 1x para cambiar de elemento
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
 
-  // Soporte de ratón para escritorio
   const isDraggingMouseRef = useRef<boolean>(false);
   const mouseStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (showMoreMenu) {
+      setShowMoreMenu(false);
+    }
     hasMovedRef.current = false;
 
-    // Pellizco con 2 dedos (Zoom simultáneo y arrastre con pellizco)
     if (e.touches.length === 2) {
       isPinchingRef.current = true;
       setIsInteracting(true);
@@ -244,7 +325,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       return;
     }
 
-    // 1 dedo: Si tiene zoom (> 1.05), arrastra dentro de los límites de la imagen
     if (e.touches.length === 1) {
       isPinchingRef.current = false;
       const t = e.touches[0];
@@ -264,7 +344,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    // Zoom y desplazamiento simultáneo mediante pellizco con 2 dedos
     if (e.touches.length === 2 && isPinchingRef.current) {
       hasMovedRef.current = true;
       const t1 = e.touches[0];
@@ -276,7 +355,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         const targetScale = Math.min(Math.max(pinchStartScaleRef.current * factor, 0.75), 8);
         setScale(targetScale);
 
-        // Mueve la imagen siguiendo el desplazamiento del centro de ambos dedos
         const curCenter = {
           x: (t1.clientX + t2.clientX) / 2,
           y: (t1.clientY + t2.clientY) / 2,
@@ -295,7 +373,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       return;
     }
 
-    // Arrastre con 1 dedo acotado a los límites reales de la foto
     if (e.touches.length === 1 && scaleRef.current > 1.05 && panStartRef.current) {
       const t = e.touches[0];
       const dx = t.clientX - panStartRef.current.x;
@@ -319,7 +396,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   const handleTouchEnd = (e: React.TouchEvent) => {
     setIsInteracting(false);
 
-    // Si estaba pellizcando y ahora queda 1 dedo en pantalla con zoom, transicionar a arrastre sin saltos
     if (isPinchingRef.current) {
       if (e.touches && e.touches.length === 1 && scaleRef.current > 1.05) {
         isPinchingRef.current = false;
@@ -349,7 +425,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       return;
     }
 
-    // Deslizar para cambiar de foto (solo cuando no hay zoom)
     if (touchStartXRef.current !== null && touchStartYRef.current !== null && e.changedTouches && e.changedTouches.length > 0) {
       const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
       const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
@@ -367,7 +442,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     }
   };
 
-  // Zoom con rueda de ratón (escritorio)
   const handleWheel = (e: React.WheelEvent) => {
     if (!activeItem || activeItem.record.category !== 'photo') return;
     e.preventDefault();
@@ -383,7 +457,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     });
   };
 
-  // Arrastre con ratón en escritorio con zoom
   const handleMouseDown = (e: React.MouseEvent) => {
     if (scale > 1.05) {
       isDraggingMouseRef.current = true;
@@ -417,14 +490,16 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     }
   };
 
-  // Doble toque: alterna entre 1x y 2.5x
-  // Toque simple: alterna modo inmersivo
   const singleTapTimeoutRef = useRef<any>(null);
   const lastTapRef = useRef<number>(0);
 
   const handlePhotoTap = (e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation();
+    }
+    if (showMoreMenu) {
+      setShowMoreMenu(false);
+      return;
     }
     if (hasMovedRef.current) {
       hasMovedRef.current = false;
@@ -439,7 +514,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         clearTimeout(singleTapTimeoutRef.current);
         singleTapTimeoutRef.current = null;
       }
-      // Alterna instantáneamente el zoom
       if (scale > 1.05) {
         setScale(1);
         setPosition({ x: 0, y: 0 });
@@ -456,6 +530,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
           const next = !prev;
           if (next) {
             setShowDetails(false);
+            setShowMoreMenu(false);
           }
           return next;
         });
@@ -476,9 +551,14 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (showDeleteConfirm) return;
-      if (e.key === 'Escape') onClose();
-      else if (e.key === 'ArrowLeft') handlePrev();
+      if (showDeleteConfirm || isRenameModalOpen || isMoveModalOpen || isCopyModalOpen) return;
+      if (e.key === 'Escape') {
+        if (showMoreMenu) {
+          setShowMoreMenu(false);
+        } else {
+          onClose();
+        }
+      } else if (e.key === 'ArrowLeft') handlePrev();
       else if (e.key === 'ArrowRight') handleNext();
       else if (e.key === ' ' && activeItem?.record.category === 'video') {
         e.preventDefault();
@@ -488,7 +568,17 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, handlePrev, handleNext, showDeleteConfirm, activeItem]);
+  }, [
+    onClose,
+    handlePrev,
+    handleNext,
+    showDeleteConfirm,
+    isRenameModalOpen,
+    isMoveModalOpen,
+    isCopyModalOpen,
+    showMoreMenu,
+    activeItem,
+  ]);
 
   if (!activeItem) return null;
 
@@ -548,6 +638,141 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     }
   };
 
+  // 1. COMPARTIR (Usa el menú nativo de compartir del sistema o descarga segura si no está soportado)
+  const handleShare = async () => {
+    if (!activeItem) return;
+    setShowMoreMenu(false);
+    try {
+      const response = await fetch(activeItem.blobUrl);
+      const blob = await response.blob();
+      const mimeType = activeItem.record.mimeType || blob.type || 'image/jpeg';
+      const file = new File([blob], activeItem.record.name || 'archivo.jpg', { type: mimeType });
+
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+          (window as any).__isPickingFile = true;
+          (window as any).__filePickingStartTime = Date.now();
+          try {
+            await navigator.share({
+              files: [file],
+              title: activeItem.record.name,
+            });
+          } finally {
+            setTimeout(() => {
+              (window as any).__isPickingFile = false;
+            }, 3000);
+          }
+          return;
+        }
+      }
+
+      // Fallback de descarga directa si el navegador/WebView no soporta Web Share API con archivos
+      const a = document.createElement('a');
+      a.href = activeItem.blobUrl;
+      a.download = activeItem.record.name || 'archivo';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('Archivo preparado para compartir / guardar', 'success');
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      showToast('No se pudo abrir el menú de compartir en este dispositivo', 'alert');
+    }
+  };
+
+  // 2. GIRAR (Gira 90° a la derecha y guarda permanentemente en la bóveda cifrada)
+  const handleRotate90AndPersist = async () => {
+    if (!activeItem) return;
+    setShowMoreMenu(false);
+
+    if (!isPhoto) {
+      setRotation((prev) => (prev + 90) % 360);
+      return;
+    }
+
+    if (!onUpdateItemBlob || isRotatingSave) {
+      setRotation((prev) => (prev + 90) % 360);
+      showToast('Imagen girada 90°', 'info');
+      return;
+    }
+
+    setIsRotatingSave(true);
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('No se pudo cargar la imagen'));
+        img.src = activeItem.blobUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalHeight || img.height;
+      canvas.height = img.naturalWidth || img.width;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Error de lienzo');
+
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((90 * Math.PI) / 180);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+
+      const outMime = activeItem.record.mimeType === 'image/png' ? 'image/png' : 'image/jpeg';
+      const rotatedBlob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), outMime, 0.94)
+      );
+
+      if (rotatedBlob) {
+        await onUpdateItemBlob(activeItem.id, rotatedBlob);
+        setRotation(0);
+        setScale(1);
+        setPosition({ x: 0, y: 0 });
+        showToast('Imagen girada y guardada', 'success');
+      }
+    } catch (err) {
+      console.error('Error al girar y guardar imagen:', err);
+      setRotation((prev) => (prev + 90) % 360);
+      showToast('Imagen girada', 'info');
+    } finally {
+      setIsRotatingSave(false);
+    }
+  };
+
+  // 3. ABRIR MODAL CAMBIAR NOMBRE
+  const handleOpenRenameModal = () => {
+    if (!activeItem) return;
+    setShowMoreMenu(false);
+    setRenameValue(activeItem.record.name || '');
+    setRenameError('');
+    setIsRenameModalOpen(true);
+  };
+
+  const handleConfirmRename = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeItem) return;
+    const trimmed = renameValue.trim();
+    if (!trimmed) {
+      setRenameError('El nombre no puede estar vacío');
+      return;
+    }
+
+    // Conservar extensión original si el usuario no escribió ninguna extensión
+    const oldName = activeItem.record.name || '';
+    const dotIdx = oldName.lastIndexOf('.');
+    const oldExt = dotIdx > 0 ? oldName.substring(dotIdx) : '';
+    const finalName =
+      oldExt && !trimmed.includes('.') ? `${trimmed}${oldExt}` : trimmed;
+
+    try {
+      if (onRenameItem) {
+        await onRenameItem(activeItem.id, finalName);
+      }
+      setIsRenameModalOpen(false);
+    } catch {
+      setRenameError('Error al cambiar el nombre');
+    }
+  };
+
+  // 5. COPIAR AL PORTAPAPELES
   const handleCopyToClipboard = async () => {
     try {
       const response = await fetch(activeItem.blobUrl);
@@ -555,8 +780,9 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       const item = new ClipboardItem({ [blob.type || 'image/png']: blob });
       await navigator.clipboard.write([item]);
       showToast('Imagen copiada al portapapeles', 'success');
+      setIsCopyModalOpen(false);
     } catch {
-      showToast('No se puede copiar directamente al portapapeles este tipo de archivo', 'alert');
+      showToast('No se puede copiar directamente al portapapeles este archivo', 'alert');
     }
   };
 
@@ -600,11 +826,11 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col justify-between select-none overflow-hidden">
-      {/* Botón flotante limpio para cerrar imágenes (sin encabezado invasivo) */}
+      {/* Botón flotante limpio para cerrar imágenes */}
       {isPhoto && (
         <button
           onClick={onClose}
-          className={`absolute top-3 left-3 sm:top-5 sm:left-5 z-40 p-2.5 sm:p-3 rounded-full bg-black/60 hover:bg-black/90 text-white/90 hover:text-white backdrop-blur-md transition-all duration-300 active:scale-95 border border-white/10 shadow-2xl ${
+          className={`vault-viewer-floating-btn absolute top-3 left-3 sm:top-5 sm:left-5 z-40 p-2.5 sm:p-3 rounded-full bg-black/60 hover:bg-black/90 text-white/90 hover:text-white backdrop-blur-md transition-all duration-300 active:scale-95 border border-white/10 shadow-2xl cursor-pointer ${
             isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
           title="Cerrar (Esc)"
@@ -615,9 +841,11 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
       {/* Top Bar solo para videos, audios y documentos */}
       {!isPhoto && (
-        <header className={`absolute top-0 left-0 right-0 px-4 safe-top-sticky pb-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent flex items-center justify-between text-slate-200 z-30 transition-all duration-300 ease-in-out ${
-          isImmersive ? '-translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
-        }`}>
+        <header
+          className={`absolute top-0 left-0 right-0 px-4 safe-top-sticky pb-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent flex items-center justify-between text-slate-200 z-30 transition-all duration-300 ease-in-out ${
+            isImmersive ? '-translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+          }`}
+        >
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
@@ -646,7 +874,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
             </div>
           </div>
 
-          {/* Top Controls */}
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setShowDetails(!showDetails)}
@@ -662,7 +889,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       )}
 
       {/* Main Content Stage */}
-      <div 
+      <div
         ref={containerRef}
         onClick={handlePhotoTap}
         onTouchStart={handleTouchStart}
@@ -688,7 +915,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               setScale(1);
               setPosition({ x: 0, y: 0 });
             }}
-            className="absolute top-20 right-4 z-30 px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/20 text-xs font-mono text-zinc-200 hover:text-white transition-all shadow-xl active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            className="vault-viewer-floating-btn absolute top-20 right-4 z-30 px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/20 text-xs font-mono text-zinc-200 hover:text-white transition-all shadow-xl active:scale-95 flex items-center gap-1.5 cursor-pointer"
             title="Toca para volver a tamaño normal (1x)"
           >
             <span>{scale.toFixed(1)}x</span>
@@ -703,7 +930,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               e.stopPropagation();
               handlePrev();
             }}
-            className={`absolute left-3 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white backdrop-blur-md transition-all duration-300 active:scale-95 ${
+            className={`vault-viewer-floating-btn absolute left-3 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer ${
               isImmersive || scale > 1.05 ? 'opacity-0 pointer-events-none' : 'opacity-100'
             }`}
             title="Elemento anterior"
@@ -719,7 +946,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               e.stopPropagation();
               handleNext();
             }}
-            className={`absolute right-3 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white backdrop-blur-md transition-all duration-300 active:scale-95 ${
+            className={`vault-viewer-floating-btn absolute right-3 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer ${
               isImmersive || scale > 1.05 ? 'opacity-0 pointer-events-none' : 'opacity-100'
             }`}
             title="Siguiente elemento"
@@ -754,7 +981,10 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
         {/* VIDEO VIEW */}
         {isVideo && (
-          <div className="max-w-4xl w-full max-h-full flex flex-col items-center justify-center relative rounded-2xl overflow-hidden bg-black/60 border border-slate-800">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-4xl w-full max-h-full flex flex-col items-center justify-center relative rounded-2xl overflow-hidden bg-black/60 border border-slate-800"
+          >
             <video
               ref={videoRef}
               src={activeItem.blobUrl}
@@ -771,9 +1001,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               className="max-h-[calc(100vh-220px)] w-full object-contain cursor-pointer"
             />
 
-            {/* Video Controls Bar */}
             <div className="w-full bg-slate-900/90 backdrop-blur-md p-3 border-t border-slate-800 flex flex-col gap-2">
-              {/* Progress bar */}
               <input
                 type="range"
                 min={0}
@@ -838,7 +1066,10 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
         {/* AUDIO VIEW */}
         {isAudio && (
-          <div className="w-full max-w-md bg-[#131c2e] border border-amber-500/30 rounded-3xl p-6 sm:p-8 text-center shadow-2xl">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-[#131c2e] border border-amber-500/30 rounded-3xl p-6 sm:p-8 text-center shadow-2xl"
+          >
             <div className="w-20 h-20 bg-amber-500/10 border border-amber-500/30 rounded-3xl flex items-center justify-center mx-auto mb-4 text-amber-400 shadow-lg shadow-amber-500/10">
               <Music className="w-10 h-10" />
             </div>
@@ -885,7 +1116,10 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
         {/* APPLICATION / PACKAGE VIEW */}
         {isApp && (
-          <div className="w-full max-w-md bg-[#131c2e] border border-slate-800 rounded-3xl p-6 sm:p-8 text-center shadow-2xl">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-[#131c2e] border border-slate-800 rounded-3xl p-6 sm:p-8 text-center shadow-2xl"
+          >
             <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/30 rounded-3xl flex items-center justify-center mx-auto mb-4 text-emerald-400 shadow-lg shadow-emerald-500/10">
               {activeItem.record.name.endsWith('.apk') ? (
                 <Smartphone className="w-10 h-10" />
@@ -938,7 +1172,10 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
         {/* Details Flyout */}
         {showDetails && !isImmersive && (
-          <div className="absolute right-4 top-16 z-40 w-72 bg-slate-900/95 border border-slate-800 rounded-2xl p-4 shadow-2xl backdrop-blur-md text-xs space-y-3">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="absolute right-4 top-16 z-40 w-72 bg-slate-900/95 border border-slate-800 rounded-2xl p-4 shadow-2xl backdrop-blur-md text-xs space-y-3"
+          >
             <h5 className="font-semibold text-slate-200 border-b border-slate-800 pb-2">Información del archivo</h5>
             <div className="flex items-center gap-2 text-slate-400">
               <Calendar className="w-4 h-4 text-indigo-400 shrink-0" />
@@ -959,17 +1196,376 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         )}
       </div>
 
-      {/* Barra de Acciones Inferior - Íconos limpios con trazo fino outline perfectamente distribuidos */}
+      {/* Menú Flotante "Más (⋮)" adaptado a los temas de la aplicación (Cian Neón y Tema Claro) */}
+      {showMoreMenu && !isImmersive && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-transparent"
+            onClick={() => setShowMoreMenu(false)}
+          />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="vault-more-menu-panel fixed bottom-[76px] left-5 right-5 sm:left-auto sm:right-6 sm:w-80 z-50 bg-[#0e1626]/95 backdrop-blur-2xl rounded-[28px] shadow-[0_16px_48px_rgba(0,0,0,0.85)] border border-slate-800/90 overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200"
+          >
+            <div className="vault-more-menu-list flex flex-col divide-y divide-slate-800/80">
+              {/* 1. Girar (solo para imágenes) */}
+              {isPhoto && (
+                <button
+                  type="button"
+                  onClick={handleRotate90AndPersist}
+                  disabled={isRotatingSave}
+                  className="vault-more-menu-item w-full px-6 py-4 text-left text-[15px] font-medium text-slate-100 hover:text-[#00e5ff] active:opacity-75 transition-colors cursor-pointer"
+                >
+                  Girar
+                </button>
+              )}
+
+              {/* 2. Mover */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMoreMenu(false);
+                  setNewFolderInputOpen(false);
+                  setIsMoveModalOpen(true);
+                }}
+                className="vault-more-menu-item w-full px-6 py-4 text-left text-[15px] font-medium text-slate-100 hover:text-[#00e5ff] active:opacity-75 transition-colors cursor-pointer"
+              >
+                Mover
+              </button>
+
+              {/* 3. Agregar a Favoritos / Quitar de Favoritos */}
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowMoreMenu(false);
+                  const nextFav = !activeItem.record.isFavorite;
+                  await onToggleFavorite(activeItem.id, nextFav);
+                  showToast(
+                    nextFav ? 'Agregado a Favoritos' : 'Quitado de Favoritos',
+                    'success'
+                  );
+                }}
+                className="vault-more-menu-item w-full px-6 py-4 text-left text-[15px] font-medium text-slate-100 hover:text-[#00e5ff] active:opacity-75 transition-colors cursor-pointer"
+              >
+                {activeItem.record.isFavorite ? 'Quitar de Favoritos' : 'Agregar a Favoritos'}
+              </button>
+
+              {/* 4. Cambiar nombre */}
+              <button
+                type="button"
+                onClick={handleOpenRenameModal}
+                className="vault-more-menu-item w-full px-6 py-4 text-left text-[15px] font-medium text-slate-100 hover:text-[#00e5ff] active:opacity-75 transition-colors cursor-pointer"
+              >
+                Cambiar nombre
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Barra de Acciones Inferior - 4 botones (Compartir, Copiar, Eliminar, Más) */}
       <BarraAccionesInferior
-        esFavorito={!!activeItem.record.isFavorite}
-        onAlternarFavorito={() => onToggleFavorite(activeItem.id, !activeItem.record.isFavorite)}
-        onCopiar={handleCopyToClipboard}
-        onSacarDeBoveda={handleExport}
-        onEliminar={() => setShowDeleteConfirm(true)}
-        mostrarCopiar={isPhoto}
-        estaSacando={isExporting}
+        onCompartir={handleShare}
+        onCopiar={() => {
+          setShowMoreMenu(false);
+          setNewFolderInputOpen(false);
+          setIsCopyModalOpen(true);
+        }}
+        onEliminar={() => {
+          setShowMoreMenu(false);
+          setShowDeleteConfirm(true);
+        }}
+        onMas={() => setShowMoreMenu((prev) => !prev)}
+        menuMasAbierto={showMoreMenu}
         esInmersivo={isImmersive}
       />
+
+      {/* Modal: Cambiar nombre */}
+      {isRenameModalOpen && (
+        <div
+          onClick={() => setIsRenameModalOpen(false)}
+          className="fixed inset-0 z-[65] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-[#00e5ff]">
+                  <Edit2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-100">Cambiar nombre</h3>
+                  <p className="text-[11px] text-zinc-400 truncate max-w-[200px]">
+                    {activeItem.record.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRenameModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmRename} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                  Nuevo nombre del archivo
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => {
+                    setRenameValue(e.target.value);
+                    setRenameError('');
+                  }}
+                  maxLength={80}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/60 transition-colors"
+                />
+                {renameError && (
+                  <p className="text-[11px] text-rose-400 mt-1">{renameError}</p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRenameModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={!renameValue.trim()}
+                  className="px-5 py-2 rounded-xl bg-zinc-100 hover:bg-white disabled:opacity-40 text-zinc-950 text-xs font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Guardar</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Mover a carpeta */}
+      {isMoveModalOpen && (
+        <div
+          onClick={() => setIsMoveModalOpen(false)}
+          className="fixed inset-0 z-[65] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <Folder className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-100">Mover a carpeta</h3>
+                  <p className="text-[11px] text-zinc-400 truncate max-w-[200px]">
+                    Carpeta actual: {activeItem.record.album || 'General'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMoveModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1 no-scrollbar">
+              {availableFolders.map((folder) => {
+                const isCurrent = (activeItem.record.album || 'General') === folder;
+                return (
+                  <button
+                    key={folder}
+                    type="button"
+                    onClick={async () => {
+                      if (onMoveItem) {
+                        await onMoveItem(activeItem.id, folder);
+                      }
+                      setIsMoveModalOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all text-left cursor-pointer ${
+                      isCurrent
+                        ? 'bg-zinc-800 border-zinc-700 text-zinc-100 font-semibold'
+                        : 'bg-zinc-950/60 hover:bg-zinc-800/60 border-zinc-800 text-zinc-300 hover:text-zinc-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Folder className={`w-4 h-4 shrink-0 ${isCurrent ? 'text-amber-400' : 'text-zinc-500'}`} />
+                      <span className="text-xs truncate">{folder}</span>
+                    </div>
+                    {isCurrent ? (
+                      <span className="text-[10px] text-amber-400 font-mono bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 shrink-0">
+                        Actual
+                      </span>
+                    ) : (
+                      <ArrowRight className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {newFolderInputOpen ? (
+              <div className="pt-2 border-t border-zinc-800 space-y-2">
+                <input
+                  type="text"
+                  autoFocus
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="Nombre de la nueva carpeta..."
+                  maxLength={40}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/60"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewFolderInputOpen(false);
+                      setNewFolderName('');
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!newFolderName.trim()}
+                    onClick={async () => {
+                      const trimmed = newFolderName.trim();
+                      if (!trimmed) return;
+                      onCreateFolder?.(trimmed);
+                      if (onMoveItem) {
+                        await onMoveItem(activeItem.id, trimmed);
+                      }
+                      setNewFolderName('');
+                      setNewFolderInputOpen(false);
+                      setIsMoveModalOpen(false);
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black text-xs font-bold cursor-pointer"
+                  >
+                    Crear y Mover
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="pt-2 border-t border-zinc-800 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewFolderInputOpen(true)}
+                  className="text-xs text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1.5 transition-colors p-1 cursor-pointer"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                  <span>+ Crear nueva carpeta</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsMoveModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
+                >
+                  Cerrar
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Copiar elemento */}
+      {isCopyModalOpen && (
+        <div
+          onClick={() => setIsCopyModalOpen(false)}
+          className="fixed inset-0 z-[65] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-[#00e5ff]">
+                  <Copy className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-100">Copiar archivo</h3>
+                  <p className="text-[11px] text-zinc-400">
+                    Elige dónde guardar la copia en tu bóveda
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCopyModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 no-scrollbar">
+              {availableFolders.map((folder) => {
+                const isCurrent = (activeItem.record.album || 'General') === folder;
+                return (
+                  <button
+                    key={folder}
+                    type="button"
+                    onClick={async () => {
+                      if (onCopyItemToFolder) {
+                        await onCopyItemToFolder(activeItem.id, folder);
+                      }
+                      setIsCopyModalOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-2xl border bg-zinc-950/60 hover:bg-zinc-800/60 border-zinc-800 text-zinc-200 hover:text-white transition-all text-left cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Folder className="w-4 h-4 shrink-0 text-[#00e5ff]" />
+                      <span className="text-xs truncate">
+                        {folder} {isCurrent ? '(Duplicar aquí)' : ''}
+                      </span>
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                  </button>
+                );
+              })}
+            </div>
+
+            {isPhoto && (
+              <button
+                type="button"
+                onClick={handleCopyToClipboard}
+                className="w-full py-2.5 px-3 rounded-2xl bg-zinc-800/80 hover:bg-zinc-800 text-zinc-200 text-xs font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5 text-[#00e5ff]" />
+                <span>Copiar imagen al portapapeles</span>
+              </button>
+            )}
+
+            <div className="pt-2 border-t border-zinc-800 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setIsCopyModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Confirmación de Eliminación */}
       <ModalEliminar
@@ -1000,7 +1596,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               </p>
             </div>
 
-            {/* Barra de progreso */}
             <div className="space-y-1.5 pt-1">
               <div className="flex justify-between text-xs font-semibold px-1">
                 <span className="text-slate-400">Progreso</span>
@@ -1019,3 +1614,4 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     </div>
   );
 };
+

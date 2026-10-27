@@ -1,95 +1,78 @@
 import React from 'react';
-// Importamos iconos limpios y estilizados de trazo fino (estilo Outline)
-import { Heart, Copy, Download, Trash2 } from 'lucide-react';
+import { Share2, CopyPlus, Trash2, MoreVertical } from 'lucide-react';
 
 export interface BarraAccionesProps {
-  esFavorito: boolean;
-  onAlternarFavorito: () => void;
+  onCompartir: () => void;
   onCopiar: () => void;
-  onSacarDeBoveda: () => void;
   onEliminar: () => void;
-  mostrarCopiar?: boolean;
-  estaSacando?: boolean;
+  onMas: () => void;
+  menuMasAbierto?: boolean;
   esInmersivo?: boolean;
 }
 
 export const BarraAccionesInferior: React.FC<BarraAccionesProps> = ({
-  esFavorito,
-  onAlternarFavorito,
+  onCompartir,
   onCopiar,
-  onSacarDeBoveda,
   onEliminar,
-  mostrarCopiar = true,
-  estaSacando = false,
+  onMas,
+  menuMasAbierto = false,
   esInmersivo = false,
 }) => {
   return (
     <footer
-      className={`fixed bottom-0 left-0 right-0 z-50 w-full [backdrop-filter:blur(24px)_saturate(190%)] backdrop-blur-2xl px-6 py-4 pb-safe flex items-center justify-around border-t shadow-[0_-8px_32px_rgba(0,0,0,0.5)] transition-transform duration-300 overflow-hidden ${
+      onClick={(e) => e.stopPropagation()}
+      className={`fixed bottom-0 left-0 right-0 z-50 w-full bg-[#0a121d]/95 backdrop-blur-xl px-2 pt-2.5 pb-3 pb-safe flex items-center justify-around border-t border-slate-800/80 shadow-[0_-8px_32px_rgba(0,0,0,0.6)] transition-all duration-300 select-none ${
         esInmersivo ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
       }`}
-      style={{
-        backgroundColor: 'var(--theme-bg-header, rgba(6, 11, 20, 0.75))',
-        borderColor: 'var(--theme-border, rgba(255, 255, 255, 0.14))',
-        WebkitBackdropFilter: 'blur(24px) saturate(190%)',
-      }}
     >
-      {/* Reflejo especular superior fino */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/35 to-transparent" />
-      {/* Botón Favorito: cambia de estilo si está activo */}
+      {/* 1. Compartir */}
       <button
         type="button"
-        onClick={onAlternarFavorito}
-        className="p-3 text-white transition-colors duration-200 active:scale-95 hover:text-red-400 focus:outline-none cursor-pointer"
-        aria-label="Favorito"
-        title={esFavorito ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+        onClick={onCompartir}
+        className="flex flex-col items-center justify-center gap-1 py-1 px-3 text-slate-200 hover:text-[#00e5ff] active:scale-95 transition-all focus:outline-none cursor-pointer"
+        aria-label="Compartir"
       >
-        <Heart 
-          size={24} 
-          strokeWidth={1.5} 
-          className={esFavorito ? 'fill-red-500 text-red-500' : ''}
-        />
+        <Share2 size={22} strokeWidth={1.7} />
+        <span className="text-[11px] font-medium tracking-tight">Compartir</span>
       </button>
 
-      {/* Botón Copiar al portapapeles */}
-      {mostrarCopiar && (
-        <button
-          type="button"
-          onClick={onCopiar}
-          className="p-3 text-white transition-colors duration-200 active:scale-95 hover:text-blue-400 focus:outline-none cursor-pointer"
-          aria-label="Copiar"
-          title="Copiar imagen al portapapeles"
-        >
-          <Copy size={24} strokeWidth={1.5} />
-        </button>
-      )}
-
-      {/* Botón Sacar de la Bóveda (Descargar/Exportar al almacenamiento libre) */}
+      {/* 2. Copiar */}
       <button
         type="button"
-        onClick={onSacarDeBoveda}
-        disabled={estaSacando}
-        className="p-3 text-white transition-colors duration-200 active:scale-95 hover:text-green-400 focus:outline-none disabled:opacity-50 cursor-pointer"
-        aria-label="Sacar de Bóveda"
-        title="Sacar de la bóveda a tu galería libre"
+        onClick={onCopiar}
+        className="flex flex-col items-center justify-center gap-1 py-1 px-3 text-slate-200 hover:text-[#00e5ff] active:scale-95 transition-all focus:outline-none cursor-pointer"
+        aria-label="Copiar"
       >
-        <Download 
-          size={24} 
-          strokeWidth={1.5} 
-          className={estaSacando ? 'animate-bounce text-green-400' : ''}
-        />
+        <CopyPlus size={22} strokeWidth={1.7} />
+        <span className="text-[11px] font-medium tracking-tight">Copiar</span>
       </button>
 
-      {/* Botón Eliminar permanentemente */}
+      {/* 3. Eliminar */}
       <button
         type="button"
         onClick={onEliminar}
-        className="p-3 text-white transition-colors duration-200 active:scale-95 hover:text-red-500 focus:outline-none cursor-pointer"
+        className="vault-delete-btn flex flex-col items-center justify-center gap-1 py-1 px-3 text-slate-200 hover:text-rose-400 active:scale-95 transition-all focus:outline-none cursor-pointer"
         aria-label="Eliminar"
-        title="Eliminar permanentemente"
       >
-        <Trash2 size={24} strokeWidth={1.5} />
+        <Trash2 size={22} strokeWidth={1.7} />
+        <span className="text-[11px] font-medium tracking-tight">Eliminar</span>
+      </button>
+
+      {/* 4. Más (3 puntitos verticales) */}
+      <button
+        type="button"
+        onClick={onMas}
+        className={`flex flex-col items-center justify-center gap-1 py-1 px-3 active:scale-95 transition-all focus:outline-none cursor-pointer ${
+          menuMasAbierto
+            ? 'vault-more-btn-active text-[#00e5ff]'
+            : 'text-slate-200 hover:text-[#00e5ff]'
+        }`}
+        aria-label="Más opciones"
+      >
+        <MoreVertical size={22} strokeWidth={1.7} />
+        <span className="text-[11px] font-medium tracking-tight">Más</span>
       </button>
     </footer>
   );
 };
+

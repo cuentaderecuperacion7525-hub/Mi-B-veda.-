@@ -745,17 +745,27 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     }
   }, [activeNavTab]);
 
-  const handleCreateFolder = (name: string) => {
-    const cat = (activeCategory || (activeTab !== 'all' && activeTab !== 'favorites' ? activeTab : 'photo')) as VaultItemCategory;
+  const handleCreateFolder = (
+    name: string,
+    options?: { switchToFolder?: boolean; categoryOverride?: VaultItemCategory }
+  ) => {
+    const switchToFolder = options?.switchToFolder ?? true;
+    const cat = (
+      options?.categoryOverride ||
+      activeCategory ||
+      (activeTab !== 'all' && activeTab !== 'favorites' ? activeTab : 'photo')
+    ) as VaultItemCategory;
     const currentList = customFolders[cat] || ['General'];
     if (!currentList.includes(name)) {
       const updated = [...currentList, name];
       setCustomFolders((prev) => ({ ...prev, [cat]: updated }));
       localStorage.setItem(`vault_subfolders_${cat}`, JSON.stringify(updated));
       showToast(`Carpeta "${name}" creada con éxito`, 'success');
-      setActiveSubfolder(name);
-      if (activeCategory === null) {
-        openCategory(cat);
+      if (switchToFolder) {
+        setActiveSubfolder(name);
+        if (activeCategory === null) {
+          openCategory(cat);
+        }
       }
     }
   };
@@ -1182,6 +1192,109 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         p.id === id ? { ...p, record: { ...p.record, isFavorite: isFav } } : p
       )
     );
+    setActiveViewerItem((prev) =>
+      prev && prev.id === id ? { ...prev, record: { ...prev.record, isFavorite: isFav } } : prev
+    );
+  };
+
+  const handleRenameSingleItem = async (id: string, newName: string) => {
+    await updateItemMetadata(id, { name: newName });
+    setItems((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, record: { ...p.record, name: newName } } : p
+      )
+    );
+    setActiveViewerItem((prev) =>
+      prev && prev.id === id ? { ...prev, record: { ...prev.record, name: newName } } : prev
+    );
+    showToast(`Nombre cambiado a "${newName}"`, 'success');
+  };
+
+  const handleMoveSingleItem = async (id: string, targetFolder: string) => {
+    await batchUpdateAlbum([id], targetFolder);
+    setItems((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, record: { ...p.record, album: targetFolder } } : p
+      )
+    );
+    setActiveViewerItem((prev) =>
+      prev && prev.id === id ? { ...prev, record: { ...prev.record, album: targetFolder } } : prev
+    );
+    showToast(`Movido a la carpeta "${targetFolder}"`, 'success');
+  };
+
+  const handleCopySingleItem = async (id: string, targetFolder: string) => {
+    const sourceItem = items.find((p) => p.id === id);
+    if (!sourceItem) return;
+
+    const currentAlbum = sourceItem.record.album || 'General';
+    let copyName = sourceItem.record.name || 'archivo';
+    if (currentAlbum === targetFolder) {
+      const dotIdx = copyName.lastIndexOf('.');
+      if (dotIdx > 0) {
+        copyName = `${copyName.substring(0, dotIdx)} (copia)${copyName.substring(dotIdx)}`;
+      } else {
+        copyName = `${copyName} (copia)`;
+      }
+    }
+
+    const newRecord: EncryptedVaultItem = {
+      ...sourceItem.record,
+      id: `item_${Date.now()}_copy_${Math.random().toString(36).substring(2, 7)}`,
+      timestamp: Date.now(),
+      name: copyName,
+      album: targetFolder,
+    };
+
+    await saveEncryptedItem(newRecord);
+
+    const response = await fetch(sourceItem.blobUrl);
+    const blob = await response.blob();
+    const newBlobUrl = URL.createObjectURL(blob);
+    blobUrlsRef.current.push(newBlobUrl);
+
+    const newDecryptedItem: DecryptedVaultItem = {
+      id: newRecord.id,
+      blobUrl: newBlobUrl,
+      record: newRecord,
+    };
+
+    setItems((prev) => [newDecryptedItem, ...prev]);
+    showToast(`Copia guardada en la carpeta "${targetFolder}"`, 'success');
+  };
+
+  const handleUpdateItemBlob = async (id: string, newBlob: Blob): Promise<string | void> => {
+    const targetItem = items.find((p) => p.id === id);
+    if (!targetItem) return;
+
+    const activeKey = masterKeyRef.current || masterKey;
+    const arrayBuffer = await newBlob.arrayBuffer();
+    const encrypted = await encryptBuffer(arrayBuffer, activeKey);
+
+    const updatedRecord: EncryptedVaultItem = {
+      ...targetItem.record,
+      iv: encrypted.iv,
+      data: encrypted.data,
+      size: arrayBuffer.byteLength,
+      mimeType: newBlob.type || targetItem.record.mimeType,
+      lastModified: Date.now(),
+    };
+
+    await saveEncryptedItem(updatedRecord);
+
+    const newBlobUrl = URL.createObjectURL(newBlob);
+    blobUrlsRef.current.push(newBlobUrl);
+
+    setItems((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, blobUrl: newBlobUrl, record: updatedRecord } : p
+      )
+    );
+    setActiveViewerItem((prev) =>
+      prev && prev.id === id ? { ...prev, blobUrl: newBlobUrl, record: updatedRecord } : prev
+    );
+
+    return newBlobUrl;
   };
 
   // Batch actions
@@ -3407,6 +3520,27 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           onClose={() => setActiveViewerItem(null)}
           onDelete={handleDeleteItem}
           onToggleFavorite={handleToggleFavorite}
+          onRenameItem={handleRenameSingleItem}
+          onMoveItem={handleMoveSingleItem}
+          onCopyItemToFolder={handleCopySingleItem}
+          onUpdateItemBlob={handleUpdateItemBlob}
+          availableFolders={(() => {
+            const itemCat = activeViewerItem.record.category || 'photo';
+            const baseList = customFolders[itemCat] || ['General'];
+            const folderSet = new Set<string>(baseList);
+            items.forEach((it) => {
+              if (it.record.category === itemCat && it.record.album) {
+                folderSet.add(it.record.album);
+              }
+            });
+            return Array.from(folderSet);
+          })()}
+          onCreateFolder={(folderName) =>
+            handleCreateFolder(folderName, {
+              switchToFolder: false,
+              categoryOverride: activeViewerItem.record.category,
+            })
+          }
           showToast={showToast}
         />
       )}

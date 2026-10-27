@@ -750,3 +750,114 @@ html.dark .vault-btn-edit-profile * {
   stroke: #00e5ff !important;
 }
 
+/* 16. Panel Flotante de 3 Puntitos ("Más") y Barra Inferior en Visor de Archivos */
+[data-theme="cyan"] .vault-more-menu-panel,
+html.dark .vault-more-menu-panel {
+  background-color: rgba(14, 22, 38, 0.96) !important;
+  border: 1px solid rgba(0, 229, 255, 0.22) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.85), 0 0 24px rgba(0, 229, 255, 0.08) !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="cyan"] .vault-more-menu-item,
+html.dark .vault-more-menu-item {
+  color: #f8fafc !important;
+  border-color: rgba(51, 65, 85, 0.65) !important;
+}
+
+[data-theme="cyan"] .vault-more-menu-item:hover,
+[data-theme="cyan"] .vault-more-menu-item:active,
+html.dark .vault-more-menu-item:hover,
+html.dark .vault-more-menu-item:active {
+  color: #00e5ff !important;
+  background-color: rgba(0, 229, 255, 0.08) !important;
+}
+
+[data-theme="light"] .vault-more-menu-panel,
+html.light .vault-more-menu-panel {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 16px 40px -4px rgba(15, 23, 42, 0.18), 0 4px 12px -2px rgba(15, 23, 42, 0.08) !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .vault-more-menu-item,
+html.light .vault-more-menu-item {
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .vault-more-menu-item:hover,
+[data-theme="light"] .vault-more-menu-item:active,
+html.light .vault-more-menu-item:hover,
+html.light .vault-more-menu-item:active {
+  color: #0284c7 !important;
+  background-color: #f0f9ff !important;
+}
+
+[data-theme="light"] footer.fixed button.vault-more-btn-active,
+[data-theme="light"] footer.fixed button.vault-more-btn-active * {
+  color: #0284c7 !important;
+  stroke: #0284c7 !important;
+}
+
+[data-theme="light"] footer.fixed button.vault-delete-btn:hover,
+[data-theme="light"] footer.fixed button.vault-delete-btn:hover * {
+  color: #e11d48 !important;
+  stroke: #e11d48 !important;
+}
+
+/* Botones flotantes del visor (Cerrar X y flechas < >) adaptados al tema */
+[data-theme="cyan"] button.vault-viewer-floating-btn,
+html.dark button.vault-viewer-floating-btn {
+  background-color: rgba(10, 18, 29, 0.78) !important;
+  border: 1px solid rgba(0, 229, 255, 0.22) !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="cyan"] button.vault-viewer-floating-btn svg,
+html.dark button.vault-viewer-floating-btn svg {
+  color: #f8fafc !important;
+  stroke: #f8fafc !important;
+}
+
+[data-theme="cyan"] button.vault-viewer-floating-btn:hover,
+html.dark button.vault-viewer-floating-btn:hover {
+  background-color: rgba(14, 22, 38, 0.95) !important;
+  border-color: rgba(0, 229, 255, 0.5) !important;
+  color: #00e5ff !important;
+}
+
+[data-theme="cyan"] button.vault-viewer-floating-btn:hover svg,
+html.dark button.vault-viewer-floating-btn:hover svg {
+  color: #00e5ff !important;
+  stroke: #00e5ff !important;
+}
+
+[data-theme="light"] button.vault-viewer-floating-btn,
+html.light button.vault-viewer-floating-btn {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14) !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] button.vault-viewer-floating-btn *,
+html.light button.vault-viewer-floating-btn * {
+  color: #0f172a !important;
+  stroke: #0f172a !important;
+}
+
+[data-theme="light"] button.vault-viewer-floating-btn:hover,
+html.light button.vault-viewer-floating-btn:hover {
+  background-color: #ffffff !important;
+  border-color: #0284c7 !important;
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] button.vault-viewer-floating-btn:hover *,
+html.light button.vault-viewer-floating-btn:hover * {
+  color: #0284c7 !important;
+  stroke: #0284c7 !important;
+}
+
