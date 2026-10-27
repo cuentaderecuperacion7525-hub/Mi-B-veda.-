@@ -11,6 +11,12 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
     captureInput: true,
   },
+  plugins: {
+    SystemBars: {
+      insetsHandling: 'disable',
+      style: 'LIGHT',
+    },
+  },
 };
 
 export default config;

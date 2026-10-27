@@ -26,26 +26,96 @@ import java.util.Locale;
 
 public class MainActivity extends BridgeActivity {
     private static final int PERMISSION_REQ_CODE = 1001;
+    private static boolean currentIsDarkTheme = false;
+
+    public static void syncSafeAreaInsetsToWebView(final Activity activity) {
+        if (activity == null) return;
+        try {
+            Window window = activity.getWindow();
+            if (window == null) return;
+            View decorView = window.getDecorView();
+            WindowInsetsCompat rootInsets = ViewCompat.getRootWindowInsets(decorView);
+            if (rootInsets == null) return;
+
+            Insets bars = rootInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout()
+            );
+            Insets imeInsets = rootInsets.getInsets(WindowInsetsCompat.Type.ime());
+            boolean keyboardVisible = rootInsets.isVisible(WindowInsetsCompat.Type.ime());
+
+            // Eliminar cualquier padding superior/inferior que el plugin SystemBars de Capacitor 8 intente agregar al DecorView
+            decorView.setPadding(0, 0, 0, keyboardVisible ? imeInsets.bottom : 0);
+
+            if (activity instanceof BridgeActivity) {
+                BridgeActivity bridgeActivity = (BridgeActivity) activity;
+                if (bridgeActivity.getBridge() != null && bridgeActivity.getBridge().getWebView() != null) {
+                    final WebView webView = bridgeActivity.getBridge().getWebView();
+                    webView.setPadding(0, 0, 0, 0);
+
+                    float density = decorView.getResources().getDisplayMetrics().density;
+                    if (density <= 0f) density = 1f;
+
+                    float topDp = bars.top / density;
+                    float bottomDp = (keyboardVisible ? 0 : bars.bottom) / density;
+
+                    final String js = String.format(
+                        Locale.US,
+                        "document.documentElement.style.setProperty('--safe-top','%.1fpx');document.documentElement.style.setProperty('--safe-bottom','%.1fpx');",
+                        topDp,
+                        bottomDp
+                    );
+                    webView.post(() -> {
+                        try {
+                            webView.evaluateJavascript(js, null);
+                        } catch (Exception ignored) {}
+                    });
+                }
+            }
+        } catch (Exception ignored) {}
+    }
 
     public static void applySystemBarsTheme(final Activity activity, final boolean isDark) {
+        currentIsDarkTheme = isDark;
         if (activity == null) return;
-        activity.runOnUiThread(() -> {
+        final Runnable applyTask = () -> {
             try {
                 Window window = activity.getWindow();
                 if (window == null) return;
                 View decorView = window.getDecorView();
 
+                // Permitir que el WebView ocupe toda la pantalla de borde a borde (incluyendo el área del notch/cámara y barra inferior)
+                WindowCompat.setDecorFitsSystemWindows(window, false);
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    WindowManager.LayoutParams lp = window.getAttributes();
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+                    } else {
+                        lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                    }
+                    window.setAttributes(lp);
+                }
+
                 window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
                 window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
                 window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
 
-                int statusColor = isDark ? Color.parseColor("#060B14") : Color.parseColor("#FFFFFF");
-                int navColor = isDark ? Color.parseColor("#0A121D") : Color.parseColor("#FFFFFF");
+                // Pintar el fondo base del DecorView exactamente con el color del tema (nunca gris de Android)
+                int baseBgColor = isDark ? Color.parseColor("#060B14") : Color.parseColor("#F1F5F9");
+                decorView.setBackgroundColor(baseBgColor);
 
-                window.setStatusBarColor(statusColor);
-                window.setNavigationBarColor(navColor);
+                // Hacer las barras 100% transparentes para que no existan franjas grises arriba ni abajo
+                window.setStatusBarColor(Color.TRANSPARENT);
+                window.setNavigationBarColor(Color.TRANSPARENT);
+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    window.setNavigationBarDividerColor( isDark ? Color.parseColor("#1E293B") : Color.parseColor("#E2E8F0") );
+                    window.setNavigationBarDividerColor(Color.TRANSPARENT);
+                }
+
+                // Desactivar el velo gris automático de contraste que Android 10+ pone sobre la barra de 3 botones y de estado
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    window.setStatusBarContrastEnforced(false);
+                    window.setNavigationBarContrastEnforced(false);
                 }
 
                 WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(window, decorView);
@@ -53,6 +123,16 @@ public class MainActivity extends BridgeActivity {
                     controller.setAppearanceLightStatusBars(!isDark);
                     controller.setAppearanceLightNavigationBars(!isDark);
                 }
+
+                syncSafeAreaInsetsToWebView(activity);
+            } catch (Exception ignored) {}
+        };
+
+        activity.runOnUiThread(() -> {
+            applyTask.run();
+            try {
+                // Re-aplicar después en la cola del hilo principal para sobrescribir cualquier llamada tardía de SystemBars de Capacitor 8
+                activity.getWindow().getDecorView().post(applyTask);
             } catch (Exception ignored) {}
         });
     }
@@ -66,13 +146,50 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(VaultGoogleAuthPlugin.class);
         super.onCreate(savedInstanceState);
 
-        // Asegurar que el contenido de la ventana respete las barras del sistema de forma uniforme en todas las versiones de Android
-        try {
-            WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
-        } catch (Exception ignored) {}
+        final View decorView = getWindow().getDecorView();
 
-        // Aplicar colores iniciales de barra de estado y navegación (Tema Claro por defecto)
-        applySystemBarsTheme(this, false);
+        // Reemplazar cualquier listener de SystemBars en el DecorView para impedir que Capacitor 8 agregue padding gris arriba y abajo
+        ViewCompat.setOnApplyWindowInsetsListener(decorView, (v, windowInsets) -> {
+            Insets bars = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout()
+            );
+            Insets imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+            boolean keyboardVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
+
+            // Forzar padding superior e inferior en 0 para que el WebView llegue hasta los bordes físicos sin barras grises
+            v.setPadding(0, 0, 0, keyboardVisible ? imeInsets.bottom : 0);
+
+            int baseBgColor = currentIsDarkTheme ? Color.parseColor("#060B14") : Color.parseColor("#F1F5F9");
+            v.setBackgroundColor(baseBgColor);
+
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                final WebView webView = getBridge().getWebView();
+                webView.setPadding(0, 0, 0, 0);
+
+                float density = v.getResources().getDisplayMetrics().density;
+                if (density <= 0f) density = 1f;
+
+                float topDp = bars.top / density;
+                float bottomDp = (keyboardVisible ? 0 : bars.bottom) / density;
+
+                final String js = String.format(
+                    Locale.US,
+                    "document.documentElement.style.setProperty('--safe-top','%.1fpx');document.documentElement.style.setProperty('--safe-bottom','%.1fpx');",
+                    topDp,
+                    bottomDp
+                );
+                webView.post(() -> {
+                    try {
+                        webView.evaluateJavascript(js, null);
+                    } catch (Exception ignored) {}
+                });
+            }
+
+            return WindowInsetsCompat.CONSUMED;
+        });
+
+        // Aplicar modo borde a borde sin franjas grises desde el arranque
+        applySystemBarsTheme(this, currentIsDarkTheme);
 
         // Bloqueo total a nivel de sistema operativo para capturas y grabaciones de pantalla
         getWindow().setFlags(
@@ -86,38 +203,8 @@ public class MainActivity extends BridgeActivity {
         // Concesión automática de permisos de cámara al WebView interno y soporte para descargas
         if (getBridge() != null && getBridge().getWebView() != null) {
             final WebView webView = getBridge().getWebView();
-
-            // Sincronizar insets reales con variables CSS para evitar espacios dobles en distintos teléfonos
-            ViewCompat.setOnApplyWindowInsetsListener(webView, (v, windowInsets) -> {
-                Insets bars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
-                float density = v.getResources().getDisplayMetrics().density;
-                if (density <= 0f) density = 1f;
-
-                int[] loc = new int[2];
-                v.getLocationOnScreen(loc);
-
-                // Si loc[1] > 0, Android ya desplazó el WebView debajo de la barra de estado
-                float topDp = (loc[1] <= 2) ? (bars.top / density) : 0f;
-
-                int screenHeight = v.getResources().getDisplayMetrics().heightPixels;
-                int webViewBottom = loc[1] + v.getHeight();
-                // Si el WebView llega hasta el fondo físico de la pantalla, descontar la barra de navegación
-                float bottomDp = (webViewBottom > 0 && screenHeight - webViewBottom <= 4) ? (bars.bottom / density) : 0f;
-
-                final String js = String.format(
-                    Locale.US,
-                    "document.documentElement.style.setProperty('--safe-top','%.1fpx');document.documentElement.style.setProperty('--safe-bottom','%.1fpx');",
-                    topDp,
-                    bottomDp
-                );
-                v.post(() -> {
-                    try {
-                        webView.evaluateJavascript(js, null);
-                    } catch (Exception ignored) {}
-                });
-
-                return ViewCompat.onApplyWindowInsets(v, windowInsets);
-            });
+            webView.setBackgroundColor(Color.TRANSPARENT);
+            webView.setPadding(0, 0, 0, 0);
 
             webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
                 @Override
@@ -160,6 +247,20 @@ public class MainActivity extends BridgeActivity {
                     }
                 } catch (Exception ignored) {}
             });
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        applySystemBarsTheme(this, currentIsDarkTheme);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            applySystemBarsTheme(this, currentIsDarkTheme);
         }
     }
 

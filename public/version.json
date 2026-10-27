@@ -1,10 +1,10 @@
 {
-  "version": "1.2.43",
-  "version_name": "1.2.43",
-  "buildNumber": 1043,
-  "version_code": 1043,
+  "version": "1.2.44",
+  "version_name": "1.2.44",
+  "buildNumber": 1044,
+  "version_code": 1044,
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Mi-B-veda.-/releases/latest/download/Boveda-Calculadora.apk",
-  "releaseDate": "26 de Octubre, 2026",
+  "releaseDate": "27 de Octubre, 2026",
   "changelog": [
     "Nueva barra de acciones en el visor (Compartir, Copiar, Eliminar y Más) y menú de 3 puntitos adaptado a los temas Cian Neón y Tema Claro.",
     "Opciones funcionales de Girar imagen (con guardado cifrado), Mover a carpeta, Favoritos y Cambiar nombre directo desde el visor.",
