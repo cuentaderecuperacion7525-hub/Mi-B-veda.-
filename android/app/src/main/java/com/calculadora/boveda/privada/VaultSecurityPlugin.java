@@ -45,4 +45,17 @@ public class VaultSecurityPlugin extends Plugin {
         ret.put("success", true);
         call.resolve(ret);
     }
+
+    @PluginMethod
+    public void setSystemBarsTheme(PluginCall call) {
+        final boolean isDark = Boolean.TRUE.equals(call.getBoolean("isDark", false));
+        FragmentActivity activity = (FragmentActivity) getActivity();
+        if (activity != null) {
+            MainActivity.applySystemBarsTheme(activity, isDark);
+        }
+        JSObject ret = new JSObject();
+        ret.put("success", true);
+        call.resolve(ret);
+    }
 }
+

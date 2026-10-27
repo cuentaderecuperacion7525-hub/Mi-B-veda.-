@@ -5,6 +5,8 @@
  * - 'light': Tema Claro (blanco perla limpio de alto contraste y legibilidad)
  */
 
+import { syncNativeSystemBarsTheme } from './screenshotBlockService';
+
 export type VaultTheme = 'cyan' | 'light';
 
 export interface ThemeDefinition {
@@ -172,6 +174,9 @@ class ThemeService {
     if (metaThemeColor) {
       metaThemeColor.setAttribute('content', def.bgMain);
     }
+
+    // Sincronizar colores de barra de estado superior y barra de navegación inferior en Android nativo
+    syncNativeSystemBarsTheme(def.isDark);
 
     // Forzar reflujo sincrónico y reactivar transiciones en el siguiente frame
     void root.offsetHeight;

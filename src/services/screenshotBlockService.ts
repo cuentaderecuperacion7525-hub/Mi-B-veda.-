@@ -4,9 +4,18 @@ import { isNativeApp } from './nativeVaultBridge';
 interface VaultSecurityPluginInterface {
   enableScreenshotBlock(): Promise<{ success: boolean }>;
   disableScreenshotBlock(): Promise<{ success: boolean }>;
+  setSystemBarsTheme(options: { isDark: boolean }): Promise<{ success: boolean }>;
 }
 
 const NativeVaultSecurity = registerPlugin<VaultSecurityPluginInterface>('VaultSecurity');
+
+export const syncNativeSystemBarsTheme = (isDark: boolean) => {
+  try {
+    if (isNativeApp()) {
+      NativeVaultSecurity.setSystemBarsTheme({ isDark }).catch(() => {});
+    }
+  } catch {}
+};
 
 /**
  * Servicio de Bloqueo de Capturas y Protección de Pantalla de NullVault

@@ -56,27 +56,27 @@
 }
 
 .safe-top-area {
-  padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.75rem), 2.5rem);
+  padding-top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.85rem);
 }
 
 .safe-top-sticky {
-  padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.75rem), 2.25rem);
+  padding-top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.75rem);
 }
 
 .safe-top-header-spacer {
-  height: max(calc(env(safe-area-inset-top, 0px) + 4.75rem), 5.75rem);
+  height: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 4.35rem);
 }
 
 .safe-bottom-nav {
-  bottom: max(calc(env(safe-area-inset-bottom, 0px) + 0.35rem), 0.625rem);
+  bottom: max(calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.35rem), 0.5rem);
 }
 
 .safe-bottom-fab {
-  bottom: max(calc(env(safe-area-inset-bottom, 0px) + 4.75rem), 5.25rem);
+  bottom: calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 4.75rem);
 }
 
 .safe-bottom-fab-menu {
-  bottom: max(calc(env(safe-area-inset-bottom, 0px) + 8.75rem), 9.25rem);
+  bottom: calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 8.75rem);
 }
 
 /* Custom scrollbars */

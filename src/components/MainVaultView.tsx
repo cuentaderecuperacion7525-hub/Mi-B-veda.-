@@ -3102,7 +3102,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         </footer>
       ) : (
         <nav
-          className="fixed bottom-0 left-0 right-0 z-40 w-full [backdrop-filter:blur(24px)_saturate(190%)] backdrop-blur-2xl border-t shadow-[0_-8px_32px_rgba(0,0,0,0.5)] select-none pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] pt-2 transition-all"
+          className="fixed bottom-0 left-0 right-0 z-40 w-full [backdrop-filter:blur(24px)_saturate(190%)] backdrop-blur-2xl border-t shadow-[0_-8px_32px_rgba(0,0,0,0.5)] select-none pb-[max(var(--safe-bottom,env(safe-area-inset-bottom,0px)),0.5rem)] pt-2 transition-all"
           style={{
             backgroundColor: 'var(--theme-bg-header, rgba(6, 11, 20, 0.75))',
             borderColor: 'var(--theme-border, rgba(255, 255, 255, 0.14))',
