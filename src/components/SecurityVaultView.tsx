@@ -59,7 +59,7 @@ interface SecurityVaultViewProps {
   sessionPin?: string | null;
   onLock?: () => void;
   masterKey?: CryptoKey | null;
-  onMasterKeyUpdated?: (newKey: CryptoKey) => void;
+  onMasterKeyUpdated?: (newKey: CryptoKey, newPin?: string) => void;
   autoLockMinutes?: number;
   onAutoLockChange?: (mins: number) => void;
   lockOnTabSwitch?: boolean;

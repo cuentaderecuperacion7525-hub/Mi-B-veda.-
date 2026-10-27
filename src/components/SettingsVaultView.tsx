@@ -100,12 +100,12 @@ import { formatFileSize } from '../utils/formatUtils';
 interface SettingsVaultViewProps {
   masterKey: CryptoKey | null;
   sessionPin?: string | null;
-  onMasterKeyUpdated: (newKey: CryptoKey) => void;
+  onMasterKeyUpdated: (newKey: CryptoKey, newPin?: string) => void;
   autoLockMinutes: number;
   onAutoLockChange: (mins: number) => void;
   lockOnTabSwitch: boolean;
   onLockOnTabSwitchChange: (enabled: boolean) => void;
-  onPhotosUpdated: () => void;
+  onPhotosUpdated: (overrideKey?: CryptoKey) => void | Promise<void>;
   onResetVault: () => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'alert' | 'error') => void;
 }
@@ -760,6 +760,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
   };
 
   const processBackupBlob = async (file: Blob, fileName?: string) => {
+    (window as any).__isProcessingBackup = true;
     try {
       setSelectedBackupInfo({
         name: fileName || 'copia_seguridad.json',
@@ -772,15 +773,17 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       const header = await readBackupHeaderFromBlob(file);
 
       if (header?.saltHex && header?.testIvHex && header?.testCipherHex) {
+        const activePin = sessionPin || sessionStorage.getItem('vault_session_pin') || '';
         const salt = hexToBuf(header.saltHex);
-        const testKey = await deriveKeyFromPin(sessionPin || '', salt);
-        const isValid = await verifyKey(testKey, header.testIvHex, header.testCipherHex);
+        const testKey = await deriveKeyFromPin(activePin, salt);
+        const isValid = activePin.length >= 4 && (await verifyKey(testKey, header.testIvHex, header.testCipherHex));
 
         if (isValid) {
           setIsImporting(true);
           setSelectedBackupInfo((prev) =>
             prev ? { ...prev, status: 'restoring', statusText: 'Restaurando elementos...', percent: 45 } : null
           );
+          const oldMasterKey = masterKey;
           const result = await importEncryptedBackupBlobStream(
             file,
             (curr, tot) => {
@@ -790,8 +793,19 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             true
           );
 
-          onMasterKeyUpdated(testKey);
-          await onPhotosUpdated();
+          try {
+            if (activePin) {
+              sessionStorage.setItem('vault_session_pin', activePin);
+              localStorage.setItem('vault_pin_length', activePin.length.toString());
+              await updateBiometricPinIfEnrolled(activePin);
+            }
+            if (oldMasterKey) {
+              await rebindRecoveryKeyToNewMasterKey(oldMasterKey, testKey);
+            }
+          } catch {}
+
+          onMasterKeyUpdated(testKey, activePin);
+          await onPhotosUpdated(testKey);
           setSelectedBackupInfo((prev) =>
             prev ? { ...prev, status: 'success', statusText: `¡Se restauraron ${result.importedCount} archivos!`, percent: 100 } : null
           );
@@ -832,17 +846,16 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       showToast('Error al restaurar respaldo', 'error');
     } finally {
       setIsImporting(false);
+      setTimeout(() => {
+        (window as any).__isProcessingBackup = false;
+      }, 2000);
     }
   };
 
   const handleFileRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try {
-      await processBackupBlob(file, file.name);
-    } finally {
-      e.target.value = '';
-    }
+    await processBackupBlob(file, file.name);
   };
 
   const handleRestoreInternalBackup = async (id: string, fileName: string) => {
@@ -924,10 +937,10 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
 
       setShowBackupPinPrompt(false);
       setIsImporting(true);
+      (window as any).__isProcessingBackup = true;
 
-      const result = await importEncryptedBackupBlobStream(pendingBackupBlob, undefined, true);
       const oldMasterKey = masterKey;
-      onMasterKeyUpdated(testKey);
+      const result = await importEncryptedBackupBlobStream(pendingBackupBlob, undefined, true);
       try {
         sessionStorage.setItem('vault_session_pin', backupPinInput);
         localStorage.setItem('vault_pin_length', backupPinInput.length.toString());
@@ -939,7 +952,8 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         }
       } catch {}
 
-      await onPhotosUpdated();
+      onMasterKeyUpdated(testKey, backupPinInput);
+      await onPhotosUpdated(testKey);
 
       showToast(`Se restauraron ${result.importedCount} elementos a la bóveda`, 'success');
       setPendingBackupBlob(null);
@@ -957,6 +971,9 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     } finally {
       setIsVerifyingBackupPin(false);
       setIsImporting(false);
+      setTimeout(() => {
+        (window as any).__isProcessingBackup = false;
+      }, 2000);
     }
   };
 
@@ -968,15 +985,27 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       const header = await readBackupHeaderFromBlob(blob);
 
       if (header?.saltHex && header?.testIvHex && header?.testCipherHex) {
+        const activePin = sessionPin || sessionStorage.getItem('vault_session_pin') || '';
         const salt = hexToBuf(header.saltHex);
-        const testKey = await deriveKeyFromPin(sessionPin || '', salt);
-        const isValid = await verifyKey(testKey, header.testIvHex, header.testCipherHex);
+        const testKey = await deriveKeyFromPin(activePin, salt);
+        const isValid = activePin.length >= 4 && (await verifyKey(testKey, header.testIvHex, header.testCipherHex));
 
         if (isValid) {
           setIsImporting(true);
+          const oldMasterKey = masterKey;
           const result = await importEncryptedBackupBlobStream(blob, undefined, true);
-          onMasterKeyUpdated(testKey);
-          await onPhotosUpdated();
+          try {
+            if (activePin) {
+              sessionStorage.setItem('vault_session_pin', activePin);
+              localStorage.setItem('vault_pin_length', activePin.length.toString());
+              await updateBiometricPinIfEnrolled(activePin);
+            }
+            if (oldMasterKey) {
+              await rebindRecoveryKeyToNewMasterKey(oldMasterKey, testKey);
+            }
+          } catch {}
+          onMasterKeyUpdated(testKey, activePin);
+          await onPhotosUpdated(testKey);
           showToast(`Se restauraron ${result.importedCount} elementos`, 'success');
           setPastedBackupText('');
           setShowPasteInput(false);
@@ -1554,6 +1583,9 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   accept=".json"
                   className="hidden"
                   disabled={isImporting}
+                  onClick={(e) => {
+                    (e.target as HTMLInputElement).value = '';
+                  }}
                   onChange={handleFileRestore}
                 />
               </label>

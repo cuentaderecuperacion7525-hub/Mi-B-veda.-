@@ -75,7 +75,7 @@ interface SettingsModalProps {
   onClose: () => void;
   masterKey: CryptoKey | null;
   sessionPin?: string | null;
-  onMasterKeyUpdated: (newKey: CryptoKey) => void;
+  onMasterKeyUpdated: (newKey: CryptoKey, newPin?: string) => void;
   autoLockMinutes: number;
   onAutoLockChange: (mins: number) => void;
   lockOnTabSwitch: boolean;
@@ -386,15 +386,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       // Check if backup has cryptographic tokens
       if (header.saltHex && header.testIvHex && header.testCipherHex) {
         let isCurrentKeyMatching = false;
+        let matchedKey: CryptoKey | null = null;
+        const activePin = sessionPin || sessionStorage.getItem('vault_session_pin') || '';
         try {
-          if (masterKey) {
-            isCurrentKeyMatching = await verifyKey(masterKey, header.testIvHex, header.testCipherHex);
+          if (masterKey && (await verifyKey(masterKey, header.testIvHex, header.testCipherHex))) {
+            isCurrentKeyMatching = true;
+            matchedKey = masterKey;
+          } else if (activePin.length >= 4) {
+            const salt = hexToBuf(header.saltHex);
+            const testKey = await deriveKeyFromPin(activePin, salt);
+            if (await verifyKey(testKey, header.testIvHex, header.testCipherHex)) {
+              isCurrentKeyMatching = true;
+              matchedKey = testKey;
+            }
           }
         } catch {
           isCurrentKeyMatching = false;
         }
 
-        if (isCurrentKeyMatching) {
+        if (isCurrentKeyMatching && matchedKey) {
           // Key matches current session: stream restore immediately!
           setSelectedBackupInfo({
             name: file.name || 'copia_seguridad.json',
@@ -404,6 +414,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             percent: 1,
           });
 
+          const oldMasterKey = masterKey;
           const result = await importEncryptedBackupBlobStream(
             file,
             (loaded, total, count) => {
@@ -418,6 +429,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             },
             true
           );
+
+          try {
+            if (activePin) {
+              sessionStorage.setItem('vault_session_pin', activePin);
+              localStorage.setItem('vault_pin_length', activePin.length.toString());
+              await updateBiometricPinIfEnrolled(activePin);
+            }
+            if (oldMasterKey) {
+              await rebindRecoveryKeyToNewMasterKey(oldMasterKey, matchedKey);
+            }
+          } catch {}
+
+          onMasterKeyUpdated(matchedKey, activePin || undefined);
 
           if (result.importedCount === 0) {
             setSelectedBackupInfo({
@@ -594,7 +618,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       // Pass the new active derived key back to the application parent
       const oldMasterKey = masterKey;
-      onMasterKeyUpdated(derivedKey);
+      onMasterKeyUpdated(derivedKey, backupPinInput);
       try {
         sessionStorage.setItem('vault_session_pin', backupPinInput);
         localStorage.setItem('vault_pin_length', backupPinInput.length.toString());

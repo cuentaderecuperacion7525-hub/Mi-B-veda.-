@@ -558,8 +558,14 @@ export default function App() {
             onAutoLockChange={handleAutoLockChange}
             lockOnTabSwitch={lockOnTabSwitch}
             onLockOnTabSwitchChange={handleLockOnTabSwitchChange}
-            onMasterKeyUpdated={(newKey) => {
+            onMasterKeyUpdated={(newKey, newPin) => {
               setMasterKey(newKey);
+              if (newPin) {
+                setSessionPin(newPin);
+                try {
+                  sessionStorage.setItem('vault_session_pin', newPin);
+                } catch {}
+              }
               setVaultRefreshTrigger((prev) => prev + 1);
             }}
             onResetVault={handleResetVault}
@@ -571,8 +577,14 @@ export default function App() {
             onClose={() => setIsSettingsOpen(false)}
             masterKey={masterKey}
             sessionPin={sessionPin}
-            onMasterKeyUpdated={(newKey) => {
+            onMasterKeyUpdated={(newKey, newPin) => {
               setMasterKey(newKey);
+              if (newPin) {
+                setSessionPin(newPin);
+                try {
+                  sessionStorage.setItem('vault_session_pin', newPin);
+                } catch {}
+              }
               setVaultRefreshTrigger((prev) => prev + 1);
             }}
             autoLockMinutes={autoLockMinutes}

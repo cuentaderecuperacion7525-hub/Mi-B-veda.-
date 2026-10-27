@@ -885,6 +885,7 @@ export async function importEncryptedBackupBlobStream(
       localStorage.setItem('vault_salt', header.saltHex);
       localStorage.setItem('vault_test_iv', header.testIvHex);
       localStorage.setItem('vault_test_cipher', header.testCipherHex);
+      localStorage.setItem('vault_initialized', 'true');
     }
   }
 
@@ -1123,6 +1124,13 @@ export async function importEncryptedBackupBlobStream(
         (Array.isArray(parsed.media) && parsed.media) ||
         [];
 
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.saltHex && parsed.testIvHex && parsed.testCipherHex) {
+          header.saltHex = header.saltHex || parsed.saltHex;
+          header.testIvHex = header.testIvHex || parsed.testIvHex;
+          header.testCipherHex = header.testCipherHex || parsed.testCipherHex;
+        }
+      }
       if (itemsList.length > 0) {
         for (const it of itemsList) {
           parseAndQueueItem(it);
@@ -1139,6 +1147,17 @@ export async function importEncryptedBackupBlobStream(
     } catch (fbErr) {
       console.warn('Fallback full parse attempt error:', fbErr);
     }
+  }
+
+  if (header.saltHex && header.testIvHex && header.testCipherHex) {
+    if (overwriteCryptographicTokens || !localStorage.getItem('vault_salt')) {
+      localStorage.setItem('vault_salt', header.saltHex);
+      localStorage.setItem('vault_test_iv', header.testIvHex);
+      localStorage.setItem('vault_test_cipher', header.testCipherHex);
+      localStorage.setItem('vault_initialized', 'true');
+    }
+  } else if (count > 0) {
+    localStorage.setItem('vault_initialized', 'true');
   }
 
   if (onProgress) {

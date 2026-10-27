@@ -107,7 +107,7 @@ interface MainVaultViewProps {
   onAutoLockChange?: (mins: number) => void;
   lockOnTabSwitch?: boolean;
   onLockOnTabSwitchChange?: (enabled: boolean) => void;
-  onMasterKeyUpdated?: (newKey: CryptoKey) => void;
+  onMasterKeyUpdated?: (newKey: CryptoKey, newPin?: string) => void;
   onResetVault?: () => void;
   hasUpdatePending?: boolean;
 }
@@ -326,6 +326,25 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const appInputRef = useRef<HTMLInputElement | null>(null);
   const blobUrlsRef = useRef<string[]>([]);
+  const masterKeyRef = useRef<CryptoKey>(masterKey);
+  const sessionPinRef = useRef<string | null | undefined>(sessionPin);
+  const loadGenRef = useRef<number>(0);
+
+  useEffect(() => {
+    masterKeyRef.current = masterKey;
+  }, [masterKey]);
+
+  useEffect(() => {
+    sessionPinRef.current = sessionPin;
+  }, [sessionPin]);
+
+  const handleInternalMasterKeyUpdated = (newKey: CryptoKey, newPin?: string) => {
+    masterKeyRef.current = newKey;
+    if (newPin) {
+      sessionPinRef.current = newPin;
+    }
+    onMasterKeyUpdated?.(newKey, newPin);
+  };
 
   // Trigger file picker safely preventing premature auto-lock
   const triggerPicker = (inputRef: React.RefObject<HTMLInputElement | null>) => {
@@ -343,38 +362,47 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   }, []);
 
   // Load and decrypt items into memory
-  const loadVaultItems = async () => {
+  const loadVaultItems = async (overrideKey?: CryptoKey) => {
+    const currentGen = ++loadGenRef.current;
+    let activeKey = overrideKey || masterKeyRef.current || masterKey;
+    if (overrideKey) {
+      masterKeyRef.current = overrideKey;
+    }
+
     setIsLoading(true);
     try {
-      // Clean up previous blob URLs to prevent memory leaks
-      blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-      blobUrlsRef.current = [];
-
       // CRITICAL SECURITY ISOLATION: If unlocked with Duress PIN (PIN de Coacción),
       // display a clean empty decoy vault without reading or touching real IndexedDB records!
       if (sessionStorage.getItem('vault_is_duress_mode') === 'true') {
-        setItems([]);
-        setIsLoading(false);
+        if (currentGen === loadGenRef.current) {
+          blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+          blobUrlsRef.current = [];
+          setItems([]);
+          setIsLoading(false);
+        }
         return;
       }
 
       const records = await getAllEncryptedItems();
+      if (currentGen !== loadGenRef.current) return;
       records.sort((a, b) => b.timestamp - a.timestamp);
 
       const decryptedItems: DecryptedVaultItem[] = [];
+      const newBlobUrls: string[] = [];
 
-      // Lazy candidate key derivation in case items were saved under the active session PIN
+      // Lazy candidate key derivation in case vault_salt was updated by a backup restore
       let candidateKeys: CryptoKey[] | null = null;
       const getCandidateKeys = async (): Promise<CryptoKey[]> => {
         if (candidateKeys !== null) return candidateKeys;
         const saltHex = localStorage.getItem('vault_salt');
-        if (!saltHex || !sessionPin) {
+        const activePin = sessionPinRef.current || sessionPin || sessionStorage.getItem('vault_session_pin');
+        if (!saltHex || !activePin) {
           candidateKeys = [];
           return candidateKeys;
         }
         try {
           const salt = hexToBuf(saltHex);
-          const k = await deriveKeyFromPin(sessionPin, salt);
+          const k = await deriveKeyFromPin(activePin, salt);
           candidateKeys = [k];
         } catch {
           candidateKeys = [];
@@ -383,6 +411,10 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       };
 
       for (let i = 0; i < records.length; i++) {
+        if (currentGen !== loadGenRef.current) {
+          newBlobUrls.forEach((url) => URL.revokeObjectURL(url));
+          return;
+        }
         const rec = records[i];
         try {
           let decryptedData: ArrayBuffer | null = null;
@@ -391,9 +423,9 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           if (isProbablyUnencrypted) {
             decryptedData = rec.data;
           } else {
-            // Attempt 1: primary masterKey
+            // Attempt 1: active masterKey
             try {
-              decryptedData = await decryptBuffer(rec.data, rec.iv, masterKey);
+              decryptedData = await decryptBuffer(rec.data, rec.iv, activeKey);
             } catch {
               // Primary key failed
             }
@@ -401,13 +433,12 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
             // Attempt 2: test if raw bytes are unencrypted media with extended file signatures
             if (!decryptedData && checkIsUnencryptedMedia(rec.data)) {
               decryptedData = rec.data;
-              // Re-encrypt in background so future reads are encrypted
-              encryptBuffer(decryptedData, masterKey).then((reEnc) => {
-                saveEncryptedItem({ ...rec, iv: reEnc.iv, data: reEnc.data }).catch(() => {});
-              }).catch(() => {});
             }
 
-            // Attempt 3: test candidate fallback key
+            // Attempt 3: test candidate key derived from current localStorage vault_salt + sessionPin.
+            // IMPORTANT: Do NOT re-encrypt the record in IndexedDB with activeKey here, because if
+            // altKey (from current vault_salt) succeeded, the record in IndexedDB is ALREADY encrypted
+            // with the authoritative vault_salt key (e.g. right after restoring a backup).
             if (!decryptedData) {
               const altKeys = await getCandidateKeys();
               for (const altKey of altKeys) {
@@ -415,10 +446,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   const altDec = await decryptBuffer(rec.data, rec.iv, altKey);
                   if (altDec) {
                     decryptedData = altDec;
-                    // Successfully salvaged! Re-encrypt with masterKey and update in IndexedDB
-                    encryptBuffer(decryptedData, masterKey).then((reEnc) => {
-                      saveEncryptedItem({ ...rec, iv: reEnc.iv, data: reEnc.data }).catch(() => {});
-                    }).catch(() => {});
+                    activeKey = altKey;
+                    masterKeyRef.current = altKey;
                     break;
                   }
                 } catch {
@@ -431,7 +460,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           if (decryptedData) {
             const blob = new Blob([decryptedData], { type: rec.mimeType || 'application/octet-stream' });
             const blobUrl = URL.createObjectURL(blob);
-            blobUrlsRef.current.push(blobUrl);
+            newBlobUrls.push(blobUrl);
 
             decryptedItems.push({
               id: rec.id,
@@ -451,12 +480,21 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         }
       }
 
+      if (currentGen !== loadGenRef.current) {
+        newBlobUrls.forEach((url) => URL.revokeObjectURL(url));
+        return;
+      }
+
+      blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      blobUrlsRef.current = newBlobUrls;
       setItems(decryptedItems);
     } catch (err) {
       console.warn('Error loading vault items:', err);
       showToast('Error al leer datos de la bóveda', 'error');
     } finally {
-      setIsLoading(false);
+      if (currentGen === loadGenRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -1480,7 +1518,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           sessionPin={sessionPin}
           onLock={onLock}
           masterKey={masterKey}
-          onMasterKeyUpdated={onMasterKeyUpdated || (() => {})}
+          onMasterKeyUpdated={handleInternalMasterKeyUpdated}
           autoLockMinutes={autoLockMinutes}
           onAutoLockChange={onAutoLockChange || (() => {})}
           lockOnTabSwitch={lockOnTabSwitch}
@@ -1491,7 +1529,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
         <SettingsVaultView
           masterKey={masterKey}
           sessionPin={sessionPin}
-          onMasterKeyUpdated={onMasterKeyUpdated || (() => {})}
+          onMasterKeyUpdated={handleInternalMasterKeyUpdated}
           autoLockMinutes={autoLockMinutes}
           onAutoLockChange={onAutoLockChange || (() => {})}
           lockOnTabSwitch={lockOnTabSwitch}
