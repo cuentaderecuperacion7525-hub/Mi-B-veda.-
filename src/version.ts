@@ -10,15 +10,15 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const APP_VERSION = '1.2.40';
+export const APP_VERSION = '1.2.41';
 export const CURRENT_APP_VERSION = APP_VERSION;
-export const CURRENT_BUILD_NUMBER = 1040;
-export const CURRENT_RELEASE_DATE = '16 oct 2026';
+export const CURRENT_BUILD_NUMBER = 1041;
+export const CURRENT_RELEASE_DATE = '26 oct 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
-  'Encabezados fijos en carpetas y subcarpetas: el título y los controles siempre visibles.',
-  'Zoom táctil con pellizco de dos dedos y desplazamiento libre de la imagen.',
-  'Navegación simplificada: retorno fluido a carpetas con la flecha o gesto del sistema.',
+  'Borrado nativo universal de fotos y videos en Android (compatible con todos los teléfonos y versiones de Android).',
+  'Restauración de copia de seguridad inmediata desde el primer intento tras restablecer de fábrica.',
+  'Iconos de alta visibilidad en el menú flotante (+) en el tema claro (blanco).',
   'Detección inteligente de actualizaciones y descarga directa de paquetes APK.'
 ];
 

@@ -1123,7 +1123,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           }
         }
 
-        if (!handledNatively) {
+        if (!handledNatively && !isNativeApp()) {
           setImportedCountForReminder(mediaRecords.length);
         }
       }
@@ -1483,7 +1483,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               const media = imported.filter((i) => i.category === 'photo' || i.category === 'video' || i.category === 'audio');
               if (media.length > 0) {
                 setRecentImportedItems(media.map((m) => ({ name: m.name, size: m.size })));
-                if (shouldShowReminder) {
+                if (shouldShowReminder && !isNativeApp()) {
                   setImportedCountForReminder(media.length);
                 }
               }
@@ -3214,8 +3214,15 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg shadow-black/60 border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
                   Nueva carpeta
                 </span>
-                <div className="w-12 h-12 rounded-full bg-[#00e5ff] hover:bg-[#00cce6] text-black flex items-center justify-center shadow-lg shadow-cyan-500/40 border border-cyan-200/50 transition-all">
-                  <FolderPlus className="w-5 h-5 stroke-[2.4]" />
+                <div className="vault-fab-circle-primary w-12 h-12 rounded-full bg-[#00e5ff] hover:bg-[#00cce6] text-black flex items-center justify-center shadow-lg shadow-cyan-500/40 border border-cyan-200/50 transition-all">
+                  <FolderPlus
+                    className="w-5 h-5 stroke-[2.4]"
+                    color={currentTheme === 'light' ? '#ffffff' : '#090d16'}
+                    style={{
+                      color: currentTheme === 'light' ? '#ffffff' : '#090d16',
+                      stroke: currentTheme === 'light' ? '#ffffff' : '#090d16',
+                    }}
+                  />
                 </div>
               </button>
 
@@ -3232,8 +3239,15 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg shadow-black/60 border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
                   {activeCategory === 'video' ? 'Grabar video' : 'Abrir cámara'}
                 </span>
-                <div className="w-12 h-12 rounded-full bg-[#0a1424] hover:bg-[#00e5ff] text-[#00e5ff] hover:text-black flex items-center justify-center shadow-lg shadow-cyan-500/20 border border-cyan-400/50 transition-all">
-                  <Camera className="w-5 h-5 stroke-[2.4]" />
+                <div className="vault-fab-circle-primary w-12 h-12 rounded-full bg-[#00e5ff] hover:bg-[#00cce6] text-black flex items-center justify-center shadow-lg shadow-cyan-500/30 border border-cyan-300/50 transition-all">
+                  <Camera
+                    className="w-5 h-5 stroke-[2.4]"
+                    color={currentTheme === 'light' ? '#ffffff' : '#090d16'}
+                    style={{
+                      color: currentTheme === 'light' ? '#ffffff' : '#090d16',
+                      stroke: currentTheme === 'light' ? '#ffffff' : '#090d16',
+                    }}
+                  />
                 </div>
               </button>
 
@@ -3250,8 +3264,12 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg shadow-black/60 border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
                     Añadir fotos
                   </span>
-                  <div className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 border border-blue-400/40 transition-all">
-                    <ImageIcon className="w-5 h-5 stroke-[2.4]" />
+                  <div className="vault-fab-circle-blue w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 border border-blue-400/40 transition-all">
+                    <ImageIcon
+                      className="w-5 h-5 stroke-[2.4]"
+                      color="#ffffff"
+                      style={{ color: '#ffffff', stroke: '#ffffff' }}
+                    />
                   </div>
                 </button>
               )}
@@ -3268,8 +3286,12 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg shadow-black/60 border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
                     Añadir videos
                   </span>
-                  <div className="w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 border border-indigo-400/40 transition-all">
-                    <Film className="w-5 h-5 stroke-[2.4]" />
+                  <div className="vault-fab-circle-indigo w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 border border-indigo-400/40 transition-all">
+                    <Film
+                      className="w-5 h-5 stroke-[2.4]"
+                      color="#ffffff"
+                      style={{ color: '#ffffff', stroke: '#ffffff' }}
+                    />
                   </div>
                 </button>
               )}
@@ -3286,8 +3308,15 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
                     Añadir audios
                   </span>
-                  <div className="w-12 h-12 rounded-full bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center shadow-lg shadow-amber-500/30 border border-amber-300/40 transition-all">
-                    <Music className="w-5 h-5 stroke-[2.4]" />
+                  <div className="vault-fab-circle-amber w-12 h-12 rounded-full bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center shadow-lg shadow-amber-500/30 border border-amber-300/40 transition-all">
+                    <Music
+                      className="w-5 h-5 stroke-[2.4]"
+                      color={currentTheme === 'light' ? '#ffffff' : '#090d16'}
+                      style={{
+                        color: currentTheme === 'light' ? '#ffffff' : '#090d16',
+                        stroke: currentTheme === 'light' ? '#ffffff' : '#090d16',
+                      }}
+                    />
                   </div>
                 </button>
               )}
@@ -3304,8 +3333,15 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
                     Añadir aplicaciones
                   </span>
-                  <div className="w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center shadow-lg shadow-emerald-500/30 border border-emerald-300/40 transition-all">
-                    <Package className="w-5 h-5 stroke-[2.4]" />
+                  <div className="vault-fab-circle-emerald w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center shadow-lg shadow-emerald-500/30 border border-emerald-300/40 transition-all">
+                    <Package
+                      className="w-5 h-5 stroke-[2.4]"
+                      color={currentTheme === 'light' ? '#ffffff' : '#090d16'}
+                      style={{
+                        color: currentTheme === 'light' ? '#ffffff' : '#090d16',
+                        stroke: currentTheme === 'light' ? '#ffffff' : '#090d16',
+                      }}
+                    />
                   </div>
                 </button>
               )}
@@ -3323,8 +3359,15 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
                     Otros documentos
                   </span>
-                  <div className="w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 text-[#00e5ff] flex items-center justify-center shadow-lg shadow-black/40 border border-slate-700 transition-all">
-                    <FileText className="w-5 h-5 stroke-[2.2]" />
+                  <div className="vault-fab-circle-docs w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 text-[#00e5ff] flex items-center justify-center shadow-lg shadow-black/40 border border-slate-700 transition-all">
+                    <FileText
+                      className="w-5 h-5 stroke-[2.2]"
+                      color={currentTheme === 'light' ? '#0284c7' : '#00e5ff'}
+                      style={{
+                        color: currentTheme === 'light' ? '#0284c7' : '#00e5ff',
+                        stroke: currentTheme === 'light' ? '#0284c7' : '#00e5ff',
+                      }}
+                    />
                   </div>
                 </button>
               )}

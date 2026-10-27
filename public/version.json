@@ -1,18 +1,15 @@
 {
-  "version": "1.2.32",
-  "version_name": "1.2.32",
-  "buildNumber": 1032,
-  "version_code": 1032,
+  "version": "1.2.41",
+  "version_name": "1.2.41",
+  "buildNumber": 1041,
+  "version_code": 1041,
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Mi-B-veda.-/releases/latest/download/Boveda-Calculadora.apk",
-  "releaseDate": "13 de Octubre, 2026",
+  "releaseDate": "26 de Octubre, 2026",
   "changelog": [
-    "Encabezados de carpetas y subcarpetas fijos: al deslizar hacia arriba, el título y controles permanecen siempre visibles sin tapar tus fotos.",
-    "Zoom táctil interactivo: haz zoom con pellizco de dos dedos y desplaza la imagen libremente por cualquier parte de la pantalla.",
-    "Límite de desplazamiento perfeccionado: se eliminaron los márgenes negros excesivos al mover imágenes aumentadas.",
-    "Navegación simplificada: eliminación de botones redundantes, ahora vuelves atrás de forma limpia con la flecha o deslizamiento.",
-    "Detección inteligente de actualizaciones: aviso automático al entrar si hay mejoras disponibles y botón para actualizar en 1 toque.",
-    "Verificador manual de versiones y novedades integrado en Configuración.",
-    "Instalador nativo automático para Android APK (UpdaterPlugin) con descarga e instalación directa."
+    "Borrado nativo universal de fotos y videos en Android (compatible con todos los teléfonos y versiones de Android).",
+    "Restauración de copia de seguridad inmediata desde el primer intento tras restablecer de fábrica.",
+    "Iconos de alta visibilidad en el menú flotante (+) en el tema claro (blanco).",
+    "Detección inteligente de actualizaciones y descarga directa de paquetes APK."
   ],
   "mandatory": false
 }

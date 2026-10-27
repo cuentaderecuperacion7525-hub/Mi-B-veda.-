@@ -147,7 +147,7 @@ export const ImportVaultView: React.FC<ImportVaultViewProps> = ({
       // Pasar a la bóveda (y si no fue nativo, mostrar recordatorio con botón "Abrir Galería")
       onImportComplete(
         newRecords.map((it) => ({ name: it.name, size: it.size, category: it.category })),
-        !handledNatively
+        !handledNatively && !isNativeApp()
       );
     } catch (err) {
       console.error('Error importing items automatically:', err);

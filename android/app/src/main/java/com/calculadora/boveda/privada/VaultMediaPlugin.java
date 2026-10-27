@@ -2,9 +2,11 @@ package com.calculadora.boveda.privada;
 
 import android.app.Activity;
 import android.app.PendingIntent;
+import android.app.RecoverableSecurityException;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.database.Cursor;
@@ -12,26 +14,271 @@ import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.provider.OpenableColumns;
 import android.util.Base64;
-import androidx.activity.result.ActivityResult;
-import androidx.activity.result.IntentSenderRequest;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
-import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import org.json.JSONObject;
 
 @CapacitorPlugin(name = "VaultMedia")
 public class VaultMediaPlugin extends Plugin {
+
+    private static class PickedMediaEntry {
+        final Uri rawUri;
+        final Uri mediaStoreUri;
+        final String displayName;
+        final long size;
+        final String filePath;
+        final long timestamp;
+        boolean consumed;
+
+        PickedMediaEntry(Uri rawUri, Uri mediaStoreUri, String displayName, long size, String filePath, long timestamp) {
+            this.rawUri = rawUri;
+            this.mediaStoreUri = mediaStoreUri;
+            this.displayName = displayName;
+            this.size = size;
+            this.filePath = filePath;
+            this.timestamp = timestamp;
+            this.consumed = false;
+        }
+    }
+
+    private static final List<PickedMediaEntry> lastPickedEntries = new ArrayList<>();
+
+    /**
+     * Registra los URIs exactos seleccionados por el usuario en el selector nativo de Android
+     * mientras el permiso temporal de lectura sobre el URI seleccionado sigue activo.
+     */
+    public static synchronized void recordPickedUris(Context context, Uri[] uris) {
+        if (context == null || uris == null || uris.length == 0) return;
+        long now = System.currentTimeMillis();
+
+        // Limpiar entradas antiguas (> 5 minutos)
+        Iterator<PickedMediaEntry> it = lastPickedEntries.iterator();
+        while (it.hasNext()) {
+            PickedMediaEntry e = it.next();
+            if (now - e.timestamp > 300000L) {
+                it.remove();
+            }
+        }
+
+        ContentResolver resolver = context.getContentResolver();
+        for (Uri rawUri : uris) {
+            if (rawUri == null) continue;
+            String displayName = null;
+            long size = -1;
+            String filePath = null;
+            String mimeType = null;
+
+            try {
+                mimeType = resolver.getType(rawUri);
+            } catch (Exception ignored) {}
+
+            try (Cursor c = resolver.query(rawUri, null, null, null, null)) {
+                if (c != null && c.moveToFirst()) {
+                    int nameIdx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                    if (nameIdx == -1) nameIdx = c.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME);
+                    if (nameIdx >= 0 && !c.isNull(nameIdx)) {
+                        displayName = c.getString(nameIdx);
+                    }
+
+                    int sizeIdx = c.getColumnIndex(OpenableColumns.SIZE);
+                    if (sizeIdx == -1) sizeIdx = c.getColumnIndex(MediaStore.MediaColumns.SIZE);
+                    if (sizeIdx >= 0 && !c.isNull(sizeIdx)) {
+                        size = c.getLong(sizeIdx);
+                    }
+
+                    int dataIdx = c.getColumnIndex(MediaStore.MediaColumns.DATA);
+                    if (dataIdx >= 0 && !c.isNull(dataIdx)) {
+                        filePath = c.getString(dataIdx);
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            Uri mediaStoreUri = resolvePickedUriToMediaStore(context, resolver, rawUri, displayName, size, filePath, mimeType);
+            lastPickedEntries.add(new PickedMediaEntry(rawUri, mediaStoreUri, displayName, size, filePath, now));
+        }
+    }
+
+    private static Uri getMediaCollectionUri(String typeOrMime) {
+        if (typeOrMime != null) {
+            String lower = typeOrMime.toLowerCase();
+            if (lower.startsWith("video") || lower.contains("video")) {
+                return MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+            }
+            if (lower.startsWith("audio") || lower.contains("audio")) {
+                return MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+            }
+        }
+        return MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+    }
+
+    /**
+     * Convierte cualquier URI devuelto por Photo Picker, DocumentsUI o Galería de cualquier fabricante
+     * (Samsung, Xiaomi, Motorola, Honor, Huawei, Pixel, etc.) al URI oficial de MediaStore para createDeleteRequest.
+     */
+    private static Uri resolvePickedUriToMediaStore(
+        Context context,
+        ContentResolver resolver,
+        Uri rawUri,
+        String displayName,
+        long size,
+        String filePath,
+        String mimeType
+    ) {
+        if (rawUri == null) return null;
+
+        // 1. API oficial de Android 10+ / 12+ para traducir URIs de Photo Picker y DocumentsProvider a MediaStore
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                Uri converted = MediaStore.getMediaUri(context, rawUri);
+                if (converted != null) {
+                    return converted;
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        String uriStr = rawUri.toString();
+        String authority = rawUri.getAuthority() != null ? rawUri.getAuthority() : "";
+
+        // 2. DocumentUri (ej: content://com.android.providers.media.documents/document/image%3A12345)
+        try {
+            if (DocumentsContract.isDocumentUri(context, rawUri)) {
+                String docId = DocumentsContract.getDocumentId(rawUri);
+                if (docId != null) {
+                    if (docId.startsWith("raw:")) {
+                        filePath = docId.substring(4);
+                    } else if (docId.contains(":")) {
+                        String[] parts = docId.split(":");
+                        if (parts.length >= 2) {
+                            String prefix = parts[0];
+                            String idPart = parts[parts.length - 1];
+                            if (idPart.matches("\\d+")) {
+                                long id = Long.parseLong(idPart);
+                                Uri base = getMediaCollectionUri(prefix.equals("msf") || prefix.equals("document") ? mimeType : prefix);
+                                return ContentUris.withAppendedId(base, id);
+                            }
+                        }
+                    } else if (docId.matches("\\d+")) {
+                        long id = Long.parseLong(docId);
+                        return ContentUris.withAppendedId(getMediaCollectionUri(mimeType), id);
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // 3. Android 13/14/15 Photo Picker URI (ej: content://media/picker/0/.../media/1000012345)
+        if (uriStr.contains("/picker") || authority.contains("photopicker")) {
+            String lastSeg = rawUri.getLastPathSegment();
+            if (lastSeg != null) {
+                if (lastSeg.contains(":")) {
+                    String[] parts = lastSeg.split(":");
+                    lastSeg = parts[parts.length - 1];
+                }
+                if (lastSeg.matches("\\d+")) {
+                    try {
+                        long id = Long.parseLong(lastSeg);
+                        return ContentUris.withAppendedId(getMediaCollectionUri(mimeType), id);
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+
+        // 4. Si ya es un URI directo de MediaStore (ej: content://media/external/images/media/12345)
+        if ("media".equalsIgnoreCase(authority) && !uriStr.contains("/picker")) {
+            String lastSeg = rawUri.getLastPathSegment();
+            if (lastSeg != null && lastSeg.matches("\\d+")) {
+                try {
+                    long id = Long.parseLong(lastSeg);
+                    if (uriStr.contains("/video/")) {
+                        return ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id);
+                    } else if (uriStr.contains("/audio/")) {
+                        return ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id);
+                    } else {
+                        return ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id);
+                    }
+                } catch (Exception ignored) {}
+            }
+            return rawUri;
+        }
+
+        // 5. Si el proveedor de galería devolvió ruta física en _data o en el path del URI
+        if (filePath == null && "file".equalsIgnoreCase(rawUri.getScheme())) {
+            filePath = rawUri.getPath();
+        }
+        if (filePath != null && !filePath.isEmpty()) {
+            Uri base = getMediaCollectionUri(mimeType);
+            try (Cursor c = resolver.query(
+                base,
+                new String[]{MediaStore.MediaColumns._ID},
+                MediaStore.MediaColumns.DATA + " = ?",
+                new String[]{filePath},
+                MediaStore.MediaColumns._ID + " DESC"
+            )) {
+                if (c != null && c.moveToFirst()) {
+                    long id = c.getLong(0);
+                    return ContentUris.withAppendedId(base, id);
+                }
+            } catch (Exception ignored) {}
+
+            if (displayName == null) {
+                displayName = new File(filePath).getName();
+            }
+        }
+
+        return null;
+    }
+
+    private static synchronized Uri matchFromPickedUris(String filename, long size, int index, int totalRequested) {
+        if (lastPickedEntries.isEmpty()) return null;
+
+        // 1. Coincidencia por nombre y/o tamaño
+        for (int i = lastPickedEntries.size() - 1; i >= 0; i--) {
+            PickedMediaEntry entry = lastPickedEntries.get(i);
+            if (entry.consumed || entry.mediaStoreUri == null) continue;
+
+            boolean nameMatches = filename != null && entry.displayName != null &&
+                (filename.equalsIgnoreCase(entry.displayName) ||
+                 entry.displayName.endsWith(filename) ||
+                 filename.endsWith(entry.displayName));
+            boolean sizeMatches = size > 0 && entry.size > 0 && size == entry.size;
+
+            if ((nameMatches && sizeMatches) || nameMatches || sizeMatches) {
+                entry.consumed = true;
+                return entry.mediaStoreUri;
+            }
+        }
+
+        // 2. Si el WebView renombró el archivo (ej: a ID numérico) pero hay entradas recién seleccionadas sin consumir
+        int unconsumedCount = 0;
+        PickedMediaEntry firstUnconsumed = null;
+        for (PickedMediaEntry entry : lastPickedEntries) {
+            if (!entry.consumed && entry.mediaStoreUri != null) {
+                unconsumedCount++;
+                if (firstUnconsumed == null) {
+                    firstUnconsumed = entry;
+                }
+            }
+        }
+        if (firstUnconsumed != null && (unconsumedCount == totalRequested || totalRequested == 1)) {
+            firstUnconsumed.consumed = true;
+            return firstUnconsumed.mediaStoreUri;
+        }
+
+        return null;
+    }
 
     /**
      * Guarda y restaura un archivo multimedia o documento en el almacenamiento público del dispositivo / galería (MediaStore)
@@ -337,24 +584,53 @@ public class VaultMediaPlugin extends Plugin {
                 MediaStore.Files.getContentUri("external")
             };
 
-            for (int i = 0; i < itemsArray.length(); i++) {
+            int totalItems = itemsArray.length();
+            for (int i = 0; i < totalItems; i++) {
                 JSONObject item = itemsArray.getJSONObject(i);
                 String uriStr = item.optString("uri", null);
                 String filename = item.optString("filename", item.optString("name", null));
                 long size = item.optLong("size", -1);
                 long lastModified = item.optLong("lastModified", -1);
+                String mimeType = item.optString("mimeType", null);
 
                 if (uriStr != null && !uriStr.isEmpty() && uriStr.startsWith("content://")) {
                     Uri parsed = Uri.parse(uriStr);
-                    if (!urisToDelete.contains(parsed)) {
-                        urisToDelete.add(parsed);
+                    Uri resolved = resolvePickedUriToMediaStore(getContext(), resolver, parsed, filename, size, null, mimeType);
+                    Uri target = resolved != null ? resolved : parsed;
+                    if (!urisToDelete.contains(target)) {
+                        urisToDelete.add(target);
                     }
                     continue;
                 }
 
-                if (filename == null || filename.isEmpty()) continue;
+                // 1. Búsqueda principal en MediaStore (flujo original que funciona en el teléfono del usuario)
+                Uri foundUri = null;
+                if (filename != null && !filename.isEmpty()) {
+                    foundUri = findMediaStoreUri(resolver, baseUris, filename, size, lastModified);
+                }
 
-                Uri foundUri = findMediaStoreUri(resolver, baseUris, filename, size, lastModified);
+                // 2. Respaldo directo con el URI capturado al seleccionar la foto en onShowFileChooser
+                // (Permite que funcione en teléfonos de familiares aunque tengan permisos limitados o nombres distintos)
+                if (foundUri == null) {
+                    foundUri = matchFromPickedUris(filename, size, i, totalItems);
+                }
+
+                // 3. Respaldo si el nombre del archivo es un ID numérico directo del Photo Picker (ej. "1000012345.jpg" o "186453.jpg")
+                // y la consulta a MediaStore no devolvió filas por permisos de lectura restringidos en Android 13/14+
+                if (foundUri == null && filename != null) {
+                    String baseName = filename.contains(".") ? filename.substring(0, filename.lastIndexOf('.')) : filename;
+                    if (baseName.startsWith("image:") || baseName.startsWith("video:") || baseName.startsWith("audio:")) {
+                        baseName = baseName.substring(baseName.indexOf(':') + 1);
+                    }
+                    if (baseName.matches("\\d+")) {
+                        try {
+                            long numericId = Long.parseLong(baseName);
+                            Uri colUri = getMediaCollectionUri(mimeType);
+                            foundUri = ContentUris.withAppendedId(colUri, numericId);
+                        } catch (Exception ignored) {}
+                    }
+                }
+
                 if (foundUri != null && !urisToDelete.contains(foundUri)) {
                     urisToDelete.add(foundUri);
                 }
@@ -372,23 +648,29 @@ public class VaultMediaPlugin extends Plugin {
 
             // En Android 11+ (API 30+) MediaStore.createDeleteRequest pide permiso al usuario con el diálogo nativo del sistema
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // Intentar agrupar por colección o lanzar todos juntos
                 PendingIntent pi = null;
                 try {
                     pi = MediaStore.createDeleteRequest(resolver, urisToDelete);
                 } catch (Exception exBatch) {
-                    // Si falla por mezcla de colecciones, filtrar solo las imágenes/videos principales
-                    List<Uri> imageOnly = new ArrayList<>();
+                    // Si falla por mezcla de colecciones o MediaStore.Files, normalizar a colecciones de imágenes/videos
+                    List<Uri> normalized = new ArrayList<>();
                     for (Uri u : urisToDelete) {
-                        if (u.toString().contains("images")) imageOnly.add(u);
+                        String s = u.toString();
+                        if (s.contains("/images/") || s.contains("/video/") || s.contains("/audio/")) {
+                            normalized.add(u);
+                        } else {
+                            String seg = u.getLastPathSegment();
+                            if (seg != null && seg.matches("\\d+")) {
+                                normalized.add(ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, Long.parseLong(seg)));
+                            }
+                        }
                     }
-                    if (!imageOnly.isEmpty()) {
+                    if (!normalized.isEmpty()) {
                         try {
-                            pi = MediaStore.createDeleteRequest(resolver, imageOnly);
+                            pi = MediaStore.createDeleteRequest(resolver, normalized);
                         } catch (Exception ignored) {}
                     }
                     if (pi == null && !urisToDelete.isEmpty()) {
-                        // Último recurso: crear para el primer elemento
                         try {
                             List<Uri> single = new ArrayList<>();
                             single.add(urisToDelete.get(0));
@@ -420,17 +702,39 @@ public class VaultMediaPlugin extends Plugin {
                     return;
                 }
             } else {
+                // Android 10 (API 29) y anteriores: soportar tanto borrado directo como diálogo nativo RecoverableSecurityException
                 int deletedCount = 0;
+                IntentSender pendingRecoverableSender = null;
+
                 for (Uri u : urisToDelete) {
                     try {
                         deletedCount += resolver.delete(u, null, null);
+                    } catch (SecurityException se) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && se instanceof RecoverableSecurityException) {
+                            RecoverableSecurityException rse = (RecoverableSecurityException) se;
+                            pendingRecoverableSender = rse.getUserAction().getActionIntent().getIntentSender();
+                            break;
+                        }
                     } catch (Exception ex) {
                         // continuar
                     }
                 }
+
+                if (pendingRecoverableSender != null && getActivity() != null) {
+                    try {
+                        getActivity().startIntentSenderForResult(pendingRecoverableSender, 2002, null, 0, 0, 0, null);
+                        JSObject ret = new JSObject();
+                        ret.put("success", true);
+                        ret.put("requested", true);
+                        ret.put("urisCount", urisToDelete.size());
+                        call.resolve(ret);
+                        return;
+                    } catch (Exception ignored) {}
+                }
+
                 JSObject ret = new JSObject();
                 ret.put("success", deletedCount > 0);
-                ret.put("requested", true);
+                ret.put("requested", deletedCount > 0);
                 ret.put("deletedCount", deletedCount);
                 call.resolve(ret);
             }
@@ -451,10 +755,11 @@ public class VaultMediaPlugin extends Plugin {
     /**
      * Búsqueda flexible y robusta en MediaStore:
      * 1) Por Nombre y Tamaño exactos
-     * 2) Por Nombre exacto (insensible a mayúsculas/minúsculas)
-     * 3) Por ID numérico extraído de Photo Picker / DocumentsUI (ej: "image:12345" o "12345")
+     * 2) Por Nombre exacto (e insensible a mayúsculas/minúsculas mediante LIKE)
+     * 3) Por ID numérico extraído de Photo Picker / DocumentsUI (ej: "image:12345" o "186453.jpg")
      * 4) Por prefijo del nombre
      * 5) Por Tamaño exacto (ordenado por más reciente)
+     * 6) Por Fecha de modificación y Tamaño
      */
     private Uri findMediaStoreUri(ContentResolver resolver, Uri[] baseUris, String filename, long size, long lastModified) {
         for (Uri baseUri : baseUris) {
@@ -477,11 +782,20 @@ public class VaultMediaPlugin extends Plugin {
                 } catch (Exception ignored) {}
             }
 
-            // 2. Intento por Nombre exacto (sin importar mayúsculas/minúsculas)
+            // 2. Intento por Nombre exacto (primero = directo compatible con todos los MediaProviders, luego LIKE insensible a mayúsculas)
             if (filename != null && !filename.isEmpty()) {
-                String selectionName = MediaStore.MediaColumns.DISPLAY_NAME + " = ? OR LOWER(" + MediaStore.MediaColumns.DISPLAY_NAME + ") = LOWER(?)";
-                String[] selectionArgsName = new String[]{filename, filename};
-                try (Cursor cursor = resolver.query(baseUri, projection, selectionName, selectionArgsName, MediaStore.MediaColumns._ID + " DESC")) {
+                String selectionExact = MediaStore.MediaColumns.DISPLAY_NAME + " = ?";
+                String[] selectionArgsExact = new String[]{filename};
+                try (Cursor cursor = resolver.query(baseUri, projection, selectionExact, selectionArgsExact, MediaStore.MediaColumns._ID + " DESC")) {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID));
+                        return ContentUris.withAppendedId(baseUri, id);
+                    }
+                } catch (Exception ignored) {}
+
+                String selectionLikeExact = MediaStore.MediaColumns.DISPLAY_NAME + " LIKE ?";
+                String[] selectionArgsLikeExact = new String[]{filename};
+                try (Cursor cursor = resolver.query(baseUri, projection, selectionLikeExact, selectionArgsLikeExact, MediaStore.MediaColumns._ID + " DESC")) {
                     if (cursor != null && cursor.moveToFirst()) {
                         long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID));
                         return ContentUris.withAppendedId(baseUri, id);
@@ -489,12 +803,13 @@ public class VaultMediaPlugin extends Plugin {
                 } catch (Exception ignored) {}
             }
 
-            // 3. Intento por ID numérico si el selector de fotos de Android devolvió "image:12345" o similar
-            if (filename != null && filename.matches(".*\\d{3,}.*")) {
+            // 3. Intento por ID numérico si el selector de fotos de Android devolvió "image:12345", "186453.jpg" o similar
+            if (filename != null && filename.matches(".*\\d+.*")) {
                 try {
-                    java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\d{3,}").matcher(filename);
-                    if (matcher.find()) {
+                    java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\d+").matcher(filename);
+                    while (matcher.find()) {
                         long numericId = Long.parseLong(matcher.group());
+                        if (numericId <= 0) continue;
                         Uri candidate = ContentUris.withAppendedId(baseUri, numericId);
                         try (Cursor cursor = resolver.query(candidate, new String[]{MediaStore.MediaColumns._ID}, null, null, null)) {
                             if (cursor != null && cursor.moveToFirst()) {
@@ -525,6 +840,19 @@ public class VaultMediaPlugin extends Plugin {
                 String selectionSize = MediaStore.MediaColumns.SIZE + " = ?";
                 String[] selectionArgsSize = new String[]{String.valueOf(size)};
                 try (Cursor cursor = resolver.query(baseUri, projection, selectionSize, selectionArgsSize, MediaStore.MediaColumns._ID + " DESC")) {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID));
+                        return ContentUris.withAppendedId(baseUri, id);
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // 6. Intento por fecha de modificación aproximada (en segundos)
+            if (lastModified > 1000000000L) {
+                long modSec = lastModified > 100000000000L ? (lastModified / 1000L) : lastModified;
+                String selectionMod = MediaStore.MediaColumns.DATE_MODIFIED + " BETWEEN ? AND ?";
+                String[] argsMod = new String[]{String.valueOf(modSec - 2), String.valueOf(modSec + 2)};
+                try (Cursor cursor = resolver.query(baseUri, projection, selectionMod, argsMod, MediaStore.MediaColumns._ID + " DESC")) {
                     if (cursor != null && cursor.moveToFirst()) {
                         long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID));
                         return ContentUris.withAppendedId(baseUri, id);

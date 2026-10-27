@@ -42,6 +42,23 @@ public class MainActivity extends BridgeActivity {
                 public void onPermissionRequest(final PermissionRequest request) {
                     request.grant(request.getResources());
                 }
+
+                @Override
+                public boolean onShowFileChooser(
+                    android.webkit.WebView webView,
+                    android.webkit.ValueCallback<android.net.Uri[]> filePathCallback,
+                    android.webkit.WebChromeClient.FileChooserParams fileChooserParams
+                ) {
+                    android.webkit.ValueCallback<android.net.Uri[]> wrappedCallback = uris -> {
+                        if (uris != null && uris.length > 0) {
+                            try {
+                                VaultMediaPlugin.recordPickedUris(getApplicationContext(), uris);
+                            } catch (Exception ignored) {}
+                        }
+                        filePathCallback.onReceiveValue(uris);
+                    };
+                    return super.onShowFileChooser(webView, wrappedCallback, fileChooserParams);
+                }
             });
 
             getBridge().getWebView().setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
