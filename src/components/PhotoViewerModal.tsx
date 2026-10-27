@@ -3,8 +3,6 @@ import {
   X,
   Download,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
   RotateCcw,
   Copy,
   Info,
@@ -431,12 +429,17 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       touchStartXRef.current = null;
       touchStartYRef.current = null;
 
-      if (!isImmersive && scaleRef.current <= 1.05 && Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
-        hasMovedRef.current = true;
-        if (deltaX < 0) {
-          handleNext();
-        } else {
-          handlePrev();
+      if (scaleRef.current <= 1.05) {
+        if (Math.abs(deltaX) > 55 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+          hasMovedRef.current = true;
+          if (deltaX < 0) {
+            handleNext();
+          } else {
+            handlePrev();
+          }
+        } else if (Math.abs(deltaY) > 80 && Math.abs(deltaY) > Math.abs(deltaX) * 1.3) {
+          hasMovedRef.current = true;
+          onClose();
         }
       }
     }
@@ -826,19 +829,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col justify-between select-none overflow-hidden">
-      {/* Botón flotante limpio para cerrar imágenes */}
-      {isPhoto && (
-        <button
-          onClick={onClose}
-          className={`vault-viewer-floating-btn absolute top-3 left-3 sm:top-5 sm:left-5 z-40 p-2.5 sm:p-3 rounded-full bg-black/60 hover:bg-black/90 text-white/90 hover:text-white backdrop-blur-md transition-all duration-300 active:scale-95 border border-white/10 shadow-2xl cursor-pointer ${
-            isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'
-          }`}
-          title="Cerrar (Esc)"
-        >
-          <X className="w-5 h-5 sm:w-6 sm:h-6" />
-        </button>
-      )}
-
       {/* Top Bar solo para videos, audios y documentos */}
       {!isPhoto && (
         <header
@@ -920,38 +910,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
           >
             <span>{scale.toFixed(1)}x</span>
             <span className="text-[10px] text-zinc-400">· 1x</span>
-          </button>
-        )}
-
-        {/* Previous Button */}
-        {currentIndex > 0 && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePrev();
-            }}
-            className={`vault-viewer-floating-btn absolute left-3 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer ${
-              isImmersive || scale > 1.05 ? 'opacity-0 pointer-events-none' : 'opacity-100'
-            }`}
-            title="Elemento anterior"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </button>
-        )}
-
-        {/* Next Button */}
-        {currentIndex < allItems.length - 1 && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleNext();
-            }}
-            className={`vault-viewer-floating-btn absolute right-3 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer ${
-              isImmersive || scale > 1.05 ? 'opacity-0 pointer-events-none' : 'opacity-100'
-            }`}
-            title="Siguiente elemento"
-          >
-            <ChevronRight className="w-6 h-6" />
           </button>
         )}
 
