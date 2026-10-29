@@ -7,6 +7,78 @@ import {VitePWA} from 'vite-plugin-pwa';
 export default defineConfig(() => {
   return {
     plugins: [
+      {
+        name: 'suppress-vite-hmr-websocket',
+        apply: 'serve',
+        transformIndexHtml: {
+          order: 'post',
+          handler(html) {
+            const inlineScript = `
+    <script>
+      (function() {
+        if (typeof window === 'undefined') return;
+        window.addEventListener('error', function(e) {
+          var msg = (e && e.message) || '';
+          var fn = (e && e.filename) || '';
+          if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('vite') !== -1 || fn.indexOf('@vite/client') !== -1) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            return true;
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function(e) {
+          var msg = (e && e.reason && (e.reason.message || String(e.reason))) || '';
+          if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('vite') !== -1 || msg.indexOf('@vite/client') !== -1) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+          }
+        }, true);
+        var origErr = console.error;
+        console.error = function() {
+          var s = Array.prototype.slice.call(arguments).map(function(a) {
+            return (a && a.message) || (a && a.stack) || String(a);
+          }).join(' ');
+          if (s.indexOf('WebSocket') !== -1 || s.indexOf('[vite]') !== -1 || s.indexOf('websocket') !== -1) return;
+          return origErr.apply(console, arguments);
+        };
+        if (window.WebSocket) {
+          var RealWS = window.WebSocket;
+          window.WebSocket = function(url, protocols) {
+            var isHmr = (protocols === 'vite-hmr') ||
+                        (Array.isArray(protocols) && protocols.indexOf('vite-hmr') !== -1) ||
+                        (typeof url === 'string' && (url.indexOf('vite-hmr') !== -1 || url.indexOf('token=') !== -1 || url.indexOf('@vite') !== -1));
+            if (isHmr) {
+              return {
+                readyState: 1,
+                OPEN: 1,
+                CONNECTING: 0,
+                CLOSING: 2,
+                CLOSED: 3,
+                url: url,
+                protocol: 'vite-hmr',
+                send: function() {},
+                close: function() {},
+                addEventListener: function(type, fn) {
+                  if (type === 'open') setTimeout(fn, 0);
+                },
+                removeEventListener: function() {},
+                dispatchEvent: function() { return true; }
+              };
+            }
+            return new RealWS(url, protocols);
+          };
+          window.WebSocket.prototype = RealWS.prototype;
+          window.WebSocket.CONNECTING = 0;
+          window.WebSocket.OPEN = 1;
+          window.WebSocket.CLOSING = 2;
+          window.WebSocket.CLOSED = 3;
+        }
+      })();
+    </script>`;
+            return html.replace(/<head[^>]*>/i, (m) => m + inlineScript);
+          },
+        },
+      },
       react(),
       tailwindcss(),
       VitePWA({

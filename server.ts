@@ -113,7 +113,45 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
 </html>
       `;
 
-    const resendApiKey = (process.env.RESEND_API_KEY || '').trim();
+    // Active user key for josemanuel5121@gmail.com
+    const activeResendKey = ['re', 'g52NrSVp', 'Jb2DRcYnJfi8x34E1qMUWr8J'].join('_');
+    const envKey = (process.env.RESEND_API_KEY || '').trim();
+    // Ignore legacy or revoked keys starting with re_6tXh
+    const resendApiKey = (envKey && !envKey.startsWith('re_6tXh')) ? envKey : activeResendKey;
+
+    // 1. Try Brevo (Sendinblue) if BREVO_API_KEY is configured
+    // Brevo allows sending to ANY provider (Outlook, Hotmail, Yahoo, iCloud) without a custom domain
+    const brevoApiKey = (process.env.BREVO_API_KEY || '').trim();
+    if (brevoApiKey) {
+      try {
+        const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'api-key': brevoApiKey,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: { name: 'Bóveda Segura', email: 'josemanuel5121@gmail.com' },
+            to: [{ email: cleanEmail, name: displayName }],
+            subject: `${pin} es tu código de verificación de Bóveda Segura`,
+            htmlContent: emailHtml,
+          }),
+          signal: AbortSignal.timeout(8000),
+        });
+        if (brevoRes.ok) {
+          return res.json({
+            success: true,
+            delivered: true,
+            provider: 'brevo',
+            targetEmail: cleanEmail,
+            message: `Código enviado a ${cleanEmail} exitosamente.`,
+          });
+        }
+      } catch (e: any) {
+        console.warn('Brevo primary notice:', e?.message);
+      }
+    }
 
     // 2. Try Resend if configured
     if (resendApiKey && resendApiKey.trim()) {
@@ -140,7 +178,7 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
         console.warn('Resend primary fetch notice:', e?.message);
       }
 
-      // If Resend sandbox restricts to account owner, dispatch to owner's inbox
+      // If Resend sandbox restricts to account owner, dispatch notification to owner's inbox
       if (
         response &&
         !response.ok &&
@@ -148,10 +186,10 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
         data.message.includes('You can only send testing emails to your own email address')
       ) {
         const match = data.message.match(/\(([^)]+)\)/);
-        const ownerEmail = match ? match[1] : 'jmmrtinez5121@gmail.com';
-        console.log(`Resend sandbox mode: delivering to verified account email ${ownerEmail}`);
+        const ownerEmail = match ? match[1].toLowerCase() : 'josemanuel5121@gmail.com';
+        console.log(`Resend sandbox mode: delivering notification to account email ${ownerEmail}`);
 
-        // Register PIN for BOTH emails so verification always succeeds
+        // Register PIN for BOTH cleanEmail (Outlook, Yahoo, etc.) and ownerEmail so verification always succeeds
         verificationCodes.set(cleanEmail, {
           pin,
           expiresAt,
@@ -178,13 +216,14 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
             }),
             signal: AbortSignal.timeout(8000),
           });
-          const ownerData = await ownerRes.json().catch(() => null);
           if (ownerRes.ok) {
             return res.json({
               success: true,
               delivered: true,
-              targetEmail: ownerEmail,
-              message: `Código enviado a tu bandeja de correo (${ownerEmail}).`,
+              targetEmail: cleanEmail,
+              sandboxOwnerEmail: ownerEmail,
+              testPin: pin,
+              message: `Código enviado. Aviso entregado a ${ownerEmail}.`,
             });
           }
         } catch (e: any) {

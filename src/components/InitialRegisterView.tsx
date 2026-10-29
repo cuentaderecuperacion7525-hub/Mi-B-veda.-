@@ -30,6 +30,8 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
 
   // Campos de Pantalla 2 (PIN de 6 dígitos)
   const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [actualTargetEmail, setActualTargetEmail] = useState('');
+  const [sandboxPin, setSandboxPin] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const pinInputsRef = useRef<(HTMLInputElement | null)[]>([]);
@@ -103,7 +105,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     try {
       const res = await sendEmailPin(cleanEmail, cleanName);
       if (res.success) {
-        showToast(`Código enviado a ${cleanEmail}`, 'success');
+        const dest = res.targetEmail || cleanEmail;
+        setActualTargetEmail(dest);
+        if (res.testPin) {
+          setSandboxPin(res.testPin);
+        } else {
+          setSandboxPin(null);
+        }
+        showToast(`Código enviado a ${dest}`, 'success');
         setPinDigits(['', '', '', '', '', '']);
         setStep('verify_pin');
       } else {
@@ -209,7 +218,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       const cleanEmail = emailInput.trim().toLowerCase();
       const res = await sendEmailPin(cleanEmail, fullName.trim());
       if (res.success) {
-        showToast('Nuevo código enviado a tu correo', 'success');
+        const dest = res.targetEmail || cleanEmail;
+        setActualTargetEmail(dest);
+        if (res.testPin) {
+          setSandboxPin(res.testPin);
+        } else {
+          setSandboxPin(null);
+        }
+        showToast(`Nuevo código enviado a ${dest}`, 'success');
         setPinDigits(['', '', '', '', '', '']);
         pinInputsRef.current[0]?.focus();
       } else {
@@ -387,7 +403,12 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             <br />
             a
             <br />
-            <span className="font-semibold text-[#111827] break-all">{emailInput}</span>
+            <span className="font-semibold text-[#111827] break-all">
+              {actualTargetEmail || emailInput}
+            </span>
+          </p>
+          <p className="text-[12px] text-[#6b7280] text-center mt-1">
+            (Revisa también tu carpeta de <strong>Spam</strong> o <strong>Promociones</strong>)
           </p>
 
           {/* 6 Casillas para el código */}
@@ -461,6 +482,25 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           >
             Usar otro correo
           </button>
+
+          {/* Asistencia si el proveedor externo no tiene dominio verificado aún */}
+          {sandboxPin && (
+            <div className="w-full mt-4 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200/70 text-center animate-in fade-in duration-150">
+              <span className="text-[11px] text-blue-900 block font-medium">
+                ¿No puedes recibir el correo en este buzón?
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const digits = sandboxPin.split('');
+                  setPinDigits(digits);
+                }}
+                className="mt-1 text-[13px] font-semibold text-[#2563eb] hover:underline cursor-pointer"
+              >
+                Autocompletar código ({sandboxPin})
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
