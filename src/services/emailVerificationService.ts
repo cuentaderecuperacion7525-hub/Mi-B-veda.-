@@ -26,6 +26,7 @@ function getLocalVerificationKey(email: string): string {
 export interface SendPinResult {
   success: boolean;
   delivered?: boolean;
+  sandboxRestricted?: boolean;
   needsApiKey?: boolean;
   targetEmail?: string;
   message?: string;
@@ -76,6 +77,7 @@ export async function sendEmailPin(email: string, firstName?: string): Promise<S
       return {
         success: true,
         delivered: data.delivered,
+        sandboxRestricted: data.sandboxRestricted,
         needsApiKey: data.needsApiKey,
         targetEmail: data.targetEmail || cleanEmail,
         message: data.message,

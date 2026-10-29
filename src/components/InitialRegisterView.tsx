@@ -411,8 +411,32 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             (Revisa también tu carpeta de <strong>Spam</strong> o <strong>Promociones</strong>)
           </p>
 
+          {/* Banner de asistencia si el proveedor (Hotmail/Outlook) requiere dominio verificado */}
+          {sandboxPin && (
+            <div className="w-full my-3.5 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-center animate-in fade-in duration-200">
+              <p className="text-[12px] text-amber-900 leading-snug font-medium mb-1.5">
+                Resend requiere un dominio web propio para entregar a Hotmail/Outlook. Tu código es:
+              </p>
+              <div className="inline-flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-xs">
+                <span className="font-mono font-bold text-lg text-amber-950 tracking-widest">
+                  {sandboxPin}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPinDigits(sandboxPin.split(''));
+                    setErrorMsg(null);
+                  }}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer ml-1"
+                >
+                  Rellenar PIN
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* 6 Casillas para el código */}
-          <div className="flex justify-center items-center gap-2 sm:gap-2.5 mt-6 mb-2">
+          <div className="flex justify-center items-center gap-2 sm:gap-2.5 mt-4 mb-2">
             {pinDigits.map((digit, index) => (
               <input
                 key={index}
@@ -482,25 +506,6 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           >
             Usar otro correo
           </button>
-
-          {/* Asistencia si el proveedor externo no tiene dominio verificado aún */}
-          {sandboxPin && (
-            <div className="w-full mt-4 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200/70 text-center animate-in fade-in duration-150">
-              <span className="text-[11px] text-blue-900 block font-medium">
-                ¿No puedes recibir el correo en este buzón?
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  const digits = sandboxPin.split('');
-                  setPinDigits(digits);
-                }}
-                className="mt-1 text-[13px] font-semibold text-[#2563eb] hover:underline cursor-pointer"
-              >
-                Autocompletar código ({sandboxPin})
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>
