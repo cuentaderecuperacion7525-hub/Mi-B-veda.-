@@ -86,6 +86,33 @@ export async function verifyMagicLink(token: string): Promise<VerifyPinResult> {
   }
 }
 
+export async function checkEmailConfirmationStatus(email: string): Promise<{
+  confirmed: boolean;
+  email?: string;
+  firstName?: string;
+}> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) return { confirmed: false };
+
+  try {
+    const endpoint = getApiEndpoint(`/api/estado-confirmacion?correo=${encodeURIComponent(cleanEmail)}`);
+    const res = await fetch(endpoint, { method: 'GET', cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.confirmado) {
+        return {
+          confirmed: true,
+          email: data.correo || cleanEmail,
+          firstName: data.nombre,
+        };
+      }
+    }
+  } catch {
+    // Ignore transient network errors during polling
+  }
+  return { confirmed: false };
+}
+
 export async function sendEmailPin(email: string, firstName?: string): Promise<SendPinResult> {
   const cleanEmail = email.trim().toLowerCase();
 

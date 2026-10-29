@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
-import { Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, Mail, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { userProfileService } from '../services/userProfileService';
 import { syncUserProfile } from '../services/firebaseAuthService';
 import { signInWithNativeGoogle } from '../services/nativeGoogleAuthService';
+import {
+  sendEmailPin,
+  checkEmailConfirmationStatus,
+  verifyMagicLink,
+} from '../services/emailVerificationService';
 
 interface InitialRegisterViewProps {
   onComplete: () => void;
@@ -13,16 +18,58 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   onComplete,
   showToast,
 }) => {
-  // Campos del formulario de registro
+  // Campos del formulario principal (Nombre completo y Correo)
   const [fullName, setFullName] = useState('');
   const [emailInput, setEmailInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
-  // Estados de carga y error
+  // Estados de envío y espera de confirmación del enlace en el correo
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingNative, setIsLoadingNative] = useState(false);
+  const [waitingConfirmation, setWaitingConfirmation] = useState(false);
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Finalizar registro y pasar a crear el PIN de 4 dígitos de la bóveda
+  const completeRegistration = (email: string, name: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim() || 'Usuario';
+
+    const profile = userProfileService.saveUserProfile({
+      firstName: cleanName,
+      email: cleanEmail,
+      emailVerified: true,
+      authProvider: 'email',
+    });
+
+    try {
+      const deterministicUid = `vault_${btoa(cleanEmail).replace(/=/g, '')}`;
+      syncUserProfile(deterministicUid, {
+        firstName: profile.firstName,
+        email: profile.email,
+        emailVerified: true,
+        authProvider: 'email',
+      }).catch(() => {});
+    } catch {}
+
+    showToast('¡Correo confirmado con éxito!', 'success');
+    onComplete();
+  };
+
+  // Escuchar en tiempo real cada 2 segundos si el usuario ya tocó el enlace en su correo
+  useEffect(() => {
+    if (!waitingConfirmation || !emailInput.trim()) return;
+
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const interval = setInterval(async () => {
+      const status = await checkEmailConfirmationStatus(cleanEmail);
+      if (status.confirmed) {
+        clearInterval(interval);
+        completeRegistration(status.email || cleanEmail, status.firstName || fullName);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [waitingConfirmation, emailInput, fullName]);
 
   /* ==================== BLOQUE PROTEGIDO: ACCESO NATIVO GOOGLE ==================== */
   const handleContinueWithGoogle = async () => {
@@ -55,14 +102,13 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   };
   /* ==================== FIN BLOQUE PROTEGIDO ==================== */
 
-  // Envío del formulario de Registro directo
+  // Envío del enlace de confirmación al correo
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
     const cleanName = fullName.trim();
     const cleanEmail = emailInput.trim().toLowerCase();
-    const cleanPass = passwordInput.trim();
 
     if (!cleanName) {
       setErrorMsg('Por favor, ingresa tu nombre completo.');
@@ -75,41 +121,41 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       return;
     }
 
-    if (cleanPass.length < 4) {
-      setErrorMsg('La contraseña debe tener al menos 4 caracteres.');
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      // 1. Guardar el perfil de usuario localmente
-      const profile = userProfileService.saveUserProfile({
-        firstName: cleanName,
-        email: cleanEmail,
-        emailVerified: true,
-        authProvider: 'email',
-      });
-
-      // 2. Sincronización silenciosa en Firestore si hay conexión
-      try {
-        const deterministicUid = `vault_${btoa(cleanEmail).replace(/=/g, '')}`;
-        syncUserProfile(deterministicUid, {
-          firstName: profile.firstName,
-          email: profile.email,
-          emailVerified: true,
-          authProvider: 'email',
-        }).catch(() => {});
-      } catch {}
-
-      showToast(`¡Bienvenido, ${cleanName}! Configura tu PIN de acceso.`, 'success');
-
-      // 3. Pasa DIRECTAMENTE a crear el PIN de 4 dígitos de la bóveda
-      onComplete();
+      const res = await sendEmailPin(cleanEmail, cleanName);
+      if (res.success) {
+        if (res.token) {
+          setPendingToken(res.token);
+        }
+        setWaitingConfirmation(true);
+        showToast(`Enlace de confirmación enviado a ${cleanEmail}`, 'success');
+      } else {
+        setErrorMsg(res.error || 'No se pudo enviar el correo de confirmación.');
+      }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Error al crear la cuenta. Intenta de nuevo.');
+      setErrorMsg(err?.message || 'Error al enviar el correo de confirmación.');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Verificar manualmente si el usuario ya presionó el enlace
+  const handleManualCheck = async () => {
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const status = await checkEmailConfirmationStatus(cleanEmail);
+    if (status.confirmed) {
+      completeRegistration(status.email || cleanEmail, status.firstName || fullName);
+      return;
+    }
+    if (pendingToken) {
+      const res = await verifyMagicLink(pendingToken);
+      if (res.success) {
+        completeRegistration(res.email || cleanEmail, res.firstName || fullName);
+        return;
+      }
+    }
+    showToast('Aún no detectamos la confirmación. Abre el enlace en tu correo.', 'info');
   };
 
   return (
@@ -128,19 +174,20 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           Crea tu cuenta para guardar tus archivos
         </p>
 
-        {/* Formulario de registro directo */}
+        {/* Formulario principal: Nombre completo y Correo */}
         <form onSubmit={handleRegisterSubmit} className="w-full space-y-3.5">
           <div>
             <input
               type="text"
               autoComplete="name"
               placeholder="Nombre completo"
+              disabled={waitingConfirmation}
               value={fullName}
               onChange={(e) => {
                 setFullName(e.target.value);
                 if (errorMsg) setErrorMsg(null);
               }}
-              className="w-full h-[52px] px-4 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-[#111827] text-[15px] placeholder-[#9ca3af] outline-none transition-all bg-white"
+              className="w-full h-[52px] px-4 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-[#111827] text-[15px] placeholder-[#9ca3af] outline-none transition-all bg-white disabled:bg-slate-100 disabled:text-slate-500"
             />
           </div>
 
@@ -149,35 +196,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               type="email"
               autoComplete="email"
               placeholder="correo@ejemplo.com"
+              disabled={waitingConfirmation}
               value={emailInput}
               onChange={(e) => {
                 setEmailInput(e.target.value);
                 if (errorMsg) setErrorMsg(null);
               }}
-              className="w-full h-[52px] px-4 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-[#111827] text-[15px] placeholder-[#9ca3af] outline-none transition-all bg-white"
+              className="w-full h-[52px] px-4 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-[#111827] text-[15px] placeholder-[#9ca3af] outline-none transition-all bg-white disabled:bg-slate-100 disabled:text-slate-500"
             />
-          </div>
-
-          <div className="relative w-full">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="new-password"
-              placeholder="Contraseña"
-              value={passwordInput}
-              onChange={(e) => {
-                setPasswordInput(e.target.value);
-                if (errorMsg) setErrorMsg(null);
-              }}
-              className="w-full h-[52px] px-4 pr-11 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-[#111827] text-[15px] placeholder-[#9ca3af] outline-none transition-all bg-white"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-              aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
-            >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
           </div>
 
           {/* Mensaje de error */}
@@ -188,21 +214,72 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             </div>
           )}
 
-          {/* Botón azul Registrarme */}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full h-[52px] rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] active:bg-[#1e40af] text-white font-medium text-[16px] transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 mt-1"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Creando cuenta...</span>
-              </>
-            ) : (
-              <span>Registrarme</span>
-            )}
-          </button>
+          {/* Tarjeta en la misma pantalla cuando ya se envió el enlace al correo */}
+          {waitingConfirmation ? (
+            <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 text-center space-y-3 animate-in fade-in duration-200">
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-[#2563eb]">
+                <Mail className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-[14px] font-semibold text-[#1e3a8a]">
+                  Revisa tu correo electrónico
+                </p>
+                <p className="text-[12px] text-[#3b82f6] leading-relaxed">
+                  Enviamos un enlace de confirmación a <strong>{emailInput.trim()}</strong>. Toca el botón dentro del correo y entrarás automáticamente.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-center gap-2 text-[12px] text-[#2563eb] font-medium py-1">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Esperando confirmación del enlace...</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleManualCheck}
+                className="w-full h-[44px] rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-[14px] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Ya confirmé mi correo</span>
+              </button>
+
+              <div className="flex items-center justify-between pt-1 px-1 text-[12px]">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="text-[#2563eb] hover:underline font-medium cursor-pointer"
+                >
+                  {isSubmitting ? 'Reenviando...' : 'Reenviar enlace'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWaitingConfirmation(false);
+                    setErrorMsg(null);
+                  }}
+                  className="text-slate-500 hover:underline cursor-pointer"
+                >
+                  Cambiar correo
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Botón azul Registrarme */
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full h-[52px] rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] active:bg-[#1e40af] text-white font-medium text-[16px] transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 mt-1"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Enviando enlace...</span>
+                </>
+              ) : (
+                <span>Registrarme</span>
+              )}
+            </button>
+          )}
         </form>
 
         {/* Divisor con la "o" al centro */}
