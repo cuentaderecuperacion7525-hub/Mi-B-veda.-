@@ -177,7 +177,14 @@ export default function App() {
         const testCipherHex = localStorage.getItem('vault_test_cipher');
         const isRegistered = userProfileService.isUserRegistered();
 
-        if (isInit === 'true' && saltHex && testIvHex && testCipherHex) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const forceRegister =
+          urlParams.get('view') === 'register' ||
+          window.location.hash === '#register';
+
+        if (forceRegister) {
+          setVaultStatus('register');
+        } else if (isInit === 'true' && saltHex && testIvHex && testCipherHex) {
           // Ya existen datos y la bóveda está inicializada: salta directo a la pantalla de Autenticación
           setVaultStatus('locked');
         } else if (!isRegistered) {
@@ -479,14 +486,11 @@ export default function App() {
       localStorage.removeItem('nullvault_lockout_until');
       localStorage.removeItem('nullvault_failed_streak');
 
+      userProfileService.clearProfile();
       setMasterKey(null);
       setSessionPin(null);
       setIsSettingsOpen(false);
-      if (!userProfileService.isUserRegistered()) {
-        setVaultStatus('register');
-      } else {
-        setVaultStatus('setup');
-      }
+      setVaultStatus('register');
       showToast('Bóveda restablecida por completo', 'alert');
     } catch (err) {
       console.error('Error resetting vault:', err);

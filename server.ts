@@ -113,7 +113,7 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
 </html>
       `;
 
-    const resendApiKey = process.env.RESEND_API_KEY;
+    const resendApiKey = (process.env.RESEND_API_KEY || '').trim();
 
     // 2. Try Resend if configured
     if (resendApiKey && resendApiKey.trim()) {
@@ -302,9 +302,7 @@ async function startServer() {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: {
-          server: httpServer,
-        },
+        hmr: false,
       },
       appType: 'spa',
     });

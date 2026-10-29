@@ -38,12 +38,14 @@ interface LockVaultViewProps {
   onUnlock: (masterKey: CryptoKey, pin?: string) => void;
   onResetVaultRequest: () => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'alert' | 'error') => void;
+  onGoToRegister?: () => void;
 }
 
 export const LockVaultView: React.FC<LockVaultViewProps> = ({
   onUnlock,
   onResetVaultRequest,
   showToast,
+  onGoToRegister,
 }) => {
   const [pin, setPin] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);

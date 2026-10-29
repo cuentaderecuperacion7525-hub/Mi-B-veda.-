@@ -6,6 +6,86 @@
       window.$RefreshReg$ = window.$RefreshReg$ || function () {};
       window.$RefreshSig$ = window.$RefreshSig$ || function () { return function (type) { return type; }; };
       window.__vite_plugin_react_preamble_installed__ = true;
+
+      // Silenciar y proteger contra errores de WebSocket de Vite HMR en el entorno de vista previa
+      (function() {
+        if (typeof window !== 'undefined') {
+          window.addEventListener('error', function(event) {
+            if (
+              (event.message && (event.message.includes('WebSocket') || event.message.includes('vite-hmr'))) ||
+              (event.filename && event.filename.includes('@vite/client'))
+            ) {
+              event.stopImmediatePropagation();
+              event.preventDefault();
+              return true;
+            }
+          }, true);
+
+          window.addEventListener('unhandledrejection', function(event) {
+            if (
+              event.reason &&
+              event.reason.message &&
+              (event.reason.message.includes('WebSocket') || event.reason.message.includes('vite-hmr') || event.reason.message.includes('@vite/client'))
+            ) {
+              event.stopImmediatePropagation();
+              event.preventDefault();
+            }
+          }, true);
+
+          if (window.WebSocket) {
+            var NativeWS = window.WebSocket;
+            window.WebSocket = function(url, protocols) {
+              var isViteHmr = (protocols === 'vite-hmr') ||
+                              (Array.isArray(protocols) && protocols.indexOf('vite-hmr') !== -1) ||
+                              (typeof url === 'string' && (url.indexOf('vite-hmr') !== -1 || url.indexOf('@vite') !== -1));
+              if (isViteHmr) {
+                var listeners = {};
+                var dummy = {
+                  readyState: 1, // WebSocket.OPEN
+                  CONNECTING: 0,
+                  OPEN: 1,
+                  CLOSING: 2,
+                  CLOSED: 3,
+                  url: url,
+                  protocol: 'vite-hmr',
+                  extensions: '',
+                  binaryType: 'blob',
+                  bufferedAmount: 0,
+                  send: function() {},
+                  close: function() {},
+                  addEventListener: function(type, fn) {
+                    if (!listeners[type]) listeners[type] = [];
+                    listeners[type].push(fn);
+                    if (type === 'open') {
+                      setTimeout(function() {
+                        try { fn({ type: 'open', target: dummy }); } catch (e) {}
+                      }, 0);
+                    }
+                  },
+                  removeEventListener: function(type, fn) {
+                    if (listeners[type]) {
+                      listeners[type] = listeners[type].filter(function(cb) { return cb !== fn; });
+                    }
+                  },
+                  dispatchEvent: function() { return true; }
+                };
+                setTimeout(function() {
+                  if (typeof dummy.onopen === 'function') {
+                    try { dummy.onopen({ type: 'open', target: dummy }); } catch (e) {}
+                  }
+                }, 0);
+                return dummy;
+              }
+              return new NativeWS(url, protocols);
+            };
+            window.WebSocket.prototype = NativeWS.prototype;
+            window.WebSocket.CONNECTING = 0;
+            window.WebSocket.OPEN = 1;
+            window.WebSocket.CLOSING = 2;
+            window.WebSocket.CLOSED = 3;
+          }
+        }
+      })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
