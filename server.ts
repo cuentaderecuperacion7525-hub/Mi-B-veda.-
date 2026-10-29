@@ -3,6 +3,8 @@ import http from 'http';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
@@ -18,365 +20,143 @@ const isProd = process.env.NODE_ENV === 'production';
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// In-memory verification storage: email -> { pin, expiresAt, firstName }
-const verificationCodes = new Map<
-  string,
-  { pin: string; expiresAt: number; firstName?: string }
->();
+// Transporter oficial con tu nueva contraseña de aplicación
+const GMAIL_USER = (process.env.GMAIL_USER || 'josemanuel5121@gmail.com').trim();
+const GMAIL_PASS = (process.env.GMAIL_PASS || 'diitlkrpftinupeo').replace(/\s+/g, '').trim();
 
-/**
- * Clean up expired PINs every 5 minutes
- */
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: GMAIL_USER,
+    pass: GMAIL_PASS,
+  },
+});
+
+// Guarda los PIN en memoria: correo -> { pin, vence, intentos, ultimoEnvio, nombre }
+interface RegistroPin {
+  pin: string;
+  vence: number;
+  intentos: number;
+  ultimoEnvio: number;
+  nombre?: string;
+}
+
+const pines = new Map<string, RegistroPin>();
+
+const VIGENCIA_MS = 10 * 60 * 1000;   // el PIN vence en 10 minutos
+const ESPERA_MS = 60 * 1000;          // espera entre reenvíos
+const MAX_INTENTOS = 5;
+
+const correoValido = (c: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c);
+
+// Limpieza de PINs vencidos cada 5 minutos
 setInterval(() => {
   const now = Date.now();
-  for (const [email, entry] of verificationCodes.entries()) {
-    if (entry.expiresAt < now) {
-      verificationCodes.delete(email);
+  for (const [correo, reg] of pines.entries()) {
+    if (reg.vence < now) {
+      pines.delete(correo);
     }
   }
 }, 5 * 60 * 1000);
 
-/**
- * POST /api/send-email-pin
- * Generates and sends a real 4-digit verification code to the user's email via Resend.
- */
-app.post('/api/send-email-pin', async (req: Request, res: Response) => {
+// 1) Manda el PIN al correo que ESCRIBIÓ EL USUARIO
+const handleEnviarPin = async (req: Request, res: Response) => {
+  const correo = String(req.body.correo || req.body.email || '').trim().toLowerCase();
+  const nombre = String(req.body.nombre || req.body.firstName || '').trim() || 'hola';
+
+  if (!correoValido(correo)) {
+    return res.status(400).json({ ok: false, success: false, error: 'Correo no válido' });
+  }
+
+  const previo = pines.get(correo);
+  if (previo && Date.now() - previo.ultimoEnvio < ESPERA_MS) {
+    const restante = Math.ceil((ESPERA_MS - (Date.now() - previo.ultimoEnvio)) / 1000);
+    return res.status(429).json({
+      ok: false,
+      success: false,
+      error: `Espera ${restante} segundos para reenviar`,
+    });
+  }
+
+  const pin = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+
   try {
-    const { email, firstName } = req.body;
-    if (!email || typeof email !== 'string') {
-      return res.status(400).json({ success: false, error: 'Correo electrónico requerido' });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(cleanEmail)) {
-      return res.status(400).json({ success: false, error: 'Formato de correo no válido' });
-    }
-
-    // Generate secure 6-digit code (100000 - 999999) matching the native UI
-    const pin = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-    verificationCodes.set(cleanEmail, {
-      pin,
-      expiresAt,
-      firstName: typeof firstName === 'string' ? firstName.trim() : undefined,
+    const info = await transporter.sendMail({
+      from: `"Bóveda Familiar" <${GMAIL_USER}>`,
+      to: correo, // <- el correo que escribió la persona, NO el de la cuenta de Google
+      subject: 'Tu código de acceso a Bóveda Familiar',
+      text: `Hola ${nombre}, tu código de acceso es ${pin}. Vence en 10 minutos. Si no lo pediste, ignora este mensaje.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 420px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
+          <h2 style="margin: 0 0 12px 0; color: #111827;">Bóveda Familiar</h2>
+          <p style="margin: 0 0 16px 0; color: #374151;">Hola ${nombre}, este es tu código de acceso:</p>
+          <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 14px; text-align: center; margin: 16px 0;">
+            <p style="margin: 0; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #15803d; font-family: monospace;">${pin}</p>
+          </div>
+          <p style="margin: 0 0 8px 0; color: #4b5563; font-size: 14px;">Vence en 10 minutos.</p>
+          <p style="margin: 0; color: #6b7280; font-size: 12px;">Si no lo pediste, ignora este mensaje.</p>
+        </div>`
     });
 
-    const displayName = firstName ? firstName.trim() : '';
-    const greeting = displayName && displayName.toLowerCase() !== 'usuario' ? `Hola ${displayName},` : 'Hola,';
-    const emailSubject = 'Tu código de acceso a Bóveda Familiar';
-    const emailText = `${greeting}\n\nTu código de acceso es ${pin}.\nVence en 10 minutos. Si no lo pediste, ignora este mensaje.\n\nBóveda Familiar`;
-
-    const emailHtml = `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <title>${emailSubject}</title>
-</head>
-<body style="margin: 0; padding: 24px 16px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0">
-    <tr>
-      <td align="center">
-        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 480px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 28px; text-align: left; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
-          <tr>
-            <td>
-              <h2 style="margin: 0 0 6px 0; font-size: 20px; font-weight: 700; color: #0f172a; letter-spacing: -0.3px;">
-                Bóveda Familiar
-              </h2>
-              <p style="margin: 0 0 20px 0; font-size: 13px; color: #64748b;">
-                Código de verificación para tu cuenta
-              </p>
-
-              <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
-                ${greeting}<br>
-                Tu código de acceso a Bóveda Familiar es:
-              </p>
-
-              <!-- PIN Box -->
-              <div style="background-color: #f0fdf4; border: 1px solid #86efac; border-radius: 12px; padding: 18px 24px; margin: 20px 0; text-align: center;">
-                <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; font-size: 34px; font-weight: 700; letter-spacing: 8px; color: #166534; display: inline-block;">
-                  ${pin}
-                </span>
-              </div>
-
-              <p style="margin: 0 0 24px 0; font-size: 13px; line-height: 1.5; color: #64748b;">
-                ⏱️ <strong>Vence en 10 minutos.</strong> Si no lo pediste, ignora este mensaje de forma segura.
-              </p>
-
-              <div style="border-top: 1px solid #f1f5f9; padding-top: 16px; font-size: 12px; color: #94a3b8; text-align: center;">
-                Bóveda Familiar · Seguridad y privacidad protegidas
-              </div>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-    `;
-
-    // Active user key for josemanuel5121@gmail.com
-    const activeResendKey = ['re', 'g52NrSVp', 'Jb2DRcYnJfi8x34E1qMUWr8J'].join('_');
-    const envKey = (process.env.RESEND_API_KEY || '').trim();
-    // Ignore legacy or revoked keys starting with re_6tXh
-    const resendApiKey = (envKey && !envKey.startsWith('re_6tXh')) ? envKey : activeResendKey;
-
-    // 0. Try Gmail SMTP if configured
-    // Delivers up to 500 emails/day to ANY recipient (Hotmail, Outlook, Yahoo, Gmail, iCloud) with no domain needed!
-    const defaultGmailPass = ['drmg', 'jksp', 'graa', 'mxad'].join('');
-    const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || defaultGmailPass).replace(/\s+/g, '').trim();
-    const gmailUser = (process.env.GMAIL_USER || 'josemanuel5121@gmail.com').trim();
-    if (gmailAppPassword) {
-      try {
-        const nodemailer = await import('nodemailer');
-        const transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: {
-            user: gmailUser,
-            pass: gmailAppPassword,
-          },
-        });
-
-        const info = await transporter.sendMail({
-          from: `"Bóveda Familiar" <${gmailUser}>`,
-          to: cleanEmail,
-          subject: emailSubject,
-          text: emailText,
-          html: emailHtml,
-        });
-
-        console.log(`[SMTP] Verification email sent to ${cleanEmail}: ${info.messageId}`);
-        return res.json({
-          success: true,
-          delivered: true,
-          provider: 'gmail-smtp',
-          targetEmail: cleanEmail,
-          testPin: pin,
-          message: `Código enviado a ${cleanEmail} exitosamente.`,
-        });
-      } catch (smtpErr: any) {
-        console.warn('Gmail SMTP notice:', smtpErr?.message);
-      }
+    // Gmail a veces acepta el envío pero rechaza al destinatario
+    if (info.rejected && info.rejected.length > 0) {
+      console.error('Rechazado:', info.rejected, info.response);
+      return res.status(502).json({ ok: false, success: false, error: 'El correo fue rechazado' });
     }
 
-    // 1. Try Brevo (Sendinblue) if BREVO_API_KEY is configured
-    // Brevo allows sending to ANY provider (Outlook, Hotmail, Yahoo, iCloud) without a custom domain
-    const brevoApiKey = (process.env.BREVO_API_KEY || '').trim();
-    if (brevoApiKey) {
-      try {
-        const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: {
-            'api-key': brevoApiKey,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify({
-            sender: { name: 'Bóveda Familiar', email: 'josemanuel5121@gmail.com' },
-            to: [{ email: cleanEmail, name: displayName || 'Usuario' }],
-            subject: emailSubject,
-            textContent: emailText,
-            htmlContent: emailHtml,
-          }),
-          signal: AbortSignal.timeout(8000),
-        });
-        if (brevoRes.ok) {
-          return res.json({
-            success: true,
-            delivered: true,
-            provider: 'brevo',
-            targetEmail: cleanEmail,
-            message: `Código enviado a ${cleanEmail} exitosamente.`,
-          });
-        }
-      } catch (e: any) {
-        console.warn('Brevo primary notice:', e?.message);
-      }
-    }
+    console.log('PIN enviado a', correo, '| accepted:', info.accepted, '| id:', info.messageId);
+    pines.set(correo, { pin, vence: Date.now() + VIGENCIA_MS, intentos: 0, ultimoEnvio: Date.now(), nombre });
 
-    // 2. Try Resend if configured
-    if (resendApiKey && resendApiKey.trim()) {
-      let response: any = null;
-      let data: any = null;
-
-      try {
-        response = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendApiKey.trim()}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: 'Bóveda Familiar <onboarding@resend.dev>',
-            to: [cleanEmail],
-            subject: emailSubject,
-            text: emailText,
-            html: emailHtml,
-          }),
-          signal: AbortSignal.timeout(8000),
-        });
-        data = await response.json().catch(() => null);
-      } catch (e: any) {
-        console.warn('Resend primary fetch notice:', e?.message);
-      }
-
-      // If Resend sandbox restricts to account owner, dispatch notification to owner's inbox
-      if (
-        response &&
-        !response.ok &&
-        data?.message &&
-        data.message.includes('You can only send testing emails to your own email address')
-      ) {
-        const match = data.message.match(/\(([^)]+)\)/);
-        const ownerEmail = match ? match[1].toLowerCase() : 'josemanuel5121@gmail.com';
-        console.log(`Resend sandbox mode: delivering notification to account email ${ownerEmail}`);
-
-        // Register PIN for BOTH cleanEmail (Outlook, Yahoo, etc.) and ownerEmail so verification always succeeds
-        verificationCodes.set(cleanEmail, {
-          pin,
-          expiresAt,
-          firstName: typeof firstName === 'string' ? firstName.trim() : undefined,
-        });
-        verificationCodes.set(ownerEmail.toLowerCase(), {
-          pin,
-          expiresAt,
-          firstName: typeof firstName === 'string' ? firstName.trim() : undefined,
-        });
-
-        try {
-          const ownerRes = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${resendApiKey.trim()}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: 'Bóveda Segura <onboarding@resend.dev>',
-              to: [ownerEmail],
-              subject: `${pin} es tu código de verificación para ${cleanEmail}`,
-              html: emailHtml,
-            }),
-            signal: AbortSignal.timeout(8000),
-          });
-          if (ownerRes.ok) {
-            return res.json({
-              success: true,
-              delivered: false,
-              sandboxRestricted: true,
-              targetEmail: cleanEmail,
-              sandboxOwnerEmail: ownerEmail,
-              testPin: pin,
-              message: `Modo prueba: Resend requiere un dominio para enviar directo a ${cleanEmail}. Código: ${pin}.`,
-            });
-          }
-        } catch (e: any) {
-          console.warn('Resend owner dispatch notice:', e?.message);
-        }
-      }
-
-      if (response && response.ok) {
-        return res.json({
-          success: true,
-          delivered: true,
-          targetEmail: cleanEmail,
-          message: 'Código enviado a tu correo exitosamente.',
-        });
-      }
-
-      if (!response.ok) {
-        console.warn('Resend API notice:', data?.message);
-        // Do not crash registration; provide testPin so user is not blocked
-        return res.json({
-          success: true,
-          delivered: false,
-          targetEmail: cleanEmail,
-          testPin: pin,
-          message: 'Código de 6 dígitos generado.',
-        });
-      }
-
-      return res.json({
-        success: true,
-        delivered: true,
-        targetEmail: cleanEmail,
-        testPin: pin,
-        message: 'Código enviado a tu correo exitosamente.',
-      });
-    }
-
-    // 3. Fallback when neither Brevo nor Resend is configured
-    console.warn('Neither BREVO_API_KEY nor RESEND_API_KEY was configured. Generated local PIN:', pin);
     return res.json({
+      ok: true,
       success: true,
-      delivered: false,
-      targetEmail: cleanEmail,
+      delivered: true,
+      targetEmail: correo,
       testPin: pin,
-      message: 'Código de 6 dígitos generado para verificación.',
+      message: 'Código enviado a tu correo exitosamente.',
     });
   } catch (err: any) {
-    console.error('Error in /api/send-email-pin:', err);
+    console.error('ERROR al enviar a', correo, err);
     return res.status(500).json({
+      ok: false,
       success: false,
-      error: err?.message || 'Error interno del servidor al procesar el código.',
+      error: err?.message || 'No se pudo enviar el correo',
     });
   }
-});
+};
 
-/**
- * POST /api/verify-email-pin
- * Verifies that the entered 4-digit PIN matches the stored active PIN.
- */
-app.post('/api/verify-email-pin', (req: Request, res: Response) => {
-  try {
-    const { email, pin } = req.body;
-    if (!email || !pin) {
-      return res.status(400).json({ success: false, error: 'Correo y PIN requeridos.' });
-    }
+app.post('/api/enviar-pin', handleEnviarPin);
+app.post('/api/send-email-pin', handleEnviarPin);
 
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPin = pin.toString().trim();
+// 2) Valida el PIN que escribió la persona
+const handleVerificarPin = (req: Request, res: Response) => {
+  const correo = String(req.body.correo || req.body.email || '').trim().toLowerCase();
+  const pin = String(req.body.pin || '').trim();
+  const registro = pines.get(correo);
 
-    const record = verificationCodes.get(cleanEmail);
-
-    if (!record) {
-      return res.status(400).json({
-        success: false,
-        error: 'No se encontró ningún código pendiente para este correo. Solicita uno nuevo.',
-      });
-    }
-
-    if (Date.now() > record.expiresAt) {
-      verificationCodes.delete(cleanEmail);
-      return res.status(400).json({
-        success: false,
-        error: 'El código ha expirado (límite de 10 minutos). Solicita uno nuevo.',
-      });
-    }
-
-    if (record.pin !== cleanPin) {
-      return res.status(400).json({
-        success: false,
-        error: 'El código de 6 dígitos no coincide. Verifica e intenta de nuevo.',
-      });
-    }
-
-    // Success: consume the code so it cannot be re-used
-    verificationCodes.delete(cleanEmail);
-    return res.json({
-      success: true,
-      message: 'Código verificado correctamente.',
-    });
-  } catch (err: any) {
-    console.error('Error in /api/verify-email-pin:', err);
-    return res.status(500).json({
-      success: false,
-      error: err?.message || 'Error interno al verificar el código.',
-    });
+  if (!registro) {
+    return res.status(400).json({ ok: false, success: false, error: 'Pide un código primero' });
   }
-});
+  if (Date.now() > registro.vence) {
+    pines.delete(correo);
+    return res.status(400).json({ ok: false, success: false, error: 'El código venció' });
+  }
+  if (registro.intentos >= MAX_INTENTOS) {
+    pines.delete(correo);
+    return res.status(429).json({ ok: false, success: false, error: 'Demasiados intentos, pide otro código' });
+  }
+
+  registro.intentos++;
+  if (pin !== registro.pin) {
+    return res.status(400).json({ ok: false, success: false, error: 'Código incorrecto' });
+  }
+
+  pines.delete(correo); // el PIN solo sirve una vez
+  return res.json({ ok: true, success: true, message: 'Código verificado correctamente.' });
+};
+
+app.post('/api/verificar-pin', handleVerificarPin);
+app.post('/api/verify-email-pin', handleVerificarPin);
 
 // Vite dev server mounting or static production serving
 async function startServer() {
