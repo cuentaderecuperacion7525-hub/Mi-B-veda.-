@@ -30,11 +30,39 @@ service cloud.firestore {
         && (!('updatedAt' in data) || data.updatedAt is string);
     }
 
+    function isValidEmailVerification(data) {
+      return data.keys().hasAll(['token', 'email', 'firstName', 'status', 'confirmed', 'createdAt'])
+        && data.keys().hasOnly(['token', 'email', 'firstName', 'status', 'confirmed', 'createdAt', 'html'])
+        && data.token is string
+        && data.token.size() >= 1
+        && data.token.size() <= 128
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 150
+        && data.firstName is string
+        && data.firstName.size() >= 1
+        && data.firstName.size() <= 100
+        && data.status is string
+        && data.status.size() >= 1
+        && data.status.size() <= 40
+        && data.confirmed is bool
+        && data.createdAt is string
+        && data.createdAt.size() <= 60
+        && (!('html' in data) || (data.html is string && data.html.size() <= 30000));
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.id == userId;
       allow update: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.id == userId;
       allow delete: if isOwner(userId);
+    }
+
+    match /email_verifications/{token} {
+      allow read: if true;
+      allow create: if isValidEmailVerification(request.resource.data) && request.resource.data.token == token;
+      allow update: if isValidEmailVerification(request.resource.data) && request.resource.data.token == token;
+      allow delete: if true;
     }
   }
 }

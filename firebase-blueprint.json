@@ -52,12 +52,53 @@
         }
       },
       "required": ["id", "firstName", "email", "emailVerified", "createdAt"]
+    },
+    "EmailVerification": {
+      "title": "Email Verification Request",
+      "description": "Pending and confirmed email link verification tokens for registration",
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Unique verification token"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Recipient email address typed by the user"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "Full name typed by the user"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status: pending, sent, confirmed, or error"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "description": "Whether the user clicked the confirmation link"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "html": {
+          "type": "string",
+          "description": "Optional static confirmation HTML payload"
+        }
+      },
+      "required": ["token", "email", "firstName", "status", "confirmed", "createdAt"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile records indexed by auth UID"
+    },
+    "/email_verifications/{token}": {
+      "schema": "EmailVerification",
+      "description": "Email confirmation requests and status indexed by token"
     }
   }
 }

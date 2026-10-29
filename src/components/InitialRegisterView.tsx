@@ -61,7 +61,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
 
     const cleanEmail = emailInput.trim().toLowerCase();
     const interval = setInterval(async () => {
-      const status = await checkEmailConfirmationStatus(cleanEmail);
+      const status = await checkEmailConfirmationStatus(cleanEmail, pendingToken);
       if (status.confirmed) {
         clearInterval(interval);
         completeRegistration(status.email || cleanEmail, status.firstName || fullName);
@@ -69,7 +69,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [waitingConfirmation, emailInput, fullName]);
+  }, [waitingConfirmation, emailInput, fullName, pendingToken]);
 
   /* ==================== BLOQUE PROTEGIDO: ACCESO NATIVO GOOGLE ==================== */
   const handleContinueWithGoogle = async () => {
@@ -143,7 +143,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   // Verificar manualmente si el usuario ya presionó el enlace
   const handleManualCheck = async () => {
     const cleanEmail = emailInput.trim().toLowerCase();
-    const status = await checkEmailConfirmationStatus(cleanEmail);
+    const status = await checkEmailConfirmationStatus(cleanEmail, pendingToken);
     if (status.confirmed) {
       completeRegistration(status.email || cleanEmail, status.firstName || fullName);
       return;

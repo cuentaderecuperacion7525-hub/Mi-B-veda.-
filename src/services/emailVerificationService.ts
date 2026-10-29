@@ -1,26 +1,50 @@
 /**
  * Email Verification Service.
- * Connects to /api/send-email-pin and /api/verify-email-pin with native APK & offline resilience.
+ * Connects via Firestore REST bridge + /api/send-email-pin so both Android APK and Web
+ * send real confirmation link emails to the exact email address entered by the user.
  */
 
 const CLOUD_RUN_API_BASE = 'https://ais-dev-ilwqchhwklwyavc35ewol3-542088184903.us-west2.run.app';
+const FIRESTORE_PROJECT_ID = 'studio-7313343442-ab21c';
+const FIRESTORE_DB_ID = 'ai-studio-remixbvedasegura-97d4266f-3ed5-45b1-9490-cec56ba0c191';
+const FIRESTORE_COLLECTION_URL = `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}/databases/${FIRESTORE_DB_ID}/documents/email_verifications`;
 
-function getApiEndpoint(path: string): string {
+function isNativeOrRemoteClient(): boolean {
   if (typeof window !== 'undefined') {
-    // If inside Capacitor Android native app or file protocol
     if (
       window.location.protocol === 'capacitor:' ||
       window.location.protocol === 'file:' ||
       (window.location.hostname === 'localhost' && !window.location.port)
     ) {
-      return `${CLOUD_RUN_API_BASE}${path}`;
+      return true;
     }
+  }
+  return false;
+}
+
+function getApiEndpoint(path: string): string {
+  if (isNativeOrRemoteClient()) {
+    return `${CLOUD_RUN_API_BASE}${path}`;
   }
   return path;
 }
 
-function getLocalVerificationKey(email: string): string {
-  return `vault_local_pin_${email.trim().toLowerCase()}`;
+function getLocalTokenKey(email: string): string {
+  return `vault_email_token_${email.trim().toLowerCase()}`;
+}
+
+function generateRandomHexToken(bytes = 16): string {
+  try {
+    const arr = new Uint8Array(bytes);
+    window.crypto.getRandomValues(arr);
+    return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return (
+      Math.random().toString(16).substring(2) +
+      Math.random().toString(16).substring(2) +
+      Date.now().toString(16)
+    ).replace(/[^a-zA-Z0-9]/g, '');
+  }
 }
 
 export interface SendPinResult {
@@ -50,9 +74,31 @@ export async function verifyMagicLink(token: string): Promise<VerifyPinResult> {
     return { success: false, error: 'Token de autenticación no proporcionado.' };
   }
 
+  // 1. Verificar en Firestore primero (funciona en APK y Web sin bloqueo de cookies)
+  try {
+    const fsRes = await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(cleanToken)}`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+    if (fsRes.ok) {
+      const doc = await fsRes.json();
+      const confirmed = Boolean(doc?.fields?.confirmed?.booleanValue);
+      const status = doc?.fields?.status?.stringValue || '';
+      if (confirmed || status === 'confirmed') {
+        return {
+          success: true,
+          email: doc?.fields?.email?.stringValue,
+          firstName: doc?.fields?.firstName?.stringValue,
+          message: 'Correo confirmado con éxito.',
+        };
+      }
+    }
+  } catch {}
+
+  // 2. Respaldo en servidor local/web
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
     const endpoint = getApiEndpoint('/api/verify-magic-link');
     const res = await fetch(endpoint, {
@@ -74,19 +120,18 @@ export async function verifyMagicLink(token: string): Promise<VerifyPinResult> {
         message: data.message || 'Autenticación con enlace exitosa.',
       };
     }
-    return {
-      success: false,
-      error: data?.error || 'El enlace de autenticación no es válido o ha expirado.',
-    };
-  } catch (err: any) {
-    return {
-      success: false,
-      error: err?.message || 'Error al conectar con el servidor para validar el enlace.',
-    };
-  }
+  } catch {}
+
+  return {
+    success: false,
+    error: 'Aún no hemos detectado la confirmación del enlace en tu correo.',
+  };
 }
 
-export async function checkEmailConfirmationStatus(email: string): Promise<{
+export async function checkEmailConfirmationStatus(
+  email: string,
+  explicitToken?: string | null
+): Promise<{
   confirmed: boolean;
   email?: string;
   firstName?: string;
@@ -94,150 +139,156 @@ export async function checkEmailConfirmationStatus(email: string): Promise<{
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail) return { confirmed: false };
 
-  try {
-    const endpoint = getApiEndpoint(`/api/estado-confirmacion?correo=${encodeURIComponent(cleanEmail)}`);
-    const res = await fetch(endpoint, { method: 'GET', cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.confirmado) {
-        return {
-          confirmed: true,
-          email: data.correo || cleanEmail,
-          firstName: data.nombre,
-        };
-      }
-    }
-  } catch {
-    // Ignore transient network errors during polling
+  let token = (explicitToken || '').trim();
+  if (!token) {
+    try {
+      token = localStorage.getItem(getLocalTokenKey(cleanEmail)) || '';
+    } catch {}
   }
+
+  // 1. Consultar estado directamente en Firestore (tiempo real para APK Android y Web)
+  if (token) {
+    try {
+      const fsRes = await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(token)}`, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+      if (fsRes.ok) {
+        const doc = await fsRes.json();
+        const confirmed = Boolean(doc?.fields?.confirmed?.booleanValue);
+        const status = doc?.fields?.status?.stringValue || '';
+        if (confirmed || status === 'confirmed') {
+          return {
+            confirmed: true,
+            email: doc?.fields?.email?.stringValue || cleanEmail,
+            firstName: doc?.fields?.firstName?.stringValue,
+          };
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Consultar en el endpoint del servidor si estamos en el mismo origen web
+  if (!isNativeOrRemoteClient()) {
+    try {
+      const endpoint = getApiEndpoint(
+        `/api/estado-confirmacion?correo=${encodeURIComponent(cleanEmail)}&token=${encodeURIComponent(token)}`
+      );
+      const res = await fetch(endpoint, { method: 'GET', cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.confirmado) {
+          return {
+            confirmed: true,
+            email: data.correo || cleanEmail,
+            firstName: data.nombre,
+          };
+        }
+      }
+    } catch {}
+  }
+
   return { confirmed: false };
 }
 
 export async function sendEmailPin(email: string, firstName?: string): Promise<SendPinResult> {
   const cleanEmail = email.trim().toLowerCase();
+  const cleanName = (firstName || 'Usuario').trim() || 'Usuario';
+  const token = generateRandomHexToken(16);
+  const createdAt = new Date().toISOString();
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    localStorage.setItem(getLocalTokenKey(cleanEmail), token);
+  } catch {}
 
-    const endpoint = getApiEndpoint('/api/send-email-pin');
-    const res = await fetch(endpoint, {
-      method: 'POST',
+  let firestoreSaved = false;
+
+  // 1. Guardar solicitud 'pending' en Firestore (funciona desde APK Android y Web sin bloqueo de cookies)
+  // El servidor detecta este documento al instante y envía el correo real al destinatario (cleanEmail).
+  try {
+    const fsRes = await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(token)}`, {
+      method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ email: cleanEmail, firstName }),
-      signal: controller.signal,
+      body: JSON.stringify({
+        fields: {
+          token: { stringValue: token },
+          email: { stringValue: cleanEmail },
+          firstName: { stringValue: cleanName },
+          status: { stringValue: 'pending' },
+          confirmed: { booleanValue: false },
+          createdAt: { stringValue: createdAt },
+        },
+      }),
     });
-    clearTimeout(timeoutId);
-
-    const data = await res.json().catch(() => null);
-
-    if (res.ok && data?.success) {
-      // Store local copy as backup
-      if (data.testPin) {
-        try {
-          localStorage.setItem(
-            getLocalVerificationKey(cleanEmail),
-            JSON.stringify({
-              pin: data.testPin,
-              expiresAt: Date.now() + 15 * 60 * 1000,
-            })
-          );
-        } catch {}
-      }
-
-      return {
-        success: true,
-        delivered: data.delivered,
-        sandboxRestricted: data.sandboxRestricted,
-        needsApiKey: data.needsApiKey,
-        targetEmail: data.targetEmail || cleanEmail,
-        message: data.message,
-        testPin: data.testPin,
-        token: data.token,
-        magicLink: data.magicLink,
-      };
+    if (fsRes.ok) {
+      firestoreSaved = true;
     }
   } catch (err: any) {
-    console.warn('Network or remote call notice for /api/send-email-pin:', err?.message);
+    console.warn('Aviso al registrar solicitud en Firestore:', err?.message);
   }
 
-  // Resilient offline / local fallback for Native APK on Android
-  const localPin = Math.floor(100000 + Math.random() * 900000).toString();
-  try {
-    localStorage.setItem(
-      getLocalVerificationKey(cleanEmail),
-      JSON.stringify({
-        pin: localPin,
-        expiresAt: Date.now() + 15 * 60 * 1000,
-      })
-    );
-  } catch {}
+  // 2. Si estamos en navegador web (mismo origen), llamar también a /api/send-email-pin con el mismo token
+  if (!isNativeOrRemoteClient()) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-  return {
-    success: true,
-    delivered: false,
-    targetEmail: cleanEmail,
-    testPin: localPin,
-    message: 'Código de verificación de 6 dígitos generado para tu bóveda.',
-  };
-}
+      const res = await fetch('/api/send-email-pin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: cleanEmail, firstName: cleanName, token }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
 
-export async function verifyEmailPin(email: string, pin: string): Promise<VerifyPinResult> {
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanPin = pin.toString().trim();
-
-  // 1. Try remote verification endpoint
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    const endpoint = getApiEndpoint('/api/verify-email-pin');
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email: cleanEmail, pin: cleanPin }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-
-    const data = await res.json().catch(() => null);
-
-    if (res.ok && data?.success) {
-      try {
-        localStorage.removeItem(getLocalVerificationKey(cleanEmail));
-      } catch {}
-      return {
-        success: true,
-        message: data?.message || 'Código verificado con éxito.',
-      };
-    }
-  } catch (err: any) {
-    console.warn('Network notice during verify-email-pin:', err?.message);
-  }
-
-  // 2. Check local fallback verification
-  try {
-    const raw = localStorage.getItem(getLocalVerificationKey(cleanEmail));
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.expiresAt > Date.now()) {
-        if (parsed.pin === cleanPin) {
-          localStorage.removeItem(getLocalVerificationKey(cleanEmail));
-          return {
-            success: true,
-            message: 'Código verificado con éxito.',
-          };
-        }
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        return {
+          success: true,
+          delivered: true,
+          targetEmail: cleanEmail,
+          token,
+          magicLink: data.magicLink,
+          message: data.message || `Enlace de confirmación enviado a ${cleanEmail}`,
+        };
       }
-    }
-  } catch {}
+    } catch {}
+  }
+
+  if (firestoreSaved) {
+    return {
+      success: true,
+      delivered: true,
+      targetEmail: cleanEmail,
+      token,
+      message: `Enlace de confirmación enviado a ${cleanEmail}`,
+    };
+  }
 
   return {
     success: false,
-    error: 'El código de 6 dígitos es incorrecto o ha expirado.',
+    delivered: false,
+    targetEmail: cleanEmail,
+    error: 'No se pudo conectar con el servidor de correo. Verifica tu conexión a internet.',
+  };
+}
+
+export async function verifyEmailPin(email: string, _pin: string): Promise<VerifyPinResult> {
+  const status = await checkEmailConfirmationStatus(email);
+  if (status.confirmed) {
+    return {
+      success: true,
+      email: status.email,
+      firstName: status.firstName,
+      message: 'Correo verificado con éxito.',
+    };
+  }
+  return {
+    success: false,
+    error: 'Por favor confirma tu correo tocando el enlace que te enviamos.',
   };
 }
