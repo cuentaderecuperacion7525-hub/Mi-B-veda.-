@@ -63,46 +63,50 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
       firstName: typeof firstName === 'string' ? firstName.trim() : undefined,
     });
 
-    const displayName = firstName ? firstName.trim() : 'Usuario';
+    const displayName = firstName ? firstName.trim() : '';
+    const greeting = displayName && displayName.toLowerCase() !== 'usuario' ? `Hola ${displayName},` : 'Hola,';
+    const emailSubject = 'Tu código de acceso a Bóveda Familiar';
+    const emailText = `${greeting}\n\nTu código de acceso es ${pin}.\nVence en 10 minutos. Si no lo pediste, ignora este mensaje.\n\nBóveda Familiar`;
 
     const emailHtml = `
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Código de Verificación - Bóveda Segura</title>
+  <title>${emailSubject}</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #060b14; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #060b14; padding: 40px 20px;">
+<body style="margin: 0; padding: 24px 16px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0">
     <tr>
       <td align="center">
-        <table width="100%" max-width="500" border="0" cellspacing="0" cellpadding="0" style="max-width: 500px; background-color: #0a121d; border: 1px solid #1e293b; border-radius: 24px; padding: 36px 28px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 480px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 28px; text-align: left; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
           <tr>
-            <td align="center">
-              <div style="width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, #056444, #00e5ff); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 20px;">
-                <span style="font-size: 28px; line-height: 56px;">🛡️</span>
-              </div>
-              <h1 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">Bóveda Segura</h1>
-              <p style="margin: 0 0 24px 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: #10b981;">Verificación de Identidad</p>
-              
-              <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #94a3b8; text-align: left;">
-                Hola <strong style="color: #ffffff;">${displayName}</strong>,<br>
-                Ingresa este código de 6 dígitos en la aplicación para verificar tu correo y activar tu espacio de cifrado privado:
+            <td>
+              <h2 style="margin: 0 0 6px 0; font-size: 20px; font-weight: 700; color: #0f172a; letter-spacing: -0.3px;">
+                Bóveda Familiar
+              </h2>
+              <p style="margin: 0 0 20px 0; font-size: 13px; color: #64748b;">
+                Código de verificación para tu cuenta
+              </p>
+
+              <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
+                ${greeting}<br>
+                Tu código de acceso a Bóveda Familiar es:
               </p>
 
               <!-- PIN Box -->
-              <div style="background-color: #0f172a; border: 2px dashed #10b981; border-radius: 16px; padding: 18px 24px; margin: 24px 0; text-align: center;">
-                <span style="font-family: 'Courier New', Courier, monospace; font-size: 38px; font-weight: 900; letter-spacing: 10px; color: #10b981; display: inline-block; padding-left: 10px;">
+              <div style="background-color: #f0fdf4; border: 1px solid #86efac; border-radius: 12px; padding: 18px 24px; margin: 20px 0; text-align: center;">
+                <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; font-size: 34px; font-weight: 700; letter-spacing: 8px; color: #166534; display: inline-block;">
                   ${pin}
                 </span>
               </div>
 
-              <p style="margin: 0 0 24px 0; font-size: 12px; line-height: 1.5; color: #64748b;">
-                ⏱️ Este código expira en <strong>10 minutos</strong>. Si no solicitaste este registro, puedes descartar este correo de forma segura.
+              <p style="margin: 0 0 24px 0; font-size: 13px; line-height: 1.5; color: #64748b;">
+                ⏱️ <strong>Vence en 10 minutos.</strong> Si no lo pediste, ignora este mensaje de forma segura.
               </p>
 
-              <div style="border-top: 1px solid #1e293b; padding-top: 20px; font-size: 11px; color: #475569;">
-                Bóveda Segura · Cifrado Militar AES-256-GCM · 100% Privado
+              <div style="border-top: 1px solid #f1f5f9; padding-top: 16px; font-size: 12px; color: #94a3b8; text-align: center;">
+                Bóveda Familiar · Seguridad y privacidad protegidas
               </div>
             </td>
           </tr>
@@ -112,7 +116,7 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
   </table>
 </body>
 </html>
-      `;
+    `;
 
     // Active user key for josemanuel5121@gmail.com
     const activeResendKey = ['re', 'g52NrSVp', 'Jb2DRcYnJfi8x34E1qMUWr8J'].join('_');
@@ -137,10 +141,10 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
         });
 
         const info = await transporter.sendMail({
-          from: `"Bóveda Segura" <${gmailUser}>`,
+          from: `"Bóveda Familiar" <${gmailUser}>`,
           to: cleanEmail,
-          subject: `${pin} es tu código de verificación de Bóveda Segura`,
-          text: `Hola ${displayName},\n\nTu código de verificación de Bóveda Segura es: ${pin}\n\nIngresa este código en la aplicación para verificar tu cuenta.\nEste código expira en 10 minutos.`,
+          subject: emailSubject,
+          text: emailText,
           html: emailHtml,
         });
 
@@ -171,9 +175,10 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
             'Accept': 'application/json',
           },
           body: JSON.stringify({
-            sender: { name: 'Bóveda Segura', email: 'josemanuel5121@gmail.com' },
-            to: [{ email: cleanEmail, name: displayName }],
-            subject: `${pin} es tu código de verificación de Bóveda Segura`,
+            sender: { name: 'Bóveda Familiar', email: 'josemanuel5121@gmail.com' },
+            to: [{ email: cleanEmail, name: displayName || 'Usuario' }],
+            subject: emailSubject,
+            textContent: emailText,
             htmlContent: emailHtml,
           }),
           signal: AbortSignal.timeout(8000),
@@ -205,9 +210,10 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Bóveda Segura <onboarding@resend.dev>',
+            from: 'Bóveda Familiar <onboarding@resend.dev>',
             to: [cleanEmail],
-            subject: `${pin} es tu código de verificación de Bóveda Segura`,
+            subject: emailSubject,
+            text: emailText,
             html: emailHtml,
           }),
           signal: AbortSignal.timeout(8000),
