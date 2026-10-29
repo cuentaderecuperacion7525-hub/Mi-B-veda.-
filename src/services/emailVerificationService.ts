@@ -31,13 +31,59 @@ export interface SendPinResult {
   targetEmail?: string;
   message?: string;
   testPin?: string;
+  token?: string;
+  magicLink?: string;
   error?: string;
 }
 
 export interface VerifyPinResult {
   success: boolean;
+  email?: string;
+  firstName?: string;
   message?: string;
   error?: string;
+}
+
+export async function verifyMagicLink(token: string): Promise<VerifyPinResult> {
+  const cleanToken = token.trim();
+  if (!cleanToken) {
+    return { success: false, error: 'Token de autenticación no proporcionado.' };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const endpoint = getApiEndpoint('/api/verify-magic-link');
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token: cleanToken }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.success) {
+      return {
+        success: true,
+        email: data.email,
+        firstName: data.nombre,
+        message: data.message || 'Autenticación con enlace exitosa.',
+      };
+    }
+    return {
+      success: false,
+      error: data?.error || 'El enlace de autenticación no es válido o ha expirado.',
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'Error al conectar con el servidor para validar el enlace.',
+    };
+  }
 }
 
 export async function sendEmailPin(email: string, firstName?: string): Promise<SendPinResult> {
@@ -82,6 +128,8 @@ export async function sendEmailPin(email: string, firstName?: string): Promise<S
         targetEmail: data.targetEmail || cleanEmail,
         message: data.message,
         testPin: data.testPin,
+        token: data.token,
+        magicLink: data.magicLink,
       };
     }
   } catch (err: any) {

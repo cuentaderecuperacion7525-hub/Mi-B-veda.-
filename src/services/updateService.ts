@@ -135,7 +135,7 @@ class UpdateService {
               if (parts.length >= 3) {
                 const patch = parseInt(parts[2], 10);
                 if (!isNaN(patch)) {
-                  parsedBuild = patch >= 100 ? patch : 1000 + patch;
+                  parsedBuild = patch >= 1000 ? patch : 1000 + patch;
                 }
               }
               remoteBuild = parsedBuild;
@@ -147,8 +147,29 @@ class UpdateService {
               directApkUrl = apkAsset?.browser_download_url ||
                 `https://github.com/${repo}/releases/latest/download/Boveda-Calculadora.apk`;
 
+              // Buscar asset version.json si está adjunto en la release
+              const versionJsonAsset = release.assets?.find((a: any) =>
+                a.name && a.name.toLowerCase() === 'version.json'
+              );
+              if (versionJsonAsset?.browser_download_url) {
+                try {
+                  const vjRes = await fetch(versionJsonAsset.browser_download_url, { cache: 'no-store' });
+                  if (vjRes.ok) {
+                    const vjData = await vjRes.json();
+                    if (vjData.version_code || vjData.buildNumber) {
+                      remoteBuild = vjData.version_code || vjData.buildNumber;
+                    }
+                    if (vjData.version || vjData.version_name) {
+                      remoteVersionStr = (vjData.version || vjData.version_name).replace(/^v/, '');
+                    }
+                  }
+                } catch {
+                  // Fallback a tag
+                }
+              }
+
               remoteData = {
-                version: tag,
+                version: remoteVersionStr,
                 buildNumber: remoteBuild,
                 releaseDate: release.published_at ? new Date(release.published_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : CURRENT_RELEASE_DATE,
                 changelog: release.body ? [release.body] : CURRENT_CHANGELOG,
@@ -221,14 +242,9 @@ class UpdateService {
         }
       }
 
-      // En APK Android (o si el build instalado es >= 100), la regla definitiva es remoteBuild > installedBuildNumber
-      let hasRemoteUpdate = false;
-      if (isNativeEnv || installedBuildNumber >= 100) {
-        hasRemoteUpdate = remoteBuild > installedBuildNumber;
-      } else {
-        const versionDiff = this.compareVersions(remoteVersionStr, installedVersionName);
-        hasRemoteUpdate = versionDiff > 0 || remoteBuild > installedBuildNumber;
-      }
+      // Comparar versión semver y build number
+      const versionDiff = this.compareVersions(remoteVersionStr, installedVersionName);
+      const hasRemoteUpdate = versionDiff > 0 || remoteBuild > installedBuildNumber;
 
       const hasUpdate = hasRemoteUpdate || swHasUpdate;
 

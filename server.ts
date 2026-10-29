@@ -32,9 +32,11 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Guarda los PIN en memoria: correo -> { pin, vence, intentos, ultimoEnvio, nombre }
+// Guarda los PIN y Tokens de Magic Link en memoria
 interface RegistroPin {
   pin: string;
+  token: string;
+  magicLink: string;
   vence: number;
   intentos: number;
   ultimoEnvio: number;
@@ -42,14 +44,15 @@ interface RegistroPin {
 }
 
 const pines = new Map<string, RegistroPin>();
+const tokenMap = new Map<string, { correo: string; nombre?: string; vence: number }>();
 
-const VIGENCIA_MS = 10 * 60 * 1000;   // el PIN vence en 10 minutos
+const VIGENCIA_MS = 10 * 60 * 1000;   // el PIN y enlace vencen en 10 minutos
 const ESPERA_MS = 60 * 1000;          // espera entre reenvíos
 const MAX_INTENTOS = 5;
 
 const correoValido = (c: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c);
 
-// Limpieza de PINs vencidos cada 5 minutos
+// Limpieza de PINs y enlaces vencidos cada 5 minutos
 setInterval(() => {
   const now = Date.now();
   for (const [correo, reg] of pines.entries()) {
@@ -57,9 +60,14 @@ setInterval(() => {
       pines.delete(correo);
     }
   }
+  for (const [token, reg] of tokenMap.entries()) {
+    if (reg.vence < now) {
+      tokenMap.delete(token);
+    }
+  }
 }, 5 * 60 * 1000);
 
-// 1) Manda el PIN al correo que ESCRIBIÓ EL USUARIO
+// 1) Manda el enlace de autenticación y PIN al correo que ESCRIBIÓ EL USUARIO
 const handleEnviarPin = async (req: Request, res: Response) => {
   const correo = String(req.body.correo || req.body.email || '').trim().toLowerCase();
   const nombre = String(req.body.nombre || req.body.firstName || '').trim() || 'hola';
@@ -79,22 +87,33 @@ const handleEnviarPin = async (req: Request, res: Response) => {
   }
 
   const pin = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  const token = crypto.randomBytes(24).toString('hex');
+
+  // URL base dinámica del origen de la petición
+  const proto = (req.headers['x-forwarded-proto'] as string) || (req.secure ? 'https' : 'http');
+  const host = (req.headers['x-forwarded-host'] as string) || req.headers.host || 'ais-dev-ilwqchhwklwyavc35ewol3-542088184903.us-west2.run.app';
+  const magicLink = `${proto}://${host}/?auth_token=${token}&email=${encodeURIComponent(correo)}`;
 
   try {
     const info = await transporter.sendMail({
       from: `"Bóveda Familiar" <${GMAIL_USER}>`,
       to: correo, // <- el correo que escribió la persona, NO el de la cuenta de Google
-      subject: 'Tu código de acceso a Bóveda Familiar',
-      text: `Hola ${nombre}, tu código de acceso es ${pin}. Vence en 10 minutos. Si no lo pediste, ignora este mensaje.`,
+      subject: 'Tu enlace de acceso a Bóveda Familiar',
+      text: `Hola ${nombre},\n\nPara autenticarte y acceder a tu Bóveda Familiar, haz clic en el siguiente enlace:\n${magicLink}\n\nO utiliza tu código de acceso: ${pin}\nVence en 10 minutos. Si no lo pediste, ignora este mensaje.\n\nBóveda Familiar`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 420px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
-          <h2 style="margin: 0 0 12px 0; color: #111827;">Bóveda Familiar</h2>
-          <p style="margin: 0 0 16px 0; color: #374151;">Hola ${nombre}, este es tu código de acceso:</p>
-          <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 14px; text-align: center; margin: 16px 0;">
-            <p style="margin: 0; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #15803d; font-family: monospace;">${pin}</p>
+        <div style="font-family: Arial, sans-serif; max-width: 440px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 14px; background: #ffffff;">
+          <h2 style="margin: 0 0 10px 0; color: #111827; font-size: 20px;">Bóveda Familiar</h2>
+          <p style="margin: 0 0 16px 0; color: #374151; font-size: 15px;">Hola ${nombre}, para autenticarte y entrar a tu bóveda, haz clic en el siguiente botón:</p>
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${magicLink}" style="background-color: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">
+              Autenticar y Entrar a mi Bóveda
+            </a>
           </div>
-          <p style="margin: 0 0 8px 0; color: #4b5563; font-size: 14px;">Vence en 10 minutos.</p>
-          <p style="margin: 0; color: #6b7280; font-size: 12px;">Si no lo pediste, ignora este mensaje.</p>
+          <p style="margin: 16px 0 6px 0; color: #4b5563; font-size: 13px; text-align: center;">O si prefieres, escribe tu código de acceso:</p>
+          <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px; text-align: center; margin: 6px 0 16px 0;">
+            <span style="font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #15803d; font-family: monospace;">${pin}</span>
+          </div>
+          <p style="margin: 0 0 4px 0; color: #6b7280; font-size: 12px; text-align: center;">Vence en 10 minutos. Si no lo pediste, ignora este mensaje.</p>
         </div>`
     });
 
@@ -104,8 +123,10 @@ const handleEnviarPin = async (req: Request, res: Response) => {
       return res.status(502).json({ ok: false, success: false, error: 'El correo fue rechazado' });
     }
 
-    console.log('PIN enviado a', correo, '| accepted:', info.accepted, '| id:', info.messageId);
-    pines.set(correo, { pin, vence: Date.now() + VIGENCIA_MS, intentos: 0, ultimoEnvio: Date.now(), nombre });
+    console.log('Enlace y PIN enviados a', correo, '| accepted:', info.accepted, '| id:', info.messageId);
+    const vence = Date.now() + VIGENCIA_MS;
+    pines.set(correo, { pin, token, magicLink, vence, intentos: 0, ultimoEnvio: Date.now(), nombre });
+    tokenMap.set(token, { correo, nombre, vence });
 
     return res.json({
       ok: true,
@@ -113,7 +134,9 @@ const handleEnviarPin = async (req: Request, res: Response) => {
       delivered: true,
       targetEmail: correo,
       testPin: pin,
-      message: 'Código enviado a tu correo exitosamente.',
+      token,
+      magicLink,
+      message: 'Enlace y código de acceso enviados exitosamente a tu correo.',
     });
   } catch (err: any) {
     console.error('ERROR al enviar a', correo, err);
@@ -127,6 +150,38 @@ const handleEnviarPin = async (req: Request, res: Response) => {
 
 app.post('/api/enviar-pin', handleEnviarPin);
 app.post('/api/send-email-pin', handleEnviarPin);
+app.post('/api/send-magic-link', handleEnviarPin);
+
+// Valida el Token de enlace mágico recibido al hacer clic
+app.post('/api/verify-magic-link', (req: Request, res: Response) => {
+  const token = String(req.body.token || '').trim();
+  if (!token) {
+    return res.status(400).json({ ok: false, success: false, error: 'Token de autenticación requerido.' });
+  }
+  const registro = tokenMap.get(token);
+  if (!registro) {
+    return res.status(400).json({
+      ok: false,
+      success: false,
+      error: 'El enlace de autenticación no es válido o ya fue utilizado.',
+    });
+  }
+  if (Date.now() > registro.vence) {
+    tokenMap.delete(token);
+    return res.status(400).json({ ok: false, success: false, error: 'El enlace de autenticación ha vencido.' });
+  }
+
+  tokenMap.delete(token);
+  pines.delete(registro.correo);
+  console.log(`[MAGIC LINK] Autenticación exitosa vía enlace para: ${registro.correo}`);
+  return res.json({
+    ok: true,
+    success: true,
+    email: registro.correo,
+    nombre: registro.nombre,
+    message: 'Autenticación con enlace exitosa.',
+  });
+});
 
 // 2) Valida el PIN que escribió la persona
 const handleVerificarPin = (req: Request, res: Response) => {
