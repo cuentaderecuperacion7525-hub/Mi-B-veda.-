@@ -44,12 +44,13 @@ jobs:
         run: |
           BUILD_NUM=${{ github.run_number }}
           NEW_VERSION_CODE=$((1000 + BUILD_NUM))
+          echo "NEW_VERSION_CODE=$NEW_VERSION_CODE" >> $GITHUB_ENV
           echo "Generando public/version.json con build $BUILD_NUM (version_code $NEW_VERSION_CODE)..."
           node -e "
             const fs = require('fs');
             const buildNum = parseInt(process.env.BUILD_NUM, 10) || 1;
             const newVersionCode = 1000 + buildNum;
-            const newVersionName = '1.2.' + buildNum;
+            const newVersionName = '1.2.' + newVersionCode;
             const repo = process.env.GITHUB_REPOSITORY || 'cuentaderecuperacion7525-hub/Mi-B-veda.-';
             const data = {
               version: newVersionName,
@@ -98,7 +99,7 @@ jobs:
           BUILD_NUM=${{ github.run_number }}
           NEW_VERSION_CODE=$((1000 + BUILD_NUM))
           sed -i "s/versionCode [0-9]*/versionCode $NEW_VERSION_CODE/g" android/app/build.gradle || true
-          sed -i "s/versionName \".*\"/versionName \"1.2.$BUILD_NUM\"/g" android/app/build.gradle || true
+          sed -i "s/versionName \".*\"/versionName \"1.2.$NEW_VERSION_CODE\"/g" android/app/build.gradle || true
 
       - name: Compilar APK con Gradle
         run: |
@@ -109,14 +110,14 @@ jobs:
       - name: Preparar archivo APK final
         run: |
           mkdir -p apk-output
-          cp android/app/build/outputs/apk/debug/*.apk apk-output/Boveda-Calculadora-v1.2.${{ github.run_number }}.apk
+          cp android/app/build/outputs/apk/debug/*.apk apk-output/Boveda-Calculadora-v1.2.${{ env.NEW_VERSION_CODE }}.apk
           cp android/app/build/outputs/apk/debug/*.apk apk-output/Boveda-Calculadora.apk
           ls -la apk-output/
 
       - name: Subir APK a Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Boveda-Calculadora-v1.2.${{ github.run_number }}
+          name: Boveda-Calculadora-v1.2.${{ env.NEW_VERSION_CODE }}
           path: apk-output/*.apk
           if-no-files-found: error
           retention-days: 30
@@ -125,13 +126,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: "v1.2.${{ github.run_number }}"
-          name: "Boveda v1.2.${{ github.run_number }}"
-          body: "Compilacion automatica de Android #${{ github.run_number }} con actualizacion del sistema."
+          tag_name: "v1.2.${{ env.NEW_VERSION_CODE }}"
+          name: "Boveda v1.2.${{ env.NEW_VERSION_CODE }}"
+          body: "Compilacion automatica de Android #${{ github.run_number }} (Build ${{ env.NEW_VERSION_CODE }}) con actualizacion del sistema."
           draft: false
           prerelease: false
           files: |
-            apk-output/Boveda-Calculadora-v1.2.${{ github.run_number }}.apk
+            apk-output/Boveda-Calculadora-v1.2.${{ env.NEW_VERSION_CODE }}.apk
             apk-output/Boveda-Calculadora.apk
             public/version.json
         env:
