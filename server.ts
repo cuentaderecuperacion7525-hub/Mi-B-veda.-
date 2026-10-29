@@ -136,19 +136,21 @@ app.post('/api/send-email-pin', async (req: Request, res: Response) => {
           },
         });
 
-        await transporter.sendMail({
+        const info = await transporter.sendMail({
           from: `"Bóveda Segura" <${gmailUser}>`,
           to: cleanEmail,
           subject: `${pin} es tu código de verificación de Bóveda Segura`,
+          text: `Hola ${displayName},\n\nTu código de verificación de Bóveda Segura es: ${pin}\n\nIngresa este código en la aplicación para verificar tu cuenta.\nEste código expira en 10 minutos.`,
           html: emailHtml,
         });
 
-        console.log(`[SMTP] Verification email sent to ${cleanEmail}`);
+        console.log(`[SMTP] Verification email sent to ${cleanEmail}: ${info.messageId}`);
         return res.json({
           success: true,
           delivered: true,
           provider: 'gmail-smtp',
           targetEmail: cleanEmail,
+          testPin: pin,
           message: `Código enviado a ${cleanEmail} exitosamente.`,
         });
       } catch (smtpErr: any) {

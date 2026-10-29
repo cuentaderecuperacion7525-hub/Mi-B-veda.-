@@ -408,17 +408,17 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             </span>
           </p>
           <p className="text-[12px] text-[#6b7280] text-center mt-1">
-            (Revisa también tu carpeta de <strong>Spam</strong> o <strong>Promociones</strong>)
+            (En Hotmail/Outlook revisa la carpeta <strong>Correo no deseado</strong> o pestaña <strong>Otros</strong>)
           </p>
 
-          {/* Banner de asistencia si el proveedor (Hotmail/Outlook) requiere dominio verificado */}
+          {/* Banner de código de verificación directo */}
           {sandboxPin && (
-            <div className="w-full my-3.5 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-center animate-in fade-in duration-200">
-              <p className="text-[12px] text-amber-900 leading-snug font-medium mb-1.5">
-                Resend requiere un dominio web propio para entregar a Hotmail/Outlook. Tu código es:
+            <div className="w-full my-3 p-3 rounded-2xl bg-blue-50 border border-blue-200 text-center animate-in fade-in duration-200">
+              <p className="text-[12px] text-blue-900 leading-snug font-medium mb-1.5">
+                Si no encuentras el correo en tu bandeja o carpeta de spam, tu código es:
               </p>
-              <div className="inline-flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-xs">
-                <span className="font-mono font-bold text-lg text-amber-950 tracking-widest">
+              <div className="inline-flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-blue-300 shadow-xs">
+                <span className="font-mono font-bold text-lg text-blue-950 tracking-widest">
                   {sandboxPin}
                 </span>
                 <button
@@ -427,7 +427,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                     setPinDigits(sandboxPin.split(''));
                     setErrorMsg(null);
                   }}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer ml-1"
+                  className="text-xs font-semibold text-[#2563eb] hover:text-[#1d4ed8] underline cursor-pointer ml-1"
                 >
                   Rellenar PIN
                 </button>
