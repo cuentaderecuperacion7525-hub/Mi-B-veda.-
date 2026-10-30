@@ -54,6 +54,8 @@ function sanitizePersonNameInput(raw: string): string {
 const VALID_INITIAL_CLUSTERS = new Set([
   'bl', 'br', 'cl', 'cr', 'dr', 'fl', 'fr', 'gl', 'gr', 'pl', 'pr', 'tr',
   'ch', 'll', 'qu', 'sh', 'st', 'sp', 'sc', 'sm', 'sn', 'kh', 'ph', 'th', 'vl', 'tz', 'tl',
+  'by', 'cy', 'dy', 'fy', 'gy', 'hy', 'ky', 'ly', 'my', 'ny', 'py', 'ry', 'sy', 'ty', 'vy', 'zy',
+  'yb', 'yc', 'yd', 'yg', 'yl', 'ym', 'yn', 'yp', 'yr', 'ys', 'yt', 'yv', 'yz',
 ]);
 
 /**
@@ -64,28 +66,31 @@ const VALID_INTERNAL_PAIRS = new Set([
   'bl', 'br', 'cl', 'cr', 'dr', 'fl', 'fr', 'gl', 'gr', 'pl', 'pr', 'tr',
   'ch', 'll', 'rr', 'qu', 'sh', 'ph', 'th', 'kh', 'tz', 'tl',
   // N + consonante válida
-  'nb', 'nc', 'nd', 'nf', 'ng', 'nh', 'nj', 'nk', 'nl', 'nm', 'nn', 'np', 'nq', 'nr', 'ns', 'nt', 'nv', 'nx', 'nz',
+  'nb', 'nc', 'nd', 'nf', 'ng', 'nh', 'nj', 'nk', 'nl', 'nm', 'nn', 'np', 'nq', 'nr', 'ns', 'nt', 'nv', 'nx', 'nz', 'ny',
   // M + consonante válida
-  'mb', 'mp', 'mn', 'mm',
+  'mb', 'mp', 'mn', 'mm', 'my',
   // L + consonante válida
-  'lb', 'lc', 'ld', 'lf', 'lg', 'lj', 'lk', 'lm', 'ln', 'lp', 'lq', 'lr', 'ls', 'lt', 'lv', 'lz',
+  'lb', 'lc', 'ld', 'lf', 'lg', 'lj', 'lk', 'lm', 'ln', 'lp', 'lq', 'lr', 'ls', 'lt', 'lv', 'lz', 'ly',
   // R + consonante válida
-  'rb', 'rc', 'rd', 'rf', 'rg', 'rj', 'rk', 'rl', 'rm', 'rn', 'rp', 'rq', 'rs', 'rt', 'rv', 'rz',
+  'rb', 'rc', 'rd', 'rf', 'rg', 'rj', 'rk', 'rl', 'rm', 'rn', 'rp', 'rq', 'rs', 'rt', 'rv', 'rz', 'ry',
   // S + consonante válida
-  'sb', 'sc', 'sd', 'sf', 'sg', 'sk', 'sl', 'sm', 'sn', 'sp', 'sq', 'sr', 'st', 'sv', 'sz',
+  'sb', 'sc', 'sd', 'sf', 'sg', 'sk', 'sl', 'sm', 'sn', 'sp', 'sq', 'sr', 'st', 'sv', 'sz', 'sy',
   // Z / D / B / C / G / P / T / X combinaciones reales (ej. Vázquez, Guzmán, Víctor, Héctor, Magdalena, Abraham)
-  'zc', 'zg', 'zk', 'zl', 'zm', 'zn', 'zq', 'zr', 'zt', 'zv',
-  'dm', 'dq', 'dv', 'dz',
-  'bd', 'bj', 'bn', 'bs', 'bt', 'bv',
-  'cc', 'ck', 'ct',
-  'gd', 'gm', 'gn',
-  'pt', 'ps',
-  'ts', 'tt',
+  'zc', 'zg', 'zk', 'zl', 'zm', 'zn', 'zq', 'zr', 'zt', 'zv', 'zy',
+  'dm', 'dq', 'dv', 'dz', 'dy',
+  'bd', 'bj', 'bn', 'bs', 'bt', 'bv', 'by',
+  'cc', 'ck', 'ct', 'cy',
+  'gd', 'gm', 'gn', 'gy',
+  'pt', 'ps', 'py',
+  'ts', 'tt', 'ty',
   'xc', 'xp', 'xt',
+  // Combinaciones con Y (ej. Leyva, Reyna, Taylor, Evelyn, Wendy, Katya, Bryan, Dylan)
+  'yb', 'yc', 'yd', 'yf', 'yg', 'yh', 'yk', 'yl', 'ym', 'yn', 'yp', 'yr', 'ys', 'yt', 'yv', 'yz',
+  'fy', 'hy', 'ky', 'vy',
 ]);
 
 /**
- * Grupos de 3 consonantes válidos en español (ej. Contreras, Estrada, Castro, Sánchez, Alejandro, Constanza).
+ * Grupos de 3 consonantes válidos en español (ej. Contreras, Estrada, Castro, Sánchez, Alejandro, Constanza, Bryan, Cynthia).
  */
 const VALID_THREE_CONSONANTS = new Set([
   'ntr', 'ndr', 'npl', 'npr', 'nbl', 'nbr', 'ncl', 'ncr', 'ngl', 'ngr', 'nfl', 'nfr',
@@ -96,11 +101,17 @@ const VALID_THREE_CONSONANTS = new Set([
   'nst', 'nsp', 'nsc', 'rst', 'rsp', 'rsc', 'lst', 'lsp',
   'nch', 'rch', 'lch', 'sch', 'chr',
   'nll', 'rll', 'nrr',
+  'bry', 'cry', 'dry', 'fry', 'gry', 'pry', 'try', 'ply', 'cyn', 'lyn', 'ryn', 'nth', 'lvr',
+]);
+
+const VALID_CONNECTOR_WORDS = new Set([
+  'de', 'del', 'la', 'las', 'el', 'los', 'san', 'santa', 'da', 'do', 'dos', 'das', 'van', 'von', 'y', 'mc', 'mac',
 ]);
 
 /**
  * Detector fonético estricto de nombres y apellidos reales:
- * Bloquea cualquier combinación de letras tecleadas al azar (como "jdjsjwiw", "idnwiwqv", "xxx", "asdf").
+ * Acepta nombres y apellidos reales en español (como Ayala, Reyes, Yáñez, Ochoa, Carlos, Cruz, Hernández)
+ * y bloquea combinaciones de letras tecleadas al azar (como "jdjsjwiw", "idnwiwqv", "xxx", "asdf").
  */
 function validateRealPersonName(value: string, fieldLabel: string): { valid: boolean; error?: string } {
   const clean = value.trim();
@@ -116,7 +127,9 @@ function validateRealPersonName(value: string, fieldLabel: string): { valid: boo
   const keyboardTrashPattern =
     /(asdf|fdsa|qwer|rewq|zxcv|vcxz|hjkl|lkjh|yuio|oiuy|bnm|poiuy|mnbv|abcd|bcde|xyz|wxyz|qaz|wsx|edc|rfv|tgb|yhn|ujm)/i;
 
-  for (const rawWord of words) {
+  for (let idx = 0; idx < words.length; idx++) {
+    const rawWord = words[idx];
+
     // Normalizar acentos a vocales simples para el análisis fonético
     const w = rawWord
       .toLowerCase()
@@ -125,6 +138,11 @@ function validateRealPersonName(value: string, fieldLabel: string): { valid: boo
       .replace(/í/g, 'i')
       .replace(/ó/g, 'o')
       .replace(/ú|ü/g, 'u');
+
+    // Permitir conectores de apellidos compuestos (ej. "De la Cruz", "Del Río")
+    if (words.length > 1 && VALID_CONNECTOR_WORDS.has(w)) {
+      continue;
+    }
 
     if (w.length < 2) {
       return {
@@ -163,7 +181,7 @@ function validateRealPersonName(value: string, fieldLabel: string): { valid: boo
       };
     }
 
-    // 4. Exceso de letras poco frecuentes (w, x, k, q, j, z) en una misma palabra (ej. "jdjsjwiw")
+    // 4. Exceso de letras poco frecuentes (w, x, k, q, j) en una misma palabra (ej. "jdjsjwiw")
     const rareCount = (w.match(/[wxkq]/g) || []).length;
     const jwCount = (w.match(/[jw]/g) || []).length;
     if (rareCount >= 2 || jwCount >= 3 || (w.match(/w/g) || []).length >= 2) {
@@ -173,12 +191,17 @@ function validateRealPersonName(value: string, fieldLabel: string): { valid: boo
       };
     }
 
-    // 5. Proporción de vocales vs consonantes (mínimo 34% vocales, máximo 75%)
-    const vowels = (w.match(/[aeiouy]/g) || []).length;
+    // 5. Proporción de vocales [aeiou] vs consonantes (tratando 'y' como consonante cuando hay vocales, como en Ayala, Reyes, Yáñez)
+    const pureVowels = (w.match(/[aeiou]/g) || []).length;
+    const yCount = (w.match(/y/g) || []).length;
+    const vowels = pureVowels > 0 ? pureVowels : yCount;
     const consonants = w.length - vowels;
     const vowelRatio = vowels / w.length;
 
-    if (vowels === 0 || consonants === 0 || vowelRatio < 0.34 || vowelRatio > 0.78) {
+    // Permitir inicios de 2 vocales (ej. "Au" de Aurora, "Eu" de Eugenio) mientras escribe las primeras 2 letras
+    const isTwoLetterDiphthongStart = w.length === 2 && /^(au|eu|ai|ei|oi|ou|ia|ie|io|ua|ue|uo)$/.test(w);
+
+    if (!isTwoLetterDiphthongStart && (vowels === 0 || consonants === 0 || vowelRatio < 0.24 || vowelRatio > 0.80)) {
       return {
         valid: false,
         error: `"${rawWord}" no parece un ${fieldLabel.toLowerCase()} real.`,
@@ -186,7 +209,7 @@ function validateRealPersonName(value: string, fieldLabel: string): { valid: boo
     }
 
     // 6. No más de 3 vocales seguidas ni 4 consonantes seguidas
-    if (/[aeiou]{4,}/.test(w) || /[bcdfghjklmnñpqrstvwxz]{4,}/.test(w)) {
+    if (/[aeiou]{4,}/.test(w) || /[bcdfghjklmnñpqrstvwxzy]{4,}/.test(w)) {
       return {
         valid: false,
         error: `"${rawWord}" no es un ${fieldLabel.toLowerCase()} real válido.`,
@@ -194,7 +217,7 @@ function validateRealPersonName(value: string, fieldLabel: string): { valid: boo
     }
 
     // 7. Validar grupos de 2 consonantes al inicio de la palabra (ej. bloquea "jd...", "nw...", "wq...")
-    const initialClusterMatch = w.match(/^([bcdfghjklmnñpqrstvwxz]{2})/);
+    const initialClusterMatch = w.match(/^([bcdfghjklmnñpqrstvwxzy]{2})/);
     if (initialClusterMatch) {
       const cluster = initialClusterMatch[1];
       if (!VALID_INITIAL_CLUSTERS.has(cluster)) {
@@ -206,7 +229,7 @@ function validateRealPersonName(value: string, fieldLabel: string): { valid: boo
     }
 
     // 8. Validar grupos de 3 consonantes seguidas (ej. bloquea "jdj", "sjw", "dnw", "wqv")
-    const threeConsonantMatches = w.match(/[bcdfghjklmnñpqrstvwxz]{3}/g) || [];
+    const threeConsonantMatches = w.match(/[bcdfghjklmnñpqrstvwxzy]{3}/g) || [];
     for (const c3 of threeConsonantMatches) {
       if (!VALID_THREE_CONSONANTS.has(c3)) {
         return {
@@ -217,7 +240,7 @@ function validateRealPersonName(value: string, fieldLabel: string): { valid: boo
     }
 
     // 9. Validar todos los pares de consonantes internas (ej. bloquea "jd", "js", "jw", "dn", "nw", "wq", "qv")
-    const twoConsonantMatches = w.match(/[bcdfghjklmnñpqrstvwxz]{2}/g) || [];
+    const twoConsonantMatches = w.match(/[bcdfghjklmnñpqrstvwxzy]{2}/g) || [];
     for (const c2 of twoConsonantMatches) {
       if (!VALID_INTERNAL_PAIRS.has(c2)) {
         return {
