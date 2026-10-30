@@ -1,5 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, Mail, Loader2, AlertCircle, Clock, ArrowLeft, RefreshCw } from 'lucide-react';
+import {
+  Lock,
+  Mail,
+  User,
+  IdCard,
+  Eye,
+  EyeOff,
+  Check,
+  Loader2,
+  AlertCircle,
+  Clock,
+  ArrowLeft,
+  RefreshCw,
+} from 'lucide-react';
 import { userProfileService } from '../services/userProfileService';
 import { syncUserProfile } from '../services/firebaseAuthService';
 import { signInWithNativeGoogle } from '../services/nativeGoogleAuthService';
@@ -7,6 +20,8 @@ import {
   sendEmailPin,
   verifyEmailPin,
   checkEmailConfirmationStatus,
+  saveRegisteredAccountToCloud,
+  loginRegisteredAccount,
 } from '../services/emailVerificationService';
 
 interface InitialRegisterViewProps {
@@ -14,16 +29,96 @@ interface InitialRegisterViewProps {
   showToast: (message: string, type?: 'info' | 'success' | 'alert' | 'error') => void;
 }
 
+/**
+ * Filtra en tiempo real números y símbolos para que solo se puedan escribir letras y espacios,
+ * aplicando mayúscula inicial a cada palabra (ej. "josé manuel" -> "José Manuel").
+ */
+function sanitizePersonNameInput(raw: string): string {
+  const lettersAndSpaces = raw
+    .replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^\s+/, '');
+
+  return lettersAndSpaces
+    .split(' ')
+    .map((word) => {
+      if (!word) return '';
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+}
+
+/**
+ * Detector de nombre/apellido real:
+ * Verifica que no sean garabatos ("asdf", "xxxx", puras consonantes o puras vocales)
+ * y que cada palabra tenga estructura fonética real.
+ */
+function validateRealPersonName(value: string, fieldLabel: string): { valid: boolean; error?: string } {
+  const clean = value.trim();
+  if (!clean) {
+    return { valid: false, error: `Por favor ingresa tu ${fieldLabel.toLowerCase()}.` };
+  }
+
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length === 0) {
+    return { valid: false, error: `Por favor ingresa un ${fieldLabel.toLowerCase()} válido.` };
+  }
+
+  const keyboardTrashPattern = /(asdf|qwer|zxcv|hjkl|yuio|bnm|poiuy|lkjh|mnbv|abcd|bcde|xyz)/i;
+  const repeatedCharsPattern = /(.)\1\1/i; // 3 letras idénticas seguidas (ej. "aaa", "xxx")
+  const fourConsonantsPattern = /[bcdfghjklmnñpqrstvwxz]{4,}/i;
+  const fourVowelsPattern = /[aeiouáéíóúü]{4,}/i;
+  const vowelRegex = /[aeiouáéíóúüy]/i;
+  const consonantRegex = /[bcdfghjklmnñpqrstvwxz]/i;
+
+  for (const word of words) {
+    if (word.length < 2) {
+      return {
+        valid: false,
+        error: `Cada ${fieldLabel.toLowerCase()} debe tener al menos 2 letras reales.`,
+      };
+    }
+    if (word.length > 25) {
+      return {
+        valid: false,
+        error: `El ${fieldLabel.toLowerCase()} ingresado es demasiado largo.`,
+      };
+    }
+    if (
+      keyboardTrashPattern.test(word) ||
+      repeatedCharsPattern.test(word) ||
+      fourConsonantsPattern.test(word) ||
+      fourVowelsPattern.test(word)
+    ) {
+      return {
+        valid: false,
+        error: `Por favor escribe un ${fieldLabel.toLowerCase()} real (sin letras al azar).`,
+      };
+    }
+    if (!vowelRegex.test(word) || !consonantRegex.test(word)) {
+      return {
+        valid: false,
+        error: `Por favor ingresa un ${fieldLabel.toLowerCase()} real válido.`,
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
 export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   onComplete,
   showToast,
 }) => {
-  // Control de pantalla: 'form' (Pantalla 1) o 'verify' (Pantalla 2 con las 6 cajitas)
-  const [step, setStep] = useState<'form' | 'verify'>('form');
+  // Control de vista: 'register' (Crear cuenta), 'login' (Iniciar sesión) o 'verify' (Pantalla 2 con 6 cajitas)
+  const [step, setStep] = useState<'register' | 'login' | 'verify'>('register');
 
-  // Campos de la Pantalla 1 (Nombre completo y Correo)
-  const [fullName, setFullName] = useState('');
+  // Campos de formulario
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Estados de la Pantalla 2 (6 dígitos, contador de 5 minutos, token activo)
   const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '', '', '']);
@@ -40,32 +135,54 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const completedRef = useRef(false);
 
-  // Finalizar registro y pasar a crear el PIN de 4 dígitos de la bóveda
-  const completeRegistration = (email: string, name: string) => {
+  // Evaluación en tiempo real de los requisitos de la contraseña (máximo 12 caracteres)
+  const passHasValidLength = passwordInput.length >= 6 && passwordInput.length <= 12;
+  const passHasUppercase = /[A-ZÁÉÍÓÚÑ]/.test(passwordInput);
+  const passHasNumber = /\d/.test(passwordInput);
+  const isPasswordAllValid = passHasValidLength && passHasUppercase && passHasNumber;
+
+  // Evaluación en tiempo real de Nombre y Apellidos reales
+  const isFirstNameReal = firstName.trim().length >= 2 && validateRealPersonName(firstName, 'Nombre').valid;
+  const isLastNameReal = lastName.trim().length >= 2 && validateRealPersonName(lastName, 'Apellidos').valid;
+
+  // Finalizar registro o login y pasar a la bóveda
+  const completeRegistration = async (email: string, fName: string, lName?: string, saveCloudAccount = true) => {
     if (completedRef.current) return;
     completedRef.current = true;
 
     const cleanEmail = email.trim().toLowerCase();
-    const cleanName = name.trim() || 'Usuario';
+    const cleanFirst = fName.trim() || firstName.trim() || 'Usuario';
+    const cleanLast = (lName !== undefined ? lName : lastName).trim();
+
+    if (saveCloudAccount && passwordInput) {
+      await saveRegisteredAccountToCloud({
+        firstName: cleanFirst,
+        lastName: cleanLast,
+        email: cleanEmail,
+        password: passwordInput,
+      });
+    }
 
     const profile = userProfileService.saveUserProfile({
-      firstName: cleanName,
+      firstName: cleanFirst,
+      lastName: cleanLast,
       email: cleanEmail,
       emailVerified: true,
-      authProvider: 'email',
+      authProvider: 'password',
     });
 
     try {
       const deterministicUid = `vault_${btoa(cleanEmail).replace(/=/g, '')}`;
       syncUserProfile(deterministicUid, {
         firstName: profile.firstName,
+        lastName: profile.lastName,
         email: profile.email,
         emailVerified: true,
-        authProvider: 'email',
+        authProvider: 'password',
       }).catch(() => {});
     } catch {}
 
-    showToast('¡Cuenta verificada con éxito!', 'success');
+    showToast('¡Acceso confirmado con éxito!', 'success');
     onComplete();
   };
 
@@ -91,12 +208,12 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       const status = await checkEmailConfirmationStatus(cleanEmail, pendingToken);
       if (status.confirmed) {
         clearInterval(interval);
-        completeRegistration(status.email || cleanEmail, status.firstName || fullName);
+        completeRegistration(status.email || cleanEmail, firstName || status.firstName || 'Usuario', lastName, true);
       }
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [step, emailInput, fullName, pendingToken, secondsLeft]);
+  }, [step, emailInput, firstName, lastName, pendingToken, secondsLeft]);
 
   /* ==================== BLOQUE PROTEGIDO: ACCESO NATIVO GOOGLE ==================== */
   const handleContinueWithGoogle = async () => {
@@ -129,34 +246,46 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   };
   /* ==================== FIN BLOQUE PROTEGIDO ==================== */
 
-  // Enviar código de 6 dígitos + enlace al correo y pasar a la Pantalla 2
+  // Enviar código de 6 dígitos + enlace al correo al pulsar "Crear cuenta"
   const handleRegisterSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setErrorMsg(null);
 
-    const cleanName = fullName.trim();
-    const cleanEmail = emailInput.trim().toLowerCase();
-
-    if (!cleanName) {
-      setErrorMsg('Por favor, ingresa tu nombre completo.');
+    const nameCheck = validateRealPersonName(firstName, 'Nombre');
+    if (!nameCheck.valid) {
+      setErrorMsg(nameCheck.error || 'Por favor ingresa un nombre real válido.');
       return;
     }
 
+    const lastNameCheck = validateRealPersonName(lastName, 'Apellidos');
+    if (!lastNameCheck.valid) {
+      setErrorMsg(lastNameCheck.error || 'Por favor ingresa apellidos reales válidos.');
+      return;
+    }
+
+    const cleanEmail = emailInput.trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!cleanEmail || !emailRegex.test(cleanEmail)) {
-      setErrorMsg('Por favor, ingresa un correo electrónico válido (ej. correo@ejemplo.com).');
+      setErrorMsg('Por favor ingresa un correo electrónico válido (ej. correo@ejemplo.com).');
       return;
     }
+
+    if (!isPasswordAllValid) {
+      setErrorMsg('La contraseña debe tener entre 6 y 12 caracteres, al menos una mayúscula y un número.');
+      return;
+    }
+
+    const fullDisplayName = `${firstName.trim()} ${lastName.trim()}`.trim();
 
     setIsSubmitting(true);
     try {
-      const res = await sendEmailPin(cleanEmail, cleanName);
+      const res = await sendEmailPin(cleanEmail, fullDisplayName);
       if (res.success) {
         if (res.token) {
           setPendingToken(res.token);
         }
         setPinDigits(['', '', '', '', '', '']);
-        setSecondsLeft(300); // Reinicia los 5 minutos exactos
+        setSecondsLeft(300); // 5 minutos exactos
         setResendCooldown(20);
         setStep('verify');
         showToast(`Código enviado a ${cleanEmail}`, 'success');
@@ -168,6 +297,43 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       }
     } catch (err: any) {
       setErrorMsg(err?.message || 'Error al enviar el correo de verificación.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Iniciar sesión para usuarios que ya tienen cuenta creada
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+      setErrorMsg('Por favor ingresa un correo electrónico válido.');
+      return;
+    }
+
+    if (!passwordInput) {
+      setErrorMsg('Por favor ingresa tu contraseña.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await loginRegisteredAccount(cleanEmail, passwordInput);
+      if (res.success) {
+        await completeRegistration(
+          res.email || cleanEmail,
+          res.firstName || 'Usuario',
+          res.lastName || '',
+          false
+        );
+      } else {
+        setErrorMsg(res.error || 'Correo o contraseña incorrectos.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error al iniciar sesión.');
     } finally {
       setIsSubmitting(false);
     }
@@ -193,7 +359,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       const cleanEmail = emailInput.trim().toLowerCase();
       const res = await verifyEmailPin(cleanEmail, codeToVerify, pendingToken);
       if (res.success) {
-        completeRegistration(res.email || cleanEmail, res.firstName || fullName);
+        await completeRegistration(cleanEmail, firstName.trim() || res.firstName || 'Usuario', lastName.trim(), true);
       } else {
         setErrorMsg(res.error || 'El código ingresado es incorrecto.');
       }
@@ -209,7 +375,6 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     const cleanVal = value.replace(/\D/g, '');
     if (errorMsg) setErrorMsg(null);
 
-    // Si el usuario pega los 6 dígitos de golpe
     if (cleanVal.length > 1) {
       const chars = cleanVal.slice(0, 6).split('');
       const nextDigits = [...pinDigits];
@@ -258,29 +423,30 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     const currentCode = pinDigits.join('');
 
     return (
-      <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-[#f8fafc]">
-        <div className="w-full max-w-[350px] sm:max-w-[370px] flex flex-col items-center animate-in fade-in duration-200">
-          {/* Ícono de correo */}
-          <div className="w-14 h-14 rounded-2xl bg-[#dbeafe] flex items-center justify-center text-[#2563eb] mb-3 shadow-xs">
-            <Mail className="w-7 h-7 stroke-[2.2]" />
+      <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+        <div className="w-full max-w-[360px] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 px-6 py-8 shadow-sm flex flex-col items-center animate-in fade-in duration-200">
+          <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-3">
+            <Mail className="w-7 h-7 stroke-[1.8]" />
           </div>
 
-          <h1 className="text-[24px] font-bold text-[#111827] tracking-tight text-center">
+          <h1 className="text-[23px] font-bold tracking-tight text-center">
             Verifica tu correo
           </h1>
-          <p className="text-[14px] text-[#4b5563] text-center mt-1.5 mb-4 leading-relaxed">
+          <p className="text-[13.5px] text-slate-500 dark:text-slate-400 text-center mt-1.5 mb-4 leading-relaxed">
             Enviamos un código de 6 dígitos a{' '}
-            <span className="font-semibold text-[#111827] break-all">{emailInput.trim()}</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-200 break-all">
+              {emailInput.trim()}
+            </span>
           </p>
 
           {/* Contador de vigencia de 5 minutos */}
           <div
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-5 border ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium mb-5 border ${
               isExpired
-                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
                 : secondsLeft <= 60
-                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                : 'bg-blue-50 text-[#2563eb] border-blue-200'
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
@@ -306,25 +472,23 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                 value={digit}
                 onChange={(e) => handleDigitChange(idx, e.target.value)}
                 onKeyDown={(e) => handleDigitKeyDown(idx, e)}
-                className="w-11 h-13 sm:w-12 sm:h-14 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-center text-[20px] font-bold text-[#111827] bg-white outline-none transition-all disabled:bg-slate-100 disabled:text-slate-400"
+                className="w-11 h-13 rounded-xl border border-slate-300 dark:border-slate-700 focus:border-blue-600 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 text-center text-[20px] font-bold bg-transparent outline-none transition-all disabled:opacity-40"
               />
             ))}
           </div>
 
-          {/* Mensaje de error si el código es incorrecto o expiró */}
           {errorMsg && (
-            <div className="w-full p-3 mb-3 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-700 text-xs text-left animate-in fade-in duration-150">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+            <div className="w-full p-3 mb-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400 text-xs text-left animate-in fade-in duration-150">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
           )}
 
-          {/* Botón Verificar código */}
           <button
             type="button"
             onClick={() => verifySixDigits(currentCode)}
             disabled={isVerifyingPin || isExpired || currentCode.length !== 6}
-            className="w-full h-[50px] rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] active:bg-[#1e40af] text-white font-medium text-[15px] transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-55"
+            className="w-full h-[48px] rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium text-[15px] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {isVerifyingPin ? (
               <>
@@ -336,21 +500,19 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             )}
           </button>
 
-          {/* Indicador discreto de que también escucha el enlace en segundo plano */}
           {!isExpired && (
             <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 mt-3">
-              <Loader2 className="w-3 h-3 animate-spin text-[#2563eb]" />
+              <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
               <span>También puedes tocar el enlace dentro del correo</span>
             </div>
           )}
 
-          {/* Botones inferiores: Reenviar código y Cambiar correo */}
-          <div className="w-full flex items-center justify-between mt-6 pt-4 border-t border-slate-200 text-[13px]">
+          <div className="w-full flex items-center justify-between mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 text-[13px]">
             <button
               type="button"
               onClick={() => handleRegisterSubmit()}
               disabled={isSubmitting || resendCooldown > 0}
-              className="inline-flex items-center gap-1.5 text-[#2563eb] hover:underline font-medium cursor-pointer disabled:text-slate-400 disabled:no-underline"
+              className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:underline font-medium cursor-pointer disabled:opacity-45 disabled:no-underline"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
               <span>
@@ -365,10 +527,10 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                setStep('form');
+                setStep('register');
                 setErrorMsg(null);
               }}
-              className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-700 hover:underline cursor-pointer"
+              className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:underline cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Cambiar correo</span>
@@ -379,96 +541,254 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     );
   }
 
-  // ==================== PANTALLA 1: FORMULARIO PRINCIPAL ====================
+  const isLoginMode = step === 'login';
+
+  // ==================== PANTALLA 1: CREAR CUENTA / INICIAR SESIÓN (DISEÑO MINIMALISTA DE LÍNEA FINA) ====================
   return (
-    <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-[#f8fafc]">
-      <div className="w-full max-w-[340px] sm:max-w-[360px] flex flex-col items-center animate-in fade-in duration-200">
-        {/* Ícono de candado con cajita azul cielo */}
-        <div className="w-14 h-14 rounded-2xl bg-[#dbeafe] flex items-center justify-center text-[#2563eb] mb-3 shadow-xs">
-          <Lock className="w-7 h-7 stroke-[2.4]" />
+    <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
+      <div className="w-full max-w-[360px] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/90 px-6 py-8 shadow-sm flex flex-col items-center animate-in fade-in duration-200">
+        {/* Ícono superior */}
+        <div className="w-13 h-13 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-3">
+          <Lock className="w-6 h-6 stroke-[1.75]" />
         </div>
 
         {/* Título y subtítulo */}
-        <h1 className="text-[26px] font-bold text-[#111827] tracking-tight text-center">
+        <h1 className="text-[24px] font-semibold tracking-tight text-center">
           Mi bóveda
         </h1>
-        <p className="text-[15px] text-[#4b5563] text-center mt-1 mb-6 max-w-[260px] leading-snug">
-          Crea tu cuenta para guardar tus archivos
+        <p className="text-[14px] text-slate-500 dark:text-slate-400 text-center mt-1 mb-7 max-w-[260px] leading-snug font-normal">
+          {isLoginMode
+            ? 'Inicia sesión con tu cuenta registrada'
+            : 'Crea tu cuenta para guardar tus archivos'}
         </p>
 
-        {/* Formulario principal: Nombre completo y Correo */}
-        <form onSubmit={handleRegisterSubmit} className="w-full space-y-3.5">
-          <div>
-            <input
-              type="text"
-              autoComplete="name"
-              placeholder="Nombre completo"
-              value={fullName}
-              onChange={(e) => {
-                setFullName(e.target.value);
-                if (errorMsg) setErrorMsg(null);
-              }}
-              className="w-full h-[52px] px-4 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-[#111827] text-[15px] placeholder-[#9ca3af] outline-none transition-all bg-white"
-            />
+        {/* Formulario con campos de línea inferior fina e iconos lineales */}
+        <form
+          onSubmit={isLoginMode ? handleLoginSubmit : handleRegisterSubmit}
+          className="w-full space-y-5"
+        >
+          {!isLoginMode && (
+            <>
+              {/* 1. Campo "Nombre" con icono lineal de usuario */}
+              <div className="w-full">
+                <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
+                  <User className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+                  <input
+                    type="text"
+                    autoComplete="given-name"
+                    placeholder="Nombre"
+                    value={firstName}
+                    onChange={(e) => {
+                      setFirstName(sanitizePersonNameInput(e.target.value));
+                      if (errorMsg) setErrorMsg(null);
+                    }}
+                    className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                  />
+                  {isFirstNameReal && (
+                    <Check className="w-4 h-4 text-emerald-500 stroke-[2.2] shrink-0" />
+                  )}
+                </div>
+              </div>
+
+              {/* 2. Campo "Apellidos" con icono lineal de tarjeta de identidad */}
+              <div className="w-full">
+                <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
+                  <IdCard className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+                  <input
+                    type="text"
+                    autoComplete="family-name"
+                    placeholder="Apellidos"
+                    value={lastName}
+                    onChange={(e) => {
+                      setLastName(sanitizePersonNameInput(e.target.value));
+                      if (errorMsg) setErrorMsg(null);
+                    }}
+                    className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                  />
+                  {isLastNameReal && (
+                    <Check className="w-4 h-4 text-emerald-500 stroke-[2.2] shrink-0" />
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 3. Campo "Correo electrónico" con icono lineal de sobre */}
+          <div className="w-full">
+            <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
+              <Mail className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+              <input
+                type="email"
+                autoComplete="email"
+                placeholder="Correo electrónico"
+                value={emailInput}
+                onChange={(e) => {
+                  setEmailInput(e.target.value);
+                  if (errorMsg) setErrorMsg(null);
+                }}
+                className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+              />
+            </div>
           </div>
 
-          <div>
-            <input
-              type="email"
-              autoComplete="email"
-              placeholder="correo@ejemplo.com"
-              value={emailInput}
-              onChange={(e) => {
-                setEmailInput(e.target.value);
-                if (errorMsg) setErrorMsg(null);
-              }}
-              className="w-full h-[52px] px-4 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-[#111827] text-[15px] placeholder-[#9ca3af] outline-none transition-all bg-white"
-            />
+          {/* 4. Campo "Contraseña" con candado a la izquierda, ojo a la derecha y máximo 12 caracteres */}
+          <div className="w-full">
+            <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
+              <Lock className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                autoComplete={isLoginMode ? 'current-password' : 'new-password'}
+                placeholder="Contraseña"
+                maxLength={12}
+                value={passwordInput}
+                onChange={(e) => {
+                  setPasswordInput(e.target.value.slice(0, 12));
+                  if (errorMsg) setErrorMsg(null);
+                }}
+                className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer p-0.5 shrink-0"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-[18px] h-[18px] stroke-[1.7]" />
+                ) : (
+                  <Eye className="w-[18px] h-[18px] stroke-[1.7]" />
+                )}
+              </button>
+            </div>
+
+            {/* Indicadores con palomita (✓) en tiempo real debajo del campo Contraseña (solo en Crear cuenta) */}
+            {!isLoginMode && (
+              <div className="mt-2.5 space-y-1 pl-1">
+                <div
+                  className={`flex items-center gap-1.5 text-[11.5px] transition-colors ${
+                    passHasValidLength
+                      ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                      : 'text-slate-400 dark:text-slate-500'
+                  }`}
+                >
+                  <Check
+                    className={`w-3.5 h-3.5 shrink-0 transition-opacity ${
+                      passHasValidLength ? 'opacity-100 stroke-[2.5]' : 'opacity-35 stroke-[1.7]'
+                    }`}
+                  />
+                  <span>Entre 6 y 12 caracteres ({passwordInput.length}/12)</span>
+                </div>
+
+                <div
+                  className={`flex items-center gap-1.5 text-[11.5px] transition-colors ${
+                    passHasUppercase
+                      ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                      : 'text-slate-400 dark:text-slate-500'
+                  }`}
+                >
+                  <Check
+                    className={`w-3.5 h-3.5 shrink-0 transition-opacity ${
+                      passHasUppercase ? 'opacity-100 stroke-[2.5]' : 'opacity-35 stroke-[1.7]'
+                    }`}
+                  />
+                  <span>Al menos una letra mayúscula (A-Z)</span>
+                </div>
+
+                <div
+                  className={`flex items-center gap-1.5 text-[11.5px] transition-colors ${
+                    passHasNumber
+                      ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                      : 'text-slate-400 dark:text-slate-500'
+                  }`}
+                >
+                  <Check
+                    className={`w-3.5 h-3.5 shrink-0 transition-opacity ${
+                      passHasNumber ? 'opacity-100 stroke-[2.5]' : 'opacity-35 stroke-[1.7]'
+                    }`}
+                  />
+                  <span>Al menos un número (0-9)</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Mensaje de error */}
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-700 text-xs text-left animate-in fade-in duration-150">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400 text-xs text-left animate-in fade-in duration-150">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
           )}
 
-          {/* Botón azul Registrarme */}
+          {/* Botón de acción principal de ancho completo */}
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full h-[52px] rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] active:bg-[#1e40af] text-white font-medium text-[16px] transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 mt-1"
+            className="w-full h-[48px] rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium text-[15px] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65 mt-2"
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Enviando código...</span>
+                <span>{isLoginMode ? 'Iniciando sesión...' : 'Enviando código...'}</span>
               </>
             ) : (
-              <span>Registrarme</span>
+              <span>{isLoginMode ? 'Iniciar sesión' : 'Crear cuenta'}</span>
             )}
           </button>
         </form>
 
-        {/* Divisor con la "o" al centro */}
-        <div className="relative my-6 w-full flex items-center justify-center">
-          <div className="w-full border-t border-[#e5e7eb]" />
-          <span className="absolute bg-[#f8fafc] px-3 text-xs text-[#9ca3af] font-medium">
-            o
+        {/* Enlace de navegación secundaria centrado */}
+        <div className="mt-4 text-center text-[13.5px] text-slate-500 dark:text-slate-400">
+          {isLoginMode ? (
+            <>
+              ¿No tienes cuenta?{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('register');
+                  setErrorMsg(null);
+                }}
+                className="text-blue-600 dark:text-blue-400 font-medium hover:underline cursor-pointer"
+              >
+                Crear cuenta
+              </button>
+            </>
+          ) : (
+            <>
+              ¿Ya tienes cuenta?{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('login');
+                  setErrorMsg(null);
+                }}
+                className="text-blue-600 dark:text-blue-400 font-medium hover:underline cursor-pointer"
+              >
+                Inicia sesión
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Separador "o continúa con" */}
+        <div className="relative my-5 w-full flex items-center justify-center">
+          <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+          <span className="absolute bg-white dark:bg-slate-900 px-3 text-[12px] text-slate-400 dark:text-slate-500 font-normal">
+            o continúa con
           </span>
         </div>
 
-        {/* Botón oficial Google (conecta al código protegido de Google) */}
+        {/* Botón secundario de ancho completo para Google (conectado al bloque protegido intacto) */}
         <button
           type="button"
           onClick={handleContinueWithGoogle}
           disabled={isLoadingNative}
-          className="w-full h-[52px] rounded-xl bg-white hover:bg-[#f9fafb] active:bg-[#f3f4f6] border border-[#d1d5db] transition-all flex items-center justify-center gap-3 shadow-xs cursor-pointer disabled:opacity-70"
+          className="w-full h-[48px] rounded-xl bg-transparent hover:bg-slate-100/70 dark:hover:bg-slate-800/60 border border-slate-300 dark:border-slate-700 transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-65"
         >
           {isLoadingNative ? (
-            <div className="flex items-center gap-2 text-[#1f2937] text-[15px] font-medium">
-              <Loader2 className="w-5 h-5 animate-spin text-[#2563eb]" />
+            <div className="flex items-center gap-2 text-[14.5px] font-medium">
+              <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
               <span>Abriendo Google...</span>
             </div>
           ) : (
@@ -491,8 +811,8 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span className="text-[#1f2937] font-medium text-[15px]">
-                Iniciar sesión con Google
+              <span className="font-medium text-[14.5px]">
+                Continuar con Google
               </span>
             </>
           )}

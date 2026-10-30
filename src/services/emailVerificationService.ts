@@ -465,3 +465,172 @@ export async function verifyEmailPin(
     error: 'El código de 6 dígitos es incorrecto o ha expirado.',
   };
 }
+
+function getAccountDocKey(email: string): string {
+  const clean = email.trim().toLowerCase();
+  let hex = '';
+  for (let i = 0; i < clean.length; i++) {
+    hex += clean.charCodeAt(i).toString(16).padStart(2, '0');
+  }
+  return `cuenta_${hex.slice(0, 96)}`;
+}
+
+async function hashUserPassword(email: string, password: string): Promise<string> {
+  const input = `boveda_v1::${email.trim().toLowerCase()}::${password}`;
+  try {
+    if (typeof window !== 'undefined' && window.crypto?.subtle) {
+      const encoded = new TextEncoder().encode(input);
+      const buf = await window.crypto.subtle.digest('SHA-256', encoded);
+      return Array.from(new Uint8Array(buf))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+  } catch {}
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  return `fb_${(h1 >>> 0).toString(16)}_${(h2 >>> 0).toString(16)}`;
+}
+
+export async function saveRegisteredAccountToCloud(params: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+}): Promise<void> {
+  const cleanEmail = params.email.trim().toLowerCase();
+  const cleanFirst = params.firstName.trim();
+  const cleanLast = params.lastName.trim();
+  const docKey = getAccountDocKey(cleanEmail);
+  const passwordHash = await hashUserPassword(cleanEmail, params.password);
+  const createdAt = new Date().toISOString();
+
+  try {
+    localStorage.setItem(
+      `vault_registered_acct_${cleanEmail}`,
+      JSON.stringify({
+        firstName: cleanFirst,
+        lastName: cleanLast,
+        email: cleanEmail,
+        passwordHash,
+        createdAt,
+      })
+    );
+  } catch {}
+
+  try {
+    await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(docKey)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          token: { stringValue: docKey },
+          email: { stringValue: cleanEmail },
+          firstName: { stringValue: cleanFirst },
+          lastName: { stringValue: cleanLast },
+          passwordHash: { stringValue: passwordHash },
+          status: { stringValue: 'registered_account' },
+          confirmed: { booleanValue: true },
+          createdAt: { stringValue: createdAt },
+        },
+      }),
+    });
+  } catch {}
+}
+
+export async function loginRegisteredAccount(
+  email: string,
+  password: string
+): Promise<{
+  success: boolean;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  error?: string;
+}> {
+  const cleanEmail = email.trim().toLowerCase();
+  const docKey = getAccountDocKey(cleanEmail);
+  const enteredHash = await hashUserPassword(cleanEmail, password);
+
+  // 1. Buscar en Firestore
+  try {
+    const res = await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(docKey)}`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const doc = await res.json();
+      const f = doc?.fields;
+      if (f && f.passwordHash?.stringValue) {
+        if (f.passwordHash.stringValue === enteredHash) {
+          return {
+            success: true,
+            firstName: f.firstName?.stringValue || 'Usuario',
+            lastName: f.lastName?.stringValue || '',
+            email: f.email?.stringValue || cleanEmail,
+          };
+        } else {
+          return {
+            success: false,
+            error: 'La contraseña ingresada es incorrecta.',
+          };
+        }
+      }
+    } else if (res.status === 404) {
+      // Revisar respaldo local antes de declarar no encontrado
+      try {
+        const raw = localStorage.getItem(`vault_registered_acct_${cleanEmail}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.passwordHash === enteredHash) {
+            return {
+              success: true,
+              firstName: parsed.firstName || 'Usuario',
+              lastName: parsed.lastName || '',
+              email: cleanEmail,
+            };
+          }
+          return {
+            success: false,
+            error: 'La contraseña ingresada es incorrecta.',
+          };
+        }
+      } catch {}
+
+      return {
+        success: false,
+        error: 'No existe una cuenta registrada con este correo. Por favor crea una cuenta primero.',
+      };
+    }
+  } catch {}
+
+  // 2. Respaldo en localStorage si no hay red
+  try {
+    const raw = localStorage.getItem(`vault_registered_acct_${cleanEmail}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.passwordHash === enteredHash) {
+        return {
+          success: true,
+          firstName: parsed.firstName || 'Usuario',
+          lastName: parsed.lastName || '',
+          email: cleanEmail,
+        };
+      }
+      return {
+        success: false,
+        error: 'La contraseña ingresada es incorrecta.',
+      };
+    }
+  } catch {}
+
+  return {
+    success: false,
+    error: 'No encontramos una cuenta con ese correo o hubo un problema de conexión.',
+  };
+}
+

@@ -352,7 +352,6 @@ async function enviarCorreoConfirmacion(
   await cancelarSolicitudesAnterioresFirestore(cleanCorreo, token);
 
   const confirmLink = await createDirectConfirmationUrl(token, cleanCorreo, cleanNombre);
-  const pinEspaciado = cleanPin.split('').join(' ');
 
   const info = await transporter.sendMail({
     from: `"Bóveda Familiar" <${GMAIL_USER}>`,
@@ -368,10 +367,8 @@ async function enviarCorreoConfirmacion(
         <p style="margin: 0 0 18px 0; color: #374151; font-size: 14px; line-height: 1.5;">
           Ingresa el siguiente código de 6 dígitos en la aplicación para confirmar tu cuenta (válido por <strong>5 minutos</strong>):
         </p>
-        <div style="text-align: center; margin: 22px 0; padding: 18px 14px; background-color: #eff6ff; border: 1px dashed #93c5fd; border-radius: 12px;">
-          <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #1e3a8a; font-family: 'Courier New', Courier, monospace;">
-            ${pinEspaciado}
-          </span>
+        <div style="text-align: center; margin: 20px 0; padding: 14px 12px; background-color: #eff6ff; border: 1px dashed #93c5fd; border-radius: 12px; white-space: nowrap;">
+          <span style="font-size: 24px; font-weight: bold; letter-spacing: 6px; color: #1e3a8a; font-family: 'Courier New', Courier, monospace; white-space: nowrap; display: inline-block;">${cleanPin}</span>
         </div>
         <p style="margin: 14px 0 18px 0; color: #6b7280; font-size: 12px; line-height: 1.4; text-align: center;">
           Este código es de un solo uso y caduca automáticamente a los 5 minutos.
@@ -450,7 +447,7 @@ async function pollFirestorePendingVerifications() {
       const confirmed = Boolean(fields.confirmed?.booleanValue);
       const createdAt = fields.createdAt?.stringValue || new Date().toISOString();
 
-      if (!token || token === 'pagina_confirmacion') continue;
+      if (!token || token === 'pagina_confirmacion' || token.startsWith('cuenta_') || status === 'registered_account') continue;
 
       const createdMs = Date.parse(createdAt) || Date.now();
       const isExpired = Date.now() - createdMs > VIGENCIA_MS;

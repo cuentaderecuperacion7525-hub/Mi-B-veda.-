@@ -54,13 +54,13 @@
       "required": ["id", "firstName", "email", "emailVerified", "createdAt"]
     },
     "EmailVerification": {
-      "title": "Email Verification Request",
-      "description": "Pending and confirmed email PIN and link verification tokens for registration (valid for 5 minutes, single-use)",
+      "title": "Email Verification & Registered Account",
+      "description": "Pending/confirmed email PIN and link verification tokens and registered user account credentials",
       "type": "object",
       "properties": {
         "token": {
           "type": "string",
-          "description": "Unique verification token"
+          "description": "Unique verification token or account key"
         },
         "email": {
           "type": "string",
@@ -69,7 +69,15 @@
         },
         "firstName": {
           "type": "string",
-          "description": "Full name typed by the user"
+          "description": "First name typed by the user"
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name typed by the user"
+        },
+        "passwordHash": {
+          "type": "string",
+          "description": "Hashed password for registered account sign-in"
         },
         "pin": {
           "type": "string",
@@ -77,7 +85,7 @@
         },
         "status": {
           "type": "string",
-          "description": "Status: pending, sending, sent, confirmed, used, superseded, expired, or error"
+          "description": "Status: pending, sending, sent, confirmed, used, superseded, expired, error, or registered_account"
         },
         "confirmed": {
           "type": "boolean",
@@ -102,7 +110,7 @@
     },
     "/email_verifications/{token}": {
       "schema": "EmailVerification",
-      "description": "Email confirmation requests and status indexed by token"
+      "description": "Email confirmation requests and registered account credentials indexed by token"
     }
   }
 }
