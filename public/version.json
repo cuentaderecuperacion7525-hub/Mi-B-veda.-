@@ -4,12 +4,12 @@
   "buildNumber": 1046,
   "version_code": 1046,
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Mi-B-veda.-/releases/latest/download/Boveda-Calculadora.apk",
-  "releaseDate": "30 de Octubre, 2026",
+  "releaseDate": "30 de octubre de 2026",
   "changelog": [
-    "Nuevo diseño minimalista de registro e inicio de sesión con campos de línea inferior e iconos lineales.",
-    "Validación inteligente en tiempo real para Nombres y Apellidos reales y desplegable dinámico de requisitos de contraseña (máx. 12 caracteres, mayúscula y número).",
-    "PIN de confirmación de 6 dígitos optimizado en una sola línea junto con enlace secundario compacto.",
-    "Seguridad reforzada: caducidad estricta a los 5 minutos, uso único y cancelación automática de códigos anteriores."
+    "Acceso y registro: Nueva interfaz minimalista de registro e inicio de sesión con verificación de correo mediante código de 6 dígitos.",
+    "Seguridad reforzada: Protección de códigos de un solo uso con vigencia de 5 minutos y validación de contraseña segura.",
+    "Rendimiento general: Mejoras de velocidad, estabilidad y fluidez al abrir tus fotos, videos, documentos y notas.",
+    "Protección de datos: Actualización directa del sistema conservando intactos todos los archivos guardados en tu bóveda."
   ],
   "mandatory": false
 }

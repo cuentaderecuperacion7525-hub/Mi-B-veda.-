@@ -13,13 +13,13 @@ export interface VersionInfo {
 export const APP_VERSION = '1.2.46';
 export const CURRENT_APP_VERSION = APP_VERSION;
 export const CURRENT_BUILD_NUMBER = 1046;
-export const CURRENT_RELEASE_DATE = '30 oct 2026';
+export const CURRENT_RELEASE_DATE = '30 de octubre de 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
-  'Nuevo diseño minimalista de registro e inicio de sesión con campos de línea inferior e iconos lineales.',
-  'Validación inteligente en tiempo real para Nombres y Apellidos reales y desplegable dinámico de requisitos de contraseña (máx. 12 caracteres, mayúscula y número).',
-  'PIN de confirmación de 6 dígitos optimizado en una sola línea junto con enlace secundario compacto.',
-  'Seguridad reforzada: caducidad estricta a los 5 minutos, uso único y cancelación automática de códigos anteriores.'
+  'Acceso y registro: Nueva interfaz minimalista de registro e inicio de sesión con verificación de correo mediante código de 6 dígitos.',
+  'Seguridad reforzada: Protección de códigos de un solo uso con vigencia de 5 minutos y validación de contraseña segura.',
+  'Rendimiento general: Mejoras de velocidad, estabilidad y fluidez al abrir tus fotos, videos, documentos y notas.',
+  'Protección de datos: Actualización directa del sistema conservando intactos todos los archivos guardados en tu bóveda.'
 ];
 
 export const APP_VERSION_METADATA: VersionInfo = {

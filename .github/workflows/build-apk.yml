@@ -60,8 +60,10 @@ jobs:
               download_url: 'https://github.com/' + repo + '/releases/latest/download/Boveda-Calculadora.apk',
               releaseDate: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }),
               changelog: [
-                'Compilación automática #' + buildNum + ' generada en GitHub.',
-                'Actualización del sistema sin pérdida de fotos, videos ni notas.'
+                'Acceso y registro: Nueva interfaz minimalista de registro e inicio de sesión con verificación de correo mediante código de 6 dígitos.',
+                'Seguridad reforzada: Protección de códigos de un solo uso con vigencia de 5 minutos y validación de contraseña segura.',
+                'Rendimiento general: Mejoras de velocidad, estabilidad y fluidez al abrir tus fotos, videos, documentos y notas.',
+                'Protección de datos: Actualización directa del sistema conservando intactos todos los archivos guardados en tu bóveda.'
               ],
               mandatory: false
             };
@@ -70,7 +72,7 @@ jobs:
               'export const CURRENT_APP_VERSION = \'' + newVersionName + '\';\n' +
               'export const CURRENT_BUILD_NUMBER = ' + newVersionCode + ';\n' +
               'export const CURRENT_RELEASE_DATE = \'' + data.releaseDate + '\';\n\n' +
-              'export const CURRENT_CHANGELOG: string[] = [\n  \'Compilación automática #' + buildNum + ' generada en GitHub.\',\n  \'Actualización del sistema sin pérdida de fotos, videos ni notas.\'\n];\n\n' +
+              'export const CURRENT_CHANGELOG: string[] = ' + JSON.stringify(data.changelog, null, 2) + ';\n\n' +
               'export const APP_VERSION_METADATA: VersionInfo = {\n  version: CURRENT_APP_VERSION,\n  buildNumber: CURRENT_BUILD_NUMBER,\n  releaseDate: CURRENT_RELEASE_DATE,\n  changelog: CURRENT_CHANGELOG,\n  mandatory: false\n};\n\n' +
               'export const APP_VERSION = CURRENT_APP_VERSION;\n' +
               'export default APP_VERSION;\n';
@@ -127,8 +129,8 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         with:
           tag_name: "v1.2.${{ env.NEW_VERSION_CODE }}"
-          name: "Boveda v1.2.${{ env.NEW_VERSION_CODE }}"
-          body: "Compilacion automatica de Android #${{ github.run_number }} (Build ${{ env.NEW_VERSION_CODE }}) con actualizacion del sistema."
+          name: "Mi Bóveda v1.2.${{ env.NEW_VERSION_CODE }}"
+          body: "Actualización oficial de Mi Bóveda (v1.2.${{ env.NEW_VERSION_CODE }}) con mejoras de seguridad, estabilidad y rendimiento."
           draft: false
           prerelease: false
           files: |

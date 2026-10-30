@@ -79,7 +79,10 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
         setServerVersionCode(res.buildNumber);
       }
       if (res.changelog && res.changelog.length > 0) {
-        setActiveChangelog(res.changelog);
+        const hasGenericAutoText = res.changelog.some((line) =>
+          /compilaci[oó]n autom[aá]tica|generada en github/i.test(line)
+        );
+        setActiveChangelog(hasGenericAutoText ? CURRENT_CHANGELOG : res.changelog);
       }
       setLastCheckTime(getFormattedTime());
 

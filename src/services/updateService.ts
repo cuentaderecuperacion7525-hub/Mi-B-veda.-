@@ -151,6 +151,7 @@ class UpdateService {
               const versionJsonAsset = release.assets?.find((a: any) =>
                 a.name && a.name.toLowerCase() === 'version.json'
               );
+              let resolvedChangelog: string[] = CURRENT_CHANGELOG;
               if (versionJsonAsset?.browser_download_url) {
                 try {
                   const vjRes = await fetch(versionJsonAsset.browser_download_url, { cache: 'no-store' });
@@ -162,6 +163,15 @@ class UpdateService {
                     if (vjData.version || vjData.version_name) {
                       remoteVersionStr = (vjData.version || vjData.version_name).replace(/^v/, '');
                     }
+                    if (
+                      Array.isArray(vjData.changelog) &&
+                      vjData.changelog.length > 0 &&
+                      !vjData.changelog.some((line: string) =>
+                        /compilaci[oó]n autom[aá]tica|generada en github/i.test(line)
+                      )
+                    ) {
+                      resolvedChangelog = vjData.changelog;
+                    }
                   }
                 } catch {
                   // Fallback a tag
@@ -172,7 +182,7 @@ class UpdateService {
                 version: remoteVersionStr,
                 buildNumber: remoteBuild,
                 releaseDate: release.published_at ? new Date(release.published_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : CURRENT_RELEASE_DATE,
-                changelog: release.body ? [release.body] : CURRENT_CHANGELOG,
+                changelog: resolvedChangelog,
                 mandatory: false
               };
 
