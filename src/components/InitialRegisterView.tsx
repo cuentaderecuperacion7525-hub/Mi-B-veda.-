@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Lock, Mail, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Lock, Mail, Loader2, AlertCircle, Clock, ArrowLeft, RefreshCw } from 'lucide-react';
 import { userProfileService } from '../services/userProfileService';
 import { syncUserProfile } from '../services/firebaseAuthService';
 import { signInWithNativeGoogle } from '../services/nativeGoogleAuthService';
 import {
   sendEmailPin,
+  verifyEmailPin,
   checkEmailConfirmationStatus,
-  verifyMagicLink,
 } from '../services/emailVerificationService';
 
 interface InitialRegisterViewProps {
@@ -18,19 +18,33 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   onComplete,
   showToast,
 }) => {
-  // Campos del formulario principal (Nombre completo y Correo)
+  // Control de pantalla: 'form' (Pantalla 1) o 'verify' (Pantalla 2 con las 6 cajitas)
+  const [step, setStep] = useState<'form' | 'verify'>('form');
+
+  // Campos de la Pantalla 1 (Nombre completo y Correo)
   const [fullName, setFullName] = useState('');
   const [emailInput, setEmailInput] = useState('');
 
-  // Estados de envío y espera de confirmación del enlace en el correo
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoadingNative, setIsLoadingNative] = useState(false);
-  const [waitingConfirmation, setWaitingConfirmation] = useState(false);
+  // Estados de la Pantalla 2 (6 dígitos, contador de 5 minutos, token activo)
+  const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [secondsLeft, setSecondsLeft] = useState<number>(300); // 5 minutos = 300 segundos
+  const [resendCooldown, setResendCooldown] = useState<number>(0);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
+
+  // Estados de carga y error
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifyingPin, setIsVerifyingPin] = useState(false);
+  const [isLoadingNative, setIsLoadingNative] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const completedRef = useRef(false);
 
   // Finalizar registro y pasar a crear el PIN de 4 dígitos de la bóveda
   const completeRegistration = (email: string, name: string) => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = name.trim() || 'Usuario';
 
@@ -51,13 +65,26 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       }).catch(() => {});
     } catch {}
 
-    showToast('¡Correo confirmado con éxito!', 'success');
+    showToast('¡Cuenta verificada con éxito!', 'success');
     onComplete();
   };
 
-  // Escuchar en tiempo real cada 2 segundos si el usuario ya tocó el enlace en su correo
+  // Reloj regresivo de 5 minutos (300s) y enfriamiento del botón Reenviar
   useEffect(() => {
-    if (!waitingConfirmation || !emailInput.trim()) return;
+    if (step !== 'verify') return;
+
+    const timer = setInterval(() => {
+      setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [step]);
+
+  // Escucha automática en segundo plano (cada 2 segundos) en la Pantalla 2
+  // por si el usuario toca el enlace chiquito dentro de su correo
+  useEffect(() => {
+    if (step !== 'verify' || !emailInput.trim() || secondsLeft <= 0) return;
 
     const cleanEmail = emailInput.trim().toLowerCase();
     const interval = setInterval(async () => {
@@ -69,7 +96,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [waitingConfirmation, emailInput, fullName, pendingToken]);
+  }, [step, emailInput, fullName, pendingToken, secondsLeft]);
 
   /* ==================== BLOQUE PROTEGIDO: ACCESO NATIVO GOOGLE ==================== */
   const handleContinueWithGoogle = async () => {
@@ -102,9 +129,9 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   };
   /* ==================== FIN BLOQUE PROTEGIDO ==================== */
 
-  // Envío del enlace de confirmación al correo
-  const handleRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Enviar código de 6 dígitos + enlace al correo y pasar a la Pantalla 2
+  const handleRegisterSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setErrorMsg(null);
 
     const cleanName = fullName.trim();
@@ -128,36 +155,231 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
         if (res.token) {
           setPendingToken(res.token);
         }
-        setWaitingConfirmation(true);
-        showToast(`Enlace de confirmación enviado a ${cleanEmail}`, 'success');
+        setPinDigits(['', '', '', '', '', '']);
+        setSecondsLeft(300); // Reinicia los 5 minutos exactos
+        setResendCooldown(20);
+        setStep('verify');
+        showToast(`Código enviado a ${cleanEmail}`, 'success');
+        setTimeout(() => {
+          inputRefs.current[0]?.focus();
+        }, 120);
       } else {
-        setErrorMsg(res.error || 'No se pudo enviar el correo de confirmación.');
+        setErrorMsg(res.error || 'No se pudo enviar el correo de verificación.');
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Error al enviar el correo de confirmación.');
+      setErrorMsg(err?.message || 'Error al enviar el correo de verificación.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Verificar manualmente si el usuario ya presionó el enlace
-  const handleManualCheck = async () => {
-    const cleanEmail = emailInput.trim().toLowerCase();
-    const status = await checkEmailConfirmationStatus(cleanEmail, pendingToken);
-    if (status.confirmed) {
-      completeRegistration(status.email || cleanEmail, status.firstName || fullName);
+  // Verificar los 6 dígitos ingresados en las cajitas
+  const verifySixDigits = async (codeToVerify: string) => {
+    if (isVerifyingPin) return;
+    setErrorMsg(null);
+
+    if (secondsLeft <= 0) {
+      setErrorMsg('El código ha caducado (válido solo por 5 minutos). Toca "Reenviar código".');
       return;
     }
-    if (pendingToken) {
-      const res = await verifyMagicLink(pendingToken);
+
+    if (codeToVerify.length !== 6) {
+      setErrorMsg('Por favor ingresa los 6 dígitos del código que enviamos a tu correo.');
+      return;
+    }
+
+    setIsVerifyingPin(true);
+    try {
+      const cleanEmail = emailInput.trim().toLowerCase();
+      const res = await verifyEmailPin(cleanEmail, codeToVerify, pendingToken);
       if (res.success) {
         completeRegistration(res.email || cleanEmail, res.firstName || fullName);
-        return;
+      } else {
+        setErrorMsg(res.error || 'El código ingresado es incorrecto.');
       }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error al verificar el código.');
+    } finally {
+      setIsVerifyingPin(false);
     }
-    showToast('Aún no detectamos la confirmación. Abre el enlace en tu correo.', 'info');
   };
 
+  // Manejo de escritura en cada una de las 6 cajitas
+  const handleDigitChange = (index: number, value: string) => {
+    const cleanVal = value.replace(/\D/g, '');
+    if (errorMsg) setErrorMsg(null);
+
+    // Si el usuario pega los 6 dígitos de golpe
+    if (cleanVal.length > 1) {
+      const chars = cleanVal.slice(0, 6).split('');
+      const nextDigits = [...pinDigits];
+      for (let i = 0; i < 6; i++) {
+        nextDigits[i] = chars[i] || '';
+      }
+      setPinDigits(nextDigits);
+      const focusIdx = Math.min(chars.length, 5);
+      inputRefs.current[focusIdx]?.focus();
+      if (chars.length === 6) {
+        verifySixDigits(chars.join(''));
+      }
+      return;
+    }
+
+    const digit = cleanVal.slice(-1);
+    const nextDigits = [...pinDigits];
+    nextDigits[index] = digit;
+    setPinDigits(nextDigits);
+
+    if (digit && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+
+    const joined = nextDigits.join('');
+    if (digit && index === 5 && joined.length === 6) {
+      verifySixDigits(joined);
+    }
+  };
+
+  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !pinDigits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const formatCountdown = (totalSec: number) => {
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  // ==================== PANTALLA 2: VERIFICAR CÓDIGO DE 6 DÍGITOS (O ENLACE EN SEGUNDO PLANO) ====================
+  if (step === 'verify') {
+    const isExpired = secondsLeft <= 0;
+    const currentCode = pinDigits.join('');
+
+    return (
+      <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-[#f8fafc]">
+        <div className="w-full max-w-[350px] sm:max-w-[370px] flex flex-col items-center animate-in fade-in duration-200">
+          {/* Ícono de correo */}
+          <div className="w-14 h-14 rounded-2xl bg-[#dbeafe] flex items-center justify-center text-[#2563eb] mb-3 shadow-xs">
+            <Mail className="w-7 h-7 stroke-[2.2]" />
+          </div>
+
+          <h1 className="text-[24px] font-bold text-[#111827] tracking-tight text-center">
+            Verifica tu correo
+          </h1>
+          <p className="text-[14px] text-[#4b5563] text-center mt-1.5 mb-4 leading-relaxed">
+            Enviamos un código de 6 dígitos a{' '}
+            <span className="font-semibold text-[#111827] break-all">{emailInput.trim()}</span>
+          </p>
+
+          {/* Contador de vigencia de 5 minutos */}
+          <div
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-5 border ${
+              isExpired
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : secondsLeft <= 60
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-blue-50 text-[#2563eb] border-blue-200'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>
+              {isExpired
+                ? 'Código caducado (límite de 5 min)'
+                : `Válido por ${formatCountdown(secondsLeft)}`}
+            </span>
+          </div>
+
+          {/* Las 6 cajitas para el código */}
+          <div className="w-full flex items-center justify-between gap-2 mb-4">
+            {pinDigits.map((digit, idx) => (
+              <input
+                key={idx}
+                ref={(el) => {
+                  inputRefs.current[idx] = el;
+                }}
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                disabled={isExpired || isVerifyingPin}
+                value={digit}
+                onChange={(e) => handleDigitChange(idx, e.target.value)}
+                onKeyDown={(e) => handleDigitKeyDown(idx, e)}
+                className="w-11 h-13 sm:w-12 sm:h-14 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-center text-[20px] font-bold text-[#111827] bg-white outline-none transition-all disabled:bg-slate-100 disabled:text-slate-400"
+              />
+            ))}
+          </div>
+
+          {/* Mensaje de error si el código es incorrecto o expiró */}
+          {errorMsg && (
+            <div className="w-full p-3 mb-3 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-700 text-xs text-left animate-in fade-in duration-150">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {/* Botón Verificar código */}
+          <button
+            type="button"
+            onClick={() => verifySixDigits(currentCode)}
+            disabled={isVerifyingPin || isExpired || currentCode.length !== 6}
+            className="w-full h-[50px] rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] active:bg-[#1e40af] text-white font-medium text-[15px] transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-55"
+          >
+            {isVerifyingPin ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Verificando...</span>
+              </>
+            ) : (
+              <span>Verificar código</span>
+            )}
+          </button>
+
+          {/* Indicador discreto de que también escucha el enlace en segundo plano */}
+          {!isExpired && (
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 mt-3">
+              <Loader2 className="w-3 h-3 animate-spin text-[#2563eb]" />
+              <span>También puedes tocar el enlace dentro del correo</span>
+            </div>
+          )}
+
+          {/* Botones inferiores: Reenviar código y Cambiar correo */}
+          <div className="w-full flex items-center justify-between mt-6 pt-4 border-t border-slate-200 text-[13px]">
+            <button
+              type="button"
+              onClick={() => handleRegisterSubmit()}
+              disabled={isSubmitting || resendCooldown > 0}
+              className="inline-flex items-center gap-1.5 text-[#2563eb] hover:underline font-medium cursor-pointer disabled:text-slate-400 disabled:no-underline"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
+              <span>
+                {isSubmitting
+                  ? 'Enviando...'
+                  : resendCooldown > 0
+                  ? `Reenviar (${resendCooldown}s)`
+                  : 'Reenviar código'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setStep('form');
+                setErrorMsg(null);
+              }}
+              className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-700 hover:underline cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Cambiar correo</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== PANTALLA 1: FORMULARIO PRINCIPAL ====================
   return (
     <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-[#f8fafc]">
       <div className="w-full max-w-[340px] sm:max-w-[360px] flex flex-col items-center animate-in fade-in duration-200">
@@ -181,13 +403,12 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               type="text"
               autoComplete="name"
               placeholder="Nombre completo"
-              disabled={waitingConfirmation}
               value={fullName}
               onChange={(e) => {
                 setFullName(e.target.value);
                 if (errorMsg) setErrorMsg(null);
               }}
-              className="w-full h-[52px] px-4 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-[#111827] text-[15px] placeholder-[#9ca3af] outline-none transition-all bg-white disabled:bg-slate-100 disabled:text-slate-500"
+              className="w-full h-[52px] px-4 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-[#111827] text-[15px] placeholder-[#9ca3af] outline-none transition-all bg-white"
             />
           </div>
 
@@ -196,13 +417,12 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               type="email"
               autoComplete="email"
               placeholder="correo@ejemplo.com"
-              disabled={waitingConfirmation}
               value={emailInput}
               onChange={(e) => {
                 setEmailInput(e.target.value);
                 if (errorMsg) setErrorMsg(null);
               }}
-              className="w-full h-[52px] px-4 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-[#111827] text-[15px] placeholder-[#9ca3af] outline-none transition-all bg-white disabled:bg-slate-100 disabled:text-slate-500"
+              className="w-full h-[52px] px-4 rounded-xl border border-[#d1d5db] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 text-[#111827] text-[15px] placeholder-[#9ca3af] outline-none transition-all bg-white"
             />
           </div>
 
@@ -214,72 +434,21 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             </div>
           )}
 
-          {/* Tarjeta en la misma pantalla cuando ya se envió el enlace al correo */}
-          {waitingConfirmation ? (
-            <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 text-center space-y-3 animate-in fade-in duration-200">
-              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-[#2563eb]">
-                <Mail className="w-5 h-5" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-[14px] font-semibold text-[#1e3a8a]">
-                  Revisa tu correo electrónico
-                </p>
-                <p className="text-[12px] text-[#3b82f6] leading-relaxed">
-                  Enviamos un enlace de confirmación a <strong>{emailInput.trim()}</strong>. Toca el botón dentro del correo y entrarás automáticamente.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-center gap-2 text-[12px] text-[#2563eb] font-medium py-1">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Esperando confirmación del enlace...</span>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleManualCheck}
-                className="w-full h-[44px] rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-[14px] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Ya confirmé mi correo</span>
-              </button>
-
-              <div className="flex items-center justify-between pt-1 px-1 text-[12px]">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="text-[#2563eb] hover:underline font-medium cursor-pointer"
-                >
-                  {isSubmitting ? 'Reenviando...' : 'Reenviar enlace'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setWaitingConfirmation(false);
-                    setErrorMsg(null);
-                  }}
-                  className="text-slate-500 hover:underline cursor-pointer"
-                >
-                  Cambiar correo
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* Botón azul Registrarme */
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full h-[52px] rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] active:bg-[#1e40af] text-white font-medium text-[16px] transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 mt-1"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Enviando enlace...</span>
-                </>
-              ) : (
-                <span>Registrarme</span>
-              )}
-            </button>
-          )}
+          {/* Botón azul Registrarme */}
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full h-[52px] rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] active:bg-[#1e40af] text-white font-medium text-[16px] transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 mt-1"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Enviando código...</span>
+              </>
+            ) : (
+              <span>Registrarme</span>
+            )}
+          </button>
         </form>
 
         {/* Divisor con la "o" al centro */}

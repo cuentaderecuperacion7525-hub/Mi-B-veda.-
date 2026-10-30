@@ -55,7 +55,7 @@
     },
     "EmailVerification": {
       "title": "Email Verification Request",
-      "description": "Pending and confirmed email link verification tokens for registration",
+      "description": "Pending and confirmed email PIN and link verification tokens for registration (valid for 5 minutes, single-use)",
       "type": "object",
       "properties": {
         "token": {
@@ -71,13 +71,17 @@
           "type": "string",
           "description": "Full name typed by the user"
         },
+        "pin": {
+          "type": "string",
+          "description": "6-digit verification PIN code"
+        },
         "status": {
           "type": "string",
-          "description": "Status: pending, sent, confirmed, or error"
+          "description": "Status: pending, sending, sent, confirmed, used, superseded, expired, or error"
         },
         "confirmed": {
           "type": "boolean",
-          "description": "Whether the user clicked the confirmation link"
+          "description": "Whether the user confirmed via link or PIN"
         },
         "createdAt": {
           "type": "string",
