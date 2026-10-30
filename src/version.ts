@@ -10,16 +10,16 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const APP_VERSION = '1.2.45';
+export const APP_VERSION = '1.2.46';
 export const CURRENT_APP_VERSION = APP_VERSION;
-export const CURRENT_BUILD_NUMBER = 1045;
-export const CURRENT_RELEASE_DATE = '28 oct 2026';
+export const CURRENT_BUILD_NUMBER = 1046;
+export const CURRENT_RELEASE_DATE = '30 oct 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
-  'Nueva pantalla de registro con Nombre, Correo y Contraseña, y verificación de identidad con PIN de 6 dígitos enviado por correo.',
-  'Compatibilidad universal para usuarios sin cuenta de Google (Outlook, Yahoo, Hotmail, etc.) manteniendo intacto el inicio de sesión oficial de Google.',
-  'Integración con servicio de despacho de correos en tiempo real con Resend.',
-  'Diseño visual limpio, adaptativo y fiel a la interfaz de usuario de Mi Bóveda.'
+  'Nuevo diseño minimalista de registro e inicio de sesión con campos de línea inferior e iconos lineales.',
+  'Validación inteligente en tiempo real para Nombres y Apellidos reales y desplegable dinámico de requisitos de contraseña (máx. 12 caracteres, mayúscula y número).',
+  'PIN de confirmación de 6 dígitos optimizado en una sola línea junto con enlace secundario compacto.',
+  'Seguridad reforzada: caducidad estricta a los 5 minutos, uso único y cancelación automática de códigos anteriores.'
 ];
 
 export const APP_VERSION_METADATA: VersionInfo = {

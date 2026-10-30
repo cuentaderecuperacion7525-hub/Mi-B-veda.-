@@ -49,9 +49,58 @@ function sanitizePersonNameInput(raw: string): string {
 }
 
 /**
- * Detector de nombre/apellido real:
- * Verifica que no sean garabatos ("asdf", "xxxx", puras consonantes o puras vocales)
- * y que cada palabra tenga estructura fonética real.
+ * Grupos de 2 consonantes válidos al inicio de un nombre o apellido real.
+ */
+const VALID_INITIAL_CLUSTERS = new Set([
+  'bl', 'br', 'cl', 'cr', 'dr', 'fl', 'fr', 'gl', 'gr', 'pl', 'pr', 'tr',
+  'ch', 'll', 'qu', 'sh', 'st', 'sp', 'sc', 'sm', 'sn', 'kh', 'ph', 'th', 'vl', 'tz', 'tl',
+]);
+
+/**
+ * Grupos de 2 consonantes válidos en el interior de un nombre o apellido real en español.
+ */
+const VALID_INTERNAL_PAIRS = new Set([
+  // Licuantes + líquidas y dígrafos
+  'bl', 'br', 'cl', 'cr', 'dr', 'fl', 'fr', 'gl', 'gr', 'pl', 'pr', 'tr',
+  'ch', 'll', 'rr', 'qu', 'sh', 'ph', 'th', 'kh', 'tz', 'tl',
+  // N + consonante válida
+  'nb', 'nc', 'nd', 'nf', 'ng', 'nh', 'nj', 'nk', 'nl', 'nm', 'nn', 'np', 'nq', 'nr', 'ns', 'nt', 'nv', 'nx', 'nz',
+  // M + consonante válida
+  'mb', 'mp', 'mn', 'mm',
+  // L + consonante válida
+  'lb', 'lc', 'ld', 'lf', 'lg', 'lj', 'lk', 'lm', 'ln', 'lp', 'lq', 'lr', 'ls', 'lt', 'lv', 'lz',
+  // R + consonante válida
+  'rb', 'rc', 'rd', 'rf', 'rg', 'rj', 'rk', 'rl', 'rm', 'rn', 'rp', 'rq', 'rs', 'rt', 'rv', 'rz',
+  // S + consonante válida
+  'sb', 'sc', 'sd', 'sf', 'sg', 'sk', 'sl', 'sm', 'sn', 'sp', 'sq', 'sr', 'st', 'sv', 'sz',
+  // Z / D / B / C / G / P / T / X combinaciones reales (ej. Vázquez, Guzmán, Víctor, Héctor, Magdalena, Abraham)
+  'zc', 'zg', 'zk', 'zl', 'zm', 'zn', 'zq', 'zr', 'zt', 'zv',
+  'dm', 'dq', 'dv', 'dz',
+  'bd', 'bj', 'bn', 'bs', 'bt', 'bv',
+  'cc', 'ck', 'ct',
+  'gd', 'gm', 'gn',
+  'pt', 'ps',
+  'ts', 'tt',
+  'xc', 'xp', 'xt',
+]);
+
+/**
+ * Grupos de 3 consonantes válidos en español (ej. Contreras, Estrada, Castro, Sánchez, Alejandro, Constanza).
+ */
+const VALID_THREE_CONSONANTS = new Set([
+  'ntr', 'ndr', 'npl', 'npr', 'nbl', 'nbr', 'ncl', 'ncr', 'ngl', 'ngr', 'nfl', 'nfr',
+  'mbr', 'mbl', 'mpr', 'mpl',
+  'str', 'spl', 'spr', 'scl', 'scr',
+  'rtr', 'rpl', 'rpr', 'rbl', 'rbr', 'rcl', 'rcr', 'rgl', 'rgr', 'rfl', 'rfr',
+  'ltr', 'lpl', 'lpr', 'lbl', 'lbr', 'lcl', 'lcr', 'lgl', 'lgr',
+  'nst', 'nsp', 'nsc', 'rst', 'rsp', 'rsc', 'lst', 'lsp',
+  'nch', 'rch', 'lch', 'sch', 'chr',
+  'nll', 'rll', 'nrr',
+]);
+
+/**
+ * Detector fonético estricto de nombres y apellidos reales:
+ * Bloquea cualquier combinación de letras tecleadas al azar (como "jdjsjwiw", "idnwiwqv", "xxx", "asdf").
  */
 function validateRealPersonName(value: string, fieldLabel: string): { valid: boolean; error?: string } {
   const clean = value.trim();
@@ -64,42 +113,118 @@ function validateRealPersonName(value: string, fieldLabel: string): { valid: boo
     return { valid: false, error: `Por favor ingresa un ${fieldLabel.toLowerCase()} válido.` };
   }
 
-  const keyboardTrashPattern = /(asdf|qwer|zxcv|hjkl|yuio|bnm|poiuy|lkjh|mnbv|abcd|bcde|xyz)/i;
-  const repeatedCharsPattern = /(.)\1\1/i; // 3 letras idénticas seguidas (ej. "aaa", "xxx")
-  const fourConsonantsPattern = /[bcdfghjklmnñpqrstvwxz]{4,}/i;
-  const fourVowelsPattern = /[aeiouáéíóúü]{4,}/i;
-  const vowelRegex = /[aeiouáéíóúüy]/i;
-  const consonantRegex = /[bcdfghjklmnñpqrstvwxz]/i;
+  const keyboardTrashPattern =
+    /(asdf|fdsa|qwer|rewq|zxcv|vcxz|hjkl|lkjh|yuio|oiuy|bnm|poiuy|mnbv|abcd|bcde|xyz|wxyz|qaz|wsx|edc|rfv|tgb|yhn|ujm)/i;
 
-  for (const word of words) {
-    if (word.length < 2) {
+  for (const rawWord of words) {
+    // Normalizar acentos a vocales simples para el análisis fonético
+    const w = rawWord
+      .toLowerCase()
+      .replace(/á/g, 'a')
+      .replace(/é/g, 'e')
+      .replace(/í/g, 'i')
+      .replace(/ó/g, 'o')
+      .replace(/ú|ü/g, 'u');
+
+    if (w.length < 2) {
       return {
         valid: false,
-        error: `Cada ${fieldLabel.toLowerCase()} debe tener al menos 2 letras reales.`,
+        error: `Cada ${fieldLabel.toLowerCase()} debe tener al menos 2 letras.`,
       };
     }
-    if (word.length > 25) {
+    if (w.length > 22) {
       return {
         valid: false,
         error: `El ${fieldLabel.toLowerCase()} ingresado es demasiado largo.`,
       };
     }
-    if (
-      keyboardTrashPattern.test(word) ||
-      repeatedCharsPattern.test(word) ||
-      fourConsonantsPattern.test(word) ||
-      fourVowelsPattern.test(word)
-    ) {
+
+    // 1. Bloquear secuencias de teclado o 3 letras iguales seguidas ("xxx", "aaa")
+    if (keyboardTrashPattern.test(w) || /(.)\1\1/.test(w)) {
       return {
         valid: false,
-        error: `Por favor escribe un ${fieldLabel.toLowerCase()} real (sin letras al azar).`,
+        error: `"${rawWord}" no es un ${fieldLabel.toLowerCase()} real válido.`,
       };
     }
-    if (!vowelRegex.test(word) || !consonantRegex.test(word)) {
+
+    // 2. Regla de la Q: en nombres reales siempre va seguida de 'u' + vocal (que, qui, qua)
+    if (/q(?!u[aeiou])/.test(w)) {
       return {
         valid: false,
-        error: `Por favor ingresa un ${fieldLabel.toLowerCase()} real válido.`,
+        error: `"${rawWord}" no es un ${fieldLabel.toLowerCase()} real válido.`,
       };
+    }
+
+    // 3. Letras finales inválidas en nombres/apellidos reales (ninguno termina en w, q, v, j)
+    if (/[wqvj]$/.test(w)) {
+      return {
+        valid: false,
+        error: `"${rawWord}" no es un ${fieldLabel.toLowerCase()} real válido.`,
+      };
+    }
+
+    // 4. Exceso de letras poco frecuentes (w, x, k, q, j, z) en una misma palabra (ej. "jdjsjwiw")
+    const rareCount = (w.match(/[wxkq]/g) || []).length;
+    const jwCount = (w.match(/[jw]/g) || []).length;
+    if (rareCount >= 2 || jwCount >= 3 || (w.match(/w/g) || []).length >= 2) {
+      return {
+        valid: false,
+        error: `"${rawWord}" no parece un ${fieldLabel.toLowerCase()} real.`,
+      };
+    }
+
+    // 5. Proporción de vocales vs consonantes (mínimo 34% vocales, máximo 75%)
+    const vowels = (w.match(/[aeiouy]/g) || []).length;
+    const consonants = w.length - vowels;
+    const vowelRatio = vowels / w.length;
+
+    if (vowels === 0 || consonants === 0 || vowelRatio < 0.34 || vowelRatio > 0.78) {
+      return {
+        valid: false,
+        error: `"${rawWord}" no parece un ${fieldLabel.toLowerCase()} real.`,
+      };
+    }
+
+    // 6. No más de 3 vocales seguidas ni 4 consonantes seguidas
+    if (/[aeiou]{4,}/.test(w) || /[bcdfghjklmnñpqrstvwxz]{4,}/.test(w)) {
+      return {
+        valid: false,
+        error: `"${rawWord}" no es un ${fieldLabel.toLowerCase()} real válido.`,
+      };
+    }
+
+    // 7. Validar grupos de 2 consonantes al inicio de la palabra (ej. bloquea "jd...", "nw...", "wq...")
+    const initialClusterMatch = w.match(/^([bcdfghjklmnñpqrstvwxz]{2})/);
+    if (initialClusterMatch) {
+      const cluster = initialClusterMatch[1];
+      if (!VALID_INITIAL_CLUSTERS.has(cluster)) {
+        return {
+          valid: false,
+          error: `"${rawWord}" contiene combinaciones de letras que no corresponden a un ${fieldLabel.toLowerCase()} real.`,
+        };
+      }
+    }
+
+    // 8. Validar grupos de 3 consonantes seguidas (ej. bloquea "jdj", "sjw", "dnw", "wqv")
+    const threeConsonantMatches = w.match(/[bcdfghjklmnñpqrstvwxz]{3}/g) || [];
+    for (const c3 of threeConsonantMatches) {
+      if (!VALID_THREE_CONSONANTS.has(c3)) {
+        return {
+          valid: false,
+          error: `"${rawWord}" no es un ${fieldLabel.toLowerCase()} real válido.`,
+        };
+      }
+    }
+
+    // 9. Validar todos los pares de consonantes internas (ej. bloquea "jd", "js", "jw", "dn", "nw", "wq", "qv")
+    const twoConsonantMatches = w.match(/[bcdfghjklmnñpqrstvwxz]{2}/g) || [];
+    for (const c2 of twoConsonantMatches) {
+      if (!VALID_INTERNAL_PAIRS.has(c2)) {
+        return {
+          valid: false,
+          error: `"${rawWord}" no es un ${fieldLabel.toLowerCase()} real válido.`,
+        };
+      }
     }
   }
 
@@ -119,6 +244,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
 
   // Estados de la Pantalla 2 (6 dígitos, contador de 5 minutos, token activo)
   const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '', '', '']);
@@ -141,9 +267,16 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   const passHasNumber = /\d/.test(passwordInput);
   const isPasswordAllValid = passHasValidLength && passHasUppercase && passHasNumber;
 
+  // El desplegable dinámico se abre al instante cuando el campo Contraseña recibe foco o el usuario comienza a escribir
+  const showPasswordDropdown = !step.includes('login') && (isPasswordFocused || passwordInput.length > 0);
+
   // Evaluación en tiempo real de Nombre y Apellidos reales
-  const isFirstNameReal = firstName.trim().length >= 2 && validateRealPersonName(firstName, 'Nombre').valid;
-  const isLastNameReal = lastName.trim().length >= 2 && validateRealPersonName(lastName, 'Apellidos').valid;
+  const firstNameValidation = validateRealPersonName(firstName, 'Nombre');
+  const lastNameValidation = validateRealPersonName(lastName, 'Apellidos');
+  const isFirstNameReal = firstName.trim().length >= 2 && firstNameValidation.valid;
+  const isLastNameReal = lastName.trim().length >= 2 && lastNameValidation.valid;
+  const isFirstNameInvalid = firstName.trim().length >= 2 && !firstNameValidation.valid;
+  const isLastNameInvalid = lastName.trim().length >= 2 && !lastNameValidation.valid;
 
   // Finalizar registro o login y pasar a la bóveda
   const completeRegistration = async (email: string, fName: string, lName?: string, saveCloudAccount = true) => {
@@ -271,6 +404,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     }
 
     if (!isPasswordAllValid) {
+      setIsPasswordFocused(true);
       setErrorMsg('La contraseña debe tener entre 6 y 12 caracteres, al menos una mayúscula y un número.');
       return;
     }
@@ -571,7 +705,13 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             <>
               {/* 1. Campo "Nombre" con icono lineal de usuario */}
               <div className="w-full">
-                <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
+                <div
+                  className={`flex items-center border-b pb-2.5 transition-colors ${
+                    isFirstNameInvalid
+                      ? 'border-rose-500 dark:border-rose-500'
+                      : 'border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400'
+                  }`}
+                >
                   <User className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
                   <input
                     type="text"
@@ -588,11 +728,22 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                     <Check className="w-4 h-4 text-emerald-500 stroke-[2.2] shrink-0" />
                   )}
                 </div>
+                {isFirstNameInvalid && (
+                  <p className="mt-1 pl-1 text-[11px] text-rose-500 dark:text-rose-400 animate-in fade-in duration-150">
+                    {firstNameValidation.error || 'Ingresa un nombre real válido.'}
+                  </p>
+                )}
               </div>
 
               {/* 2. Campo "Apellidos" con icono lineal de tarjeta de identidad */}
               <div className="w-full">
-                <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
+                <div
+                  className={`flex items-center border-b pb-2.5 transition-colors ${
+                    isLastNameInvalid
+                      ? 'border-rose-500 dark:border-rose-500'
+                      : 'border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400'
+                  }`}
+                >
                   <IdCard className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
                   <input
                     type="text"
@@ -609,6 +760,11 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                     <Check className="w-4 h-4 text-emerald-500 stroke-[2.2] shrink-0" />
                   )}
                 </div>
+                {isLastNameInvalid && (
+                  <p className="mt-1 pl-1 text-[11px] text-rose-500 dark:text-rose-400 animate-in fade-in duration-150">
+                    {lastNameValidation.error || 'Ingresa apellidos reales válidos.'}
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -631,7 +787,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             </div>
           </div>
 
-          {/* 4. Campo "Contraseña" con candado a la izquierda, ojo a la derecha y máximo 12 caracteres */}
+          {/* 4. Campo "Contraseña" con candado a la izquierda, ojo a la derecha y desplegable dinámico */}
           <div className="w-full">
             <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
               <Lock className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
@@ -641,6 +797,8 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                 placeholder="Contraseña"
                 maxLength={12}
                 value={passwordInput}
+                onFocus={() => setIsPasswordFocused(true)}
+                onBlur={() => setIsPasswordFocused(false)}
                 onChange={(e) => {
                   setPasswordInput(e.target.value.slice(0, 12));
                   if (errorMsg) setErrorMsg(null);
@@ -650,6 +808,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               <button
                 type="button"
                 tabIndex={-1}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setShowPassword((prev) => !prev)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer p-0.5 shrink-0"
                 aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
@@ -662,52 +821,66 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               </button>
             </div>
 
-            {/* Indicadores con palomita (✓) en tiempo real debajo del campo Contraseña (solo en Crear cuenta) */}
+            {/* Desplegable dinámico que aparece instantáneamente cuando el campo recibe foco o el usuario comienza a escribir */}
             {!isLoginMode && (
-              <div className="mt-2.5 space-y-1 pl-1">
-                <div
-                  className={`flex items-center gap-1.5 text-[11.5px] transition-colors ${
-                    passHasValidLength
-                      ? 'text-emerald-600 dark:text-emerald-400 font-medium'
-                      : 'text-slate-400 dark:text-slate-500'
-                  }`}
-                >
-                  <Check
-                    className={`w-3.5 h-3.5 shrink-0 transition-opacity ${
-                      passHasValidLength ? 'opacity-100 stroke-[2.5]' : 'opacity-35 stroke-[1.7]'
+              <div
+                className={`overflow-hidden transition-all duration-200 ease-out ${
+                  showPasswordDropdown
+                    ? 'max-h-36 opacity-100 mt-2.5'
+                    : 'max-h-0 opacity-0 mt-0 pointer-events-none'
+                }`}
+              >
+                <div className="rounded-xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 px-3 py-2.5 space-y-1.5">
+                  <div
+                    className={`flex items-center gap-2 text-[11.5px] transition-colors ${
+                      passHasValidLength
+                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                        : 'text-slate-500 dark:text-slate-400'
                     }`}
-                  />
-                  <span>Entre 6 y 12 caracteres ({passwordInput.length}/12)</span>
-                </div>
+                  >
+                    <Check
+                      className={`w-3.5 h-3.5 shrink-0 transition-all ${
+                        passHasValidLength
+                          ? 'opacity-100 stroke-[2.6] text-emerald-500'
+                          : 'opacity-30 stroke-[1.7]'
+                      }`}
+                    />
+                    <span>Entre 6 y 12 caracteres ({passwordInput.length}/12)</span>
+                  </div>
 
-                <div
-                  className={`flex items-center gap-1.5 text-[11.5px] transition-colors ${
-                    passHasUppercase
-                      ? 'text-emerald-600 dark:text-emerald-400 font-medium'
-                      : 'text-slate-400 dark:text-slate-500'
-                  }`}
-                >
-                  <Check
-                    className={`w-3.5 h-3.5 shrink-0 transition-opacity ${
-                      passHasUppercase ? 'opacity-100 stroke-[2.5]' : 'opacity-35 stroke-[1.7]'
+                  <div
+                    className={`flex items-center gap-2 text-[11.5px] transition-colors ${
+                      passHasUppercase
+                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                        : 'text-slate-500 dark:text-slate-400'
                     }`}
-                  />
-                  <span>Al menos una letra mayúscula (A-Z)</span>
-                </div>
+                  >
+                    <Check
+                      className={`w-3.5 h-3.5 shrink-0 transition-all ${
+                        passHasUppercase
+                          ? 'opacity-100 stroke-[2.6] text-emerald-500'
+                          : 'opacity-30 stroke-[1.7]'
+                      }`}
+                    />
+                    <span>Al menos una letra mayúscula (A-Z)</span>
+                  </div>
 
-                <div
-                  className={`flex items-center gap-1.5 text-[11.5px] transition-colors ${
-                    passHasNumber
-                      ? 'text-emerald-600 dark:text-emerald-400 font-medium'
-                      : 'text-slate-400 dark:text-slate-500'
-                  }`}
-                >
-                  <Check
-                    className={`w-3.5 h-3.5 shrink-0 transition-opacity ${
-                      passHasNumber ? 'opacity-100 stroke-[2.5]' : 'opacity-35 stroke-[1.7]'
+                  <div
+                    className={`flex items-center gap-2 text-[11.5px] transition-colors ${
+                      passHasNumber
+                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                        : 'text-slate-500 dark:text-slate-400'
                     }`}
-                  />
-                  <span>Al menos un número (0-9)</span>
+                  >
+                    <Check
+                      className={`w-3.5 h-3.5 shrink-0 transition-all ${
+                        passHasNumber
+                          ? 'opacity-100 stroke-[2.6] text-emerald-500'
+                          : 'opacity-30 stroke-[1.7]'
+                      }`}
+                    />
+                    <span>Al menos un número (0-9)</span>
+                  </div>
                 </div>
               </div>
             )}

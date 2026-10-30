@@ -1,15 +1,15 @@
 {
-  "version": "1.2.45",
-  "version_name": "1.2.45",
-  "buildNumber": 1045,
-  "version_code": 1045,
+  "version": "1.2.46",
+  "version_name": "1.2.46",
+  "buildNumber": 1046,
+  "version_code": 1046,
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Mi-B-veda.-/releases/latest/download/Boveda-Calculadora.apk",
-  "releaseDate": "28 de Octubre, 2026",
+  "releaseDate": "30 de Octubre, 2026",
   "changelog": [
-    "Nueva pantalla de registro con Nombre, Correo y Contraseña, y verificación de identidad con PIN de 6 dígitos enviado por correo.",
-    "Compatibilidad universal para usuarios sin cuenta de Google (Outlook, Yahoo, Hotmail, etc.) manteniendo intacto el inicio de sesión oficial de Google.",
-    "Integración con servicio de despacho de correos en tiempo real con Resend.",
-    "Diseño visual limpio, adaptativo y fiel a la interfaz de usuario de Mi Bóveda."
+    "Nuevo diseño minimalista de registro e inicio de sesión con campos de línea inferior e iconos lineales.",
+    "Validación inteligente en tiempo real para Nombres y Apellidos reales y desplegable dinámico de requisitos de contraseña (máx. 12 caracteres, mayúscula y número).",
+    "PIN de confirmación de 6 dígitos optimizado en una sola línea junto con enlace secundario compacto.",
+    "Seguridad reforzada: caducidad estricta a los 5 minutos, uso único y cancelación automática de códigos anteriores."
   ],
   "mandatory": false
 }
