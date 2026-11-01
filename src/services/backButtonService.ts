@@ -46,8 +46,15 @@ export function initBackButtonListener() {
   if (isListenerAttached || typeof window === 'undefined') return;
   isListenerAttached = true;
 
+  // Ensure a base history entry exists so Android edge-swipe back triggers popstate instead of closing the app immediately
+  try {
+    if (!window.history.state) {
+      window.history.pushState({ vaultRoot: true }, '');
+    }
+  } catch {}
+
   if (Capacitor.isNativePlatform()) {
-    CapacitorApp.addListener('backButton', async (data) => {
+    CapacitorApp.addListener('backButton', async () => {
       // Execute highest priority handler first
       for (const entry of [...handlers]) {
         try {
@@ -77,12 +84,22 @@ export function initBackButtonListener() {
     });
   }
 
-  // Also handle popstate for web / PWA
+  // Also handle popstate for web / PWA / Android WebView gesture navigation
   window.addEventListener('popstate', () => {
+    if ((window as any).__ignoreNextPopState) {
+      (window as any).__ignoreNextPopState = false;
+      return;
+    }
+
     for (const entry of [...handlers]) {
       try {
         const result = entry.handler();
         if (result !== false) {
+          try {
+            if (!window.history.state) {
+              window.history.pushState({ vaultRoot: true }, '');
+            }
+          } catch {}
           return;
         }
       } catch (e) {
