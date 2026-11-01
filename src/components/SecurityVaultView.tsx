@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Shield,
   Camera,
@@ -49,6 +49,7 @@ import {
 import { rebindRecoveryKeyToNewMasterKey } from '../services/recoveryKeyService';
 import { flipToLockService } from '../services/flipToLockService';
 import { registerBackHandler } from '../services/backButtonService';
+import { themeService, VaultTheme } from '../services/themeService';
 import { PinKeypad } from './PinKeypad';
 import { NeonSwitch } from './NeonSwitch';
 import { getAllEncryptedItems, saveEncryptedItems, EncryptedVaultItem } from '../db/vaultDb';
@@ -175,7 +176,16 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
     );
   };
 
+  // Theme state for dedicated screens
+  const [currentTheme, setCurrentTheme] = useState<VaultTheme>(() => themeService.getTheme());
+  useEffect(() => {
+    return themeService.subscribe((t) => setCurrentTheme(t));
+  }, []);
+  const isLightTheme = currentTheme === 'light';
+
   // Change PIN states
+  const [showChangePinScreen, setShowChangePinScreen] = useState(false);
+  const [focusedPinField, setFocusedPinField] = useState<'current' | 'new' | 'confirm' | null>('new');
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmNewPin, setConfirmNewPin] = useState('');
@@ -186,18 +196,96 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   const [pinChangeError, setPinChangeError] = useState<string | null>(null);
   const [pinChangeSuccess, setPinChangeSuccess] = useState(false);
 
+  const wasChangePinOpenRef = useRef(false);
+  const changePinTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
+  const handleCloseChangePinScreen = useCallback(() => {
+    setShowChangePinScreen(false);
+    setPinChangeError(null);
+    setPinChangeSuccess(false);
+    setCurrentPin('');
+    setNewPin('');
+    setConfirmNewPin('');
+    setShowCurrentPin(false);
+    setShowNewPin(false);
+    setShowConfirmNewPin(false);
+  }, []);
+
+  const handleToggleChangePinScreen = (enabled: boolean) => {
+    if (enabled) {
+      setCurrentPin('');
+      setNewPin('');
+      setConfirmNewPin('');
+      setShowCurrentPin(false);
+      setShowNewPin(false);
+      setShowConfirmNewPin(false);
+      setPinChangeError(null);
+      setPinChangeSuccess(false);
+      setFocusedPinField('new');
+      setShowChangePinScreen(true);
+    } else {
+      handleCloseChangePinScreen();
+    }
+  };
+
+  useEffect(() => {
+    if (showChangePinScreen && !wasChangePinOpenRef.current) {
+      wasChangePinOpenRef.current = true;
+      try {
+        window.history.pushState({ secModal: 'change_pin' }, '');
+      } catch {}
+    } else if (!showChangePinScreen && wasChangePinOpenRef.current) {
+      wasChangePinOpenRef.current = false;
+      try {
+        if (window.history.state?.secModal === 'change_pin') {
+          (window as any).__ignoreNextPopState = true;
+          window.history.back();
+        }
+      } catch {}
+    }
+  }, [showChangePinScreen]);
+
+  useEffect(() => {
+    if (!showChangePinScreen) return;
+    return registerBackHandler(
+      'sec_change_pin_screen',
+      () => {
+        wasChangePinOpenRef.current = false;
+        handleCloseChangePinScreen();
+        return true;
+      },
+      92
+    );
+  }, [showChangePinScreen, handleCloseChangePinScreen]);
+
+  // Live requirement checks for Cambiar PIN maestro card
+  const reqMinDigits = newPin.length === 4;
+  const reqPinsMatch = newPin.length === 4 && newPin === confirmNewPin;
+  const reqIsDifferent =
+    newPin.length === 4 &&
+    (currentPin.length > 0
+      ? newPin !== currentPin
+      : sessionPin
+      ? newPin !== sessionPin
+      : true);
+
   const handleChangePin = async (e: React.FormEvent) => {
     e.preventDefault();
     setPinChangeError(null);
     setPinChangeSuccess(false);
 
-    if (newPin.length < 4) {
-      setPinChangeError('El nuevo PIN debe tener al menos 4 dígitos');
+    if (newPin.length !== 4) {
+      setPinChangeError('El nuevo PIN debe tener exactamente 4 dígitos');
       return;
     }
 
     if (newPin !== confirmNewPin) {
-      setPinChangeError('Los nuevos PINs no coinciden');
+      setPinChangeError('Los dos PIN nuevos no coinciden');
+      return;
+    }
+
+    if (newPin === currentPin) {
+      setPinChangeError('El nuevo PIN debe ser distinto al PIN actual');
       return;
     }
 
@@ -273,14 +361,12 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
       await rebindRecoveryKeyToNewMasterKey(testKey, newDerivedKey);
 
       if (onMasterKeyUpdated) {
-        onMasterKeyUpdated(newDerivedKey);
+        onMasterKeyUpdated(newDerivedKey, newPin);
       }
 
       setPinChangeSuccess(true);
-      setCurrentPin('');
-      setNewPin('');
-      setConfirmNewPin('');
       showToast('PIN maestro actualizado con éxito', 'success');
+      handleCloseChangePinScreen();
     } catch (err: any) {
       console.error('Error changing PIN:', err);
       setPinChangeError(err?.message || 'Error al cambiar PIN');
@@ -933,8 +1019,8 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
           PIN Y BLOQUEO
         </h3>
 
-        {/* Políticas de Bloqueo */}
-        <div className="space-y-4 mb-5">
+        {/* Políticas de Bloqueo y Cambio de PIN */}
+        <div className="space-y-4">
           {/* Timeout */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0 pr-2">
@@ -995,115 +1081,31 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
               ariaLabel="Bloqueo al voltear boca abajo"
             />
           </div>
-        </div>
 
-        {/* Separador y Cambiar PIN */}
-        <div className="border-t border-slate-800/80 pt-4">
-          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-2">
-            <KeyRound className="w-3.5 h-3.5 text-[#00e5ff]" />
-            <span>Cambiar PIN Maestro</span>
-          </h4>
-          <p className="text-[11px] text-slate-400 mb-3">
-            Actualiza el código de 4 o más dígitos con el que desbloqueas tu bóveda.
-          </p>
-
-          <form onSubmit={handleChangePin} className="space-y-3">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">PIN Actual</label>
-              <div className="relative flex items-center">
-                <input
-                  type={showCurrentPin ? 'text' : 'password'}
-                  inputMode="numeric"
-                  value={currentPin}
-                  onChange={(e) => setCurrentPin(e.target.value)}
-                  placeholder="••••"
-                  required
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 pr-10 text-sm text-slate-100 focus:outline-none focus:border-[#00e5ff] font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPin(!showCurrentPin)}
-                  className="absolute right-2.5 text-slate-400 hover:text-slate-200 transition-colors p-1 cursor-pointer"
-                  title={showCurrentPin ? 'Ocultar PIN' : 'Ver PIN'}
-                >
-                  {showCurrentPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+          {/* Cambiar PIN maestro (Fila interactiva con flecha > que abre la pantalla de la tarjeta dedicada) */}
+          <button
+            type="button"
+            onClick={() => handleToggleChangePinScreen(true)}
+            aria-label="Cambiar PIN maestro"
+            className="w-full flex items-center justify-between pt-3 border-t border-slate-800/80 text-left cursor-pointer group active:scale-[0.99] transition-transform"
+          >
+            <div className="flex items-center gap-3 min-w-0 pr-2 flex-1">
+              <div className="w-10 h-10 rounded-xl bg-[#00e5ff]/10 border border-[#00e5ff]/20 flex items-center justify-center text-[#00e5ff] shrink-0">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-white group-hover:text-[#00e5ff] transition-colors">
+                  Cambiar PIN maestro
+                </h4>
+                <p className="text-xs text-slate-400">
+                  Actualiza el código con el que desbloqueas tu bóveda
+                </p>
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Nuevo PIN</label>
-                <div className="relative flex items-center">
-                  <input
-                    type={showNewPin ? 'text' : 'password'}
-                    inputMode="numeric"
-                    value={newPin}
-                    onChange={(e) => setNewPin(e.target.value)}
-                    placeholder="••••"
-                    required
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 pr-10 text-sm text-slate-100 focus:outline-none focus:border-[#00e5ff] font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPin(!showNewPin)}
-                    className="absolute right-2.5 text-slate-400 hover:text-slate-200 transition-colors p-1 cursor-pointer"
-                    title={showNewPin ? 'Ocultar PIN' : 'Ver PIN'}
-                  >
-                    {showNewPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Confirmar Nuevo</label>
-                <div className="relative flex items-center">
-                  <input
-                    type={showConfirmNewPin ? 'text' : 'password'}
-                    inputMode="numeric"
-                    value={confirmNewPin}
-                    onChange={(e) => setConfirmNewPin(e.target.value)}
-                    placeholder="••••"
-                    required
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 pr-10 text-sm text-slate-100 focus:outline-none focus:border-[#00e5ff] font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmNewPin(!showConfirmNewPin)}
-                    className="absolute right-2.5 text-slate-400 hover:text-slate-200 transition-colors p-1 cursor-pointer"
-                    title={showConfirmNewPin ? 'Ocultar PIN' : 'Ver PIN'}
-                  >
-                    {showConfirmNewPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+            <div className="w-8 h-8 rounded-xl bg-slate-800/60 border border-slate-700/70 flex items-center justify-center text-slate-400 group-hover:text-[#00e5ff] group-hover:border-[#00e5ff]/40 transition-all shrink-0">
+              <ChevronRight className="w-4 h-4 stroke-[2.2] group-hover:translate-x-0.5 transition-transform" />
             </div>
-
-            {pinChangeError && (
-              <div className="text-rose-400 text-xs bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
-                {pinChangeError}
-              </div>
-            )}
-
-            {pinChangeSuccess && (
-              <div className="text-emerald-400 text-xs bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20 flex items-center gap-1.5">
-                <Check className="w-3.5 h-3.5" />
-                <span>PIN actualizado con éxito.</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isChangingPin || !currentPin || !newPin || !confirmNewPin}
-              className="w-full py-2.5 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-40"
-              style={{
-                background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                boxShadow: '0 4px 14px -2px var(--theme-glow)',
-              }}
-            >
-              <KeyRound className="w-3.5 h-3.5 text-white" />
-              <span className="text-white font-bold">{isChangingPin ? 'Re-cifrando bóveda...' : 'Actualizar PIN'}</span>
-            </button>
-          </form>
+          </button>
         </div>
       </div>
 
@@ -1957,6 +1959,414 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                 Cancelar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pantalla dedicada: Cambiar PIN maestro (solo tarjeta) */}
+      {showChangePinScreen && (
+        <div
+          onClick={handleCloseChangePinScreen}
+          onTouchStart={(e) => {
+            if (e.touches.length === 1) {
+              changePinTouchStartRef.current = {
+                x: e.touches[0].clientX,
+                y: e.touches[0].clientY,
+                time: Date.now(),
+              };
+            }
+          }}
+          onTouchEnd={(e) => {
+            if (!changePinTouchStartRef.current || e.changedTouches.length === 0) return;
+            const start = changePinTouchStartRef.current;
+            changePinTouchStartRef.current = null;
+            const dx = e.changedTouches[0].clientX - start.x;
+            const dy = e.changedTouches[0].clientY - start.y;
+            const dt = Date.now() - start.time;
+            const screenW = window.innerWidth || 360;
+            const startedNearEdge = start.x <= 48 || start.x >= screenW - 48;
+            if (
+              dt < 600 &&
+              Math.abs(dx) >= (startedNearEdge ? 50 : 95) &&
+              Math.abs(dx) > Math.abs(dy) * 2.2
+            ) {
+              handleCloseChangePinScreen();
+            }
+          }}
+          className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center px-5 py-6 select-none animate-in fade-in duration-200"
+          style={{
+            backgroundColor: isLightTheme ? '#EEF3F9' : '#060B14',
+            color: isLightTheme ? '#0F172A' : '#F8FAFC',
+            fontFamily: "'Manrope', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[390px] my-auto rounded-[26px] p-5 box-border transition-all"
+            style={{
+              backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
+              border: `1px solid ${isLightTheme ? '#E2E8F0' : '#1E293B'}`,
+              boxShadow: isLightTheme
+                ? '0 20px 50px -12px rgba(15, 23, 42, 0.08), 0 4px 16px -4px rgba(15, 23, 42, 0.04)'
+                : '0 24px 60px -12px rgba(0, 0, 0, 0.7)',
+            }}
+          >
+            {/* Cabecera de la tarjeta */}
+            <div className="flex items-start gap-3.5 text-left">
+              <div
+                className="pin-recovery-on-primary w-[48px] h-[48px] rounded-[14px] flex items-center justify-center shrink-0 shadow-sm"
+                style={{
+                  background: 'linear-gradient(135deg, #1E64B7 0%, #3E66E2 100%)',
+                }}
+              >
+                <KeyRound className="w-6 h-6 stroke-[2.2]" />
+              </div>
+              <div className="min-w-0 pt-0.5">
+                <h2
+                  className="text-[20px] font-extrabold leading-[1.2] tracking-[-0.02em]"
+                  style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                >
+                  Cambiar PIN maestro
+                </h2>
+                <p
+                  className="text-[13px] font-medium leading-[1.35] mt-1"
+                  style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                >
+                  Es el código con el que desbloqueas tu bóveda.
+                </p>
+              </div>
+            </div>
+
+            {/* Línea divisoria */}
+            <div
+              className="w-full h-[1px] my-3.5"
+              style={{ backgroundColor: isLightTheme ? '#E2E8F0' : '#1E293B' }}
+            />
+
+            {/* Formulario de cambio de PIN */}
+            <form onSubmit={handleChangePin} className="text-left">
+              <div className="space-y-3">
+                {/* 1. PIN actual */}
+                <div>
+                  <label
+                    htmlFor="change-pin-current"
+                    className="block text-[13px] font-bold mb-1.5"
+                    style={{ color: isLightTheme ? '#1E293B' : '#E2E8F0' }}
+                  >
+                    PIN actual
+                  </label>
+                  <div
+                    className="w-full h-[46px] rounded-[14px] px-3.5 flex items-center gap-3 transition-all box-border"
+                    style={{
+                      backgroundColor: isLightTheme ? '#FFFFFF' : '#0F172A',
+                      border:
+                        focusedPinField === 'current'
+                          ? `2px solid ${isLightTheme ? '#0B6FB8' : '#00E5FF'}`
+                          : `1.5px solid ${isLightTheme ? '#CBD5E1' : '#1E293B'}`,
+                    }}
+                  >
+                    <Lock
+                      className="w-4 h-4 stroke-[1.9] shrink-0"
+                      style={{ color: isLightTheme ? '#64748B' : '#94A3B8' }}
+                    />
+                    <input
+                      id="change-pin-current"
+                      type={showCurrentPin ? 'text' : 'password'}
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={currentPin}
+                      onFocus={() => setFocusedPinField('current')}
+                      onBlur={() => setFocusedPinField((prev) => (prev === 'current' ? null : prev))}
+                      onChange={(e) => {
+                        setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 4));
+                        setPinChangeError(null);
+                      }}
+                      placeholder="• • • •"
+                      required
+                      className="bg-transparent w-full h-full border-0 p-0 text-[15px] font-bold tracking-[0.25em] focus:outline-none focus:ring-0"
+                      style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPin(!showCurrentPin)}
+                      className="p-1 -mr-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                      style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                      aria-label={showCurrentPin ? 'Ocultar PIN actual' : 'Ver PIN actual'}
+                    >
+                      {showCurrentPin ? (
+                        <EyeOff className="w-4 h-4 stroke-[1.9]" />
+                      ) : (
+                        <Eye className="w-4 h-4 stroke-[1.9]" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Nuevo PIN */}
+                <div>
+                  <label
+                    htmlFor="change-pin-new"
+                    className="block text-[13px] font-bold mb-1.5"
+                    style={{ color: isLightTheme ? '#1E293B' : '#E2E8F0' }}
+                  >
+                    Nuevo PIN
+                  </label>
+                  <div
+                    className="w-full h-[46px] rounded-[14px] px-3.5 flex items-center gap-3 transition-all box-border"
+                    style={{
+                      backgroundColor: isLightTheme ? '#FFFFFF' : '#0F172A',
+                      border:
+                        focusedPinField === 'new'
+                          ? `2px solid ${isLightTheme ? '#0B6FB8' : '#00E5FF'}`
+                          : `1.5px solid ${isLightTheme ? '#CBD5E1' : '#1E293B'}`,
+                    }}
+                  >
+                    <Lock
+                      className="w-4 h-4 stroke-[1.9] shrink-0"
+                      style={{ color: isLightTheme ? '#64748B' : '#94A3B8' }}
+                    />
+                    <input
+                      id="change-pin-new"
+                      type={showNewPin ? 'text' : 'password'}
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={newPin}
+                      onFocus={() => setFocusedPinField('new')}
+                      onBlur={() => setFocusedPinField((prev) => (prev === 'new' ? null : prev))}
+                      onChange={(e) => {
+                        setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4));
+                        setPinChangeError(null);
+                      }}
+                      placeholder="• • • •"
+                      required
+                      className="bg-transparent w-full h-full border-0 p-0 text-[15px] font-bold tracking-[0.25em] focus:outline-none focus:ring-0"
+                      style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPin(!showNewPin)}
+                      className="p-1 -mr-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                      style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                      aria-label={showNewPin ? 'Ocultar nuevo PIN' : 'Ver nuevo PIN'}
+                    >
+                      {showNewPin ? (
+                        <EyeOff className="w-4 h-4 stroke-[1.9]" />
+                      ) : (
+                        <Eye className="w-4 h-4 stroke-[1.9]" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Confirmar nuevo PIN */}
+                <div>
+                  <label
+                    htmlFor="change-pin-confirm"
+                    className="block text-[13px] font-bold mb-1.5"
+                    style={{ color: isLightTheme ? '#1E293B' : '#E2E8F0' }}
+                  >
+                    Confirmar nuevo PIN
+                  </label>
+                  <div
+                    className="w-full h-[46px] rounded-[14px] px-3.5 flex items-center gap-3 transition-all box-border"
+                    style={{
+                      backgroundColor: isLightTheme ? '#FFFFFF' : '#0F172A',
+                      border:
+                        focusedPinField === 'confirm'
+                          ? `2px solid ${isLightTheme ? '#0B6FB8' : '#00E5FF'}`
+                          : `1.5px solid ${isLightTheme ? '#CBD5E1' : '#1E293B'}`,
+                    }}
+                  >
+                    <Lock
+                      className="w-4 h-4 stroke-[1.9] shrink-0"
+                      style={{ color: isLightTheme ? '#64748B' : '#94A3B8' }}
+                    />
+                    <input
+                      id="change-pin-confirm"
+                      type={showConfirmNewPin ? 'text' : 'password'}
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={confirmNewPin}
+                      onFocus={() => setFocusedPinField('confirm')}
+                      onBlur={() => setFocusedPinField((prev) => (prev === 'confirm' ? null : prev))}
+                      onChange={(e) => {
+                        setConfirmNewPin(e.target.value.replace(/\D/g, '').slice(0, 4));
+                        setPinChangeError(null);
+                      }}
+                      placeholder="• • • •"
+                      required
+                      className="bg-transparent w-full h-full border-0 p-0 text-[15px] font-bold tracking-[0.25em] focus:outline-none focus:ring-0"
+                      style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmNewPin(!showConfirmNewPin)}
+                      className="p-1 -mr-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                      style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                      aria-label={showConfirmNewPin ? 'Ocultar confirmación de PIN' : 'Ver confirmación de PIN'}
+                    >
+                      {showConfirmNewPin ? (
+                        <EyeOff className="w-4 h-4 stroke-[1.9]" />
+                      ) : (
+                        <Eye className="w-4 h-4 stroke-[1.9]" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recuadro de REQUISITOS */}
+              <div
+                className="w-full rounded-[16px] p-3.5 mt-3.5 box-border"
+                style={{
+                  backgroundColor: isLightTheme ? '#EEF2F8' : 'rgba(15, 23, 42, 0.75)',
+                }}
+              >
+                <p
+                  className="text-[11px] font-extrabold tracking-[0.12em] uppercase mb-2"
+                  style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                >
+                  REQUISITOS
+                </p>
+
+                <div className="space-y-1.5">
+                  {/* Requisito 1 */}
+                  <div className="flex items-center gap-2.5">
+                    {reqMinDigits ? (
+                      <div
+                        className="pin-recovery-on-primary w-4.5 h-4.5 rounded-full flex items-center justify-center shrink-0 transition-colors"
+                        style={{ backgroundColor: '#0D9488' }}
+                      >
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      </div>
+                    ) : (
+                      <div
+                        className="w-4.5 h-4.5 rounded-full shrink-0 transition-colors"
+                        style={{
+                          border: `1.5px solid ${isLightTheme ? '#94A3B8' : '#475569'}`,
+                        }}
+                      />
+                    )}
+                    <span
+                      className="text-[13px] font-medium transition-colors"
+                      style={{
+                        color: reqMinDigits
+                          ? isLightTheme
+                            ? '#1E293B'
+                            : '#F8FAFC'
+                          : isLightTheme
+                          ? '#64748B'
+                          : '#64748B',
+                      }}
+                    >
+                      Exactamente 4 dígitos
+                    </span>
+                  </div>
+
+                  {/* Requisito 2 */}
+                  <div className="flex items-center gap-2.5">
+                    {reqPinsMatch ? (
+                      <div
+                        className="pin-recovery-on-primary w-4.5 h-4.5 rounded-full flex items-center justify-center shrink-0 transition-colors"
+                        style={{ backgroundColor: '#0D9488' }}
+                      >
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      </div>
+                    ) : (
+                      <div
+                        className="w-4.5 h-4.5 rounded-full shrink-0 transition-colors"
+                        style={{
+                          border: `1.5px solid ${isLightTheme ? '#94A3B8' : '#475569'}`,
+                        }}
+                      />
+                    )}
+                    <span
+                      className="text-[13px] font-medium transition-colors"
+                      style={{
+                        color: reqPinsMatch
+                          ? isLightTheme
+                            ? '#1E293B'
+                            : '#F8FAFC'
+                          : isLightTheme
+                          ? '#64748B'
+                          : '#64748B',
+                      }}
+                    >
+                      Los dos PIN nuevos coinciden
+                    </span>
+                  </div>
+
+                  {/* Requisito 3 */}
+                  <div className="flex items-center gap-2.5">
+                    {reqIsDifferent ? (
+                      <div
+                        className="pin-recovery-on-primary w-4.5 h-4.5 rounded-full flex items-center justify-center shrink-0 transition-colors"
+                        style={{ backgroundColor: '#0D9488' }}
+                      >
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      </div>
+                    ) : (
+                      <div
+                        className="w-4.5 h-4.5 rounded-full shrink-0 transition-colors"
+                        style={{
+                          border: `1.5px solid ${isLightTheme ? '#94A3B8' : '#475569'}`,
+                        }}
+                      />
+                    )}
+                    <span
+                      className="text-[13px] font-medium transition-colors"
+                      style={{
+                        color: reqIsDifferent
+                          ? isLightTheme
+                            ? '#1E293B'
+                            : '#F8FAFC'
+                          : isLightTheme
+                          ? '#64748B'
+                          : '#64748B',
+                      }}
+                    >
+                      Es distinto al PIN actual
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {pinChangeError && (
+                <div
+                  className="mt-3 flex items-start gap-2 text-[12px] font-semibold p-3 rounded-[12px] border text-left"
+                  style={{
+                    backgroundColor: isLightTheme ? '#FFF1F2' : 'rgba(244, 63, 94, 0.12)',
+                    borderColor: isLightTheme ? '#FECDD3' : 'rgba(244, 63, 94, 0.3)',
+                    color: isLightTheme ? '#BE123C' : '#FDA4AF',
+                  }}
+                >
+                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 stroke-[2]" />
+                  <span>{pinChangeError}</span>
+                </div>
+              )}
+
+              {/* Botón principal Actualizar PIN */}
+              <button
+                type="submit"
+                disabled={
+                  isChangingPin ||
+                  !currentPin ||
+                  !reqMinDigits ||
+                  !reqPinsMatch ||
+                  !reqIsDifferent
+                }
+                className="pin-recovery-on-primary w-full h-[48px] rounded-[14px] mt-4 font-bold text-[15px] flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{
+                  background: 'linear-gradient(90deg, #1B65B4 0%, #3E6AE1 100%)',
+                  boxShadow: isLightTheme
+                    ? '0 10px 24px -6px rgba(27, 101, 180, 0.45)'
+                    : '0 10px 24px -6px rgba(30, 100, 183, 0.45)',
+                }}
+              >
+                <Check className="w-4.5 h-4.5 stroke-[2.5]" />
+                <span>{isChangingPin ? 'Actualizando PIN...' : 'Actualizar PIN'}</span>
+              </button>
+            </form>
           </div>
         </div>
       )}
