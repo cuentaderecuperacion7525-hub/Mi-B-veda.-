@@ -884,3 +884,15 @@ html.light button.vault-viewer-floating-btn:hover * {
   stroke: #0284c7 !important;
 }
 
+/* 17. Pantalla Recupera tu PIN: texto e iconos blancos sobre azul primario sólido (#0B6FB8) */
+.pin-recovery-on-primary,
+.pin-recovery-on-primary *,
+[data-theme="light"] .pin-recovery-on-primary,
+[data-theme="light"] .pin-recovery-on-primary *,
+[data-theme="cyan"] .pin-recovery-on-primary,
+[data-theme="cyan"] .pin-recovery-on-primary * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+

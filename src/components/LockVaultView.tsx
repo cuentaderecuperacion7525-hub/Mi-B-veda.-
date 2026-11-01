@@ -17,6 +17,8 @@ import {
   ShieldCheck,
   Clock,
   RefreshCw,
+  ChevronLeft,
+  AtSign,
 } from 'lucide-react';
 import { deriveKeyFromPin, verifyKey, hexToBuf, verifyDuressPinHash } from '../crypto/vaultCrypto';
 import {
@@ -36,6 +38,7 @@ import {
   verifyEmailPin,
   checkEmailConfirmationStatus,
 } from '../services/emailVerificationService';
+import { themeService, VaultTheme } from '../services/themeService';
 import { App as CapacitorApp } from '@capacitor/app';
 import { PinKeypad } from './PinKeypad';
 
@@ -71,6 +74,15 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   const [showNewPinText, setShowNewPinText] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [isForgotLoading, setIsForgotLoading] = useState(false);
+  const [isEmailFocused, setIsEmailFocused] = useState(true);
+  const [currentTheme, setCurrentTheme] = useState<VaultTheme>(() => themeService.getTheme());
+
+  useEffect(() => {
+    return themeService.subscribe((t) => setCurrentTheme(t));
+  }, []);
+
+  const isLightTheme = currentTheme === 'light';
+  const isForgotEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotEmail.trim());
 
   // Open Forgot PIN flow
   const handleOpenForgotPin = () => {
@@ -80,6 +92,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
     setForgotToken(null);
     setNewPinInput('');
     setConfirmNewPinInput('');
+    setIsEmailFocused(true);
     setForgotStep('email_input');
     setShowForgotModal(true);
   };
@@ -890,32 +903,140 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         </div>
       )}
 
-      {/* Forgot PIN / Email Verification Recovery Modal */}
+      {/* Forgot PIN / Email Verification Recovery Full-Screen View */}
       {showForgotModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-[#131c2e] border border-slate-800 rounded-3xl p-6 shadow-2xl text-slate-200 text-center animate-in fade-in zoom-in-95 duration-200">
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto flex flex-col items-center select-none animate-in fade-in duration-200"
+          style={{
+            backgroundColor: isLightTheme ? '#F3F6FB' : '#060B14',
+            color: isLightTheme ? '#0F172A' : '#F8FAFC',
+            fontFamily: "'Manrope', system-ui, -apple-system, sans-serif",
+          }}
+        >
+          <div className="w-full max-w-[440px] min-h-screen flex flex-col px-6 pt-5 pb-6 box-border">
+            {/* 1. Barra superior: botón "Volver" cuadrado (44×44) a la izquierda e indicador de 3 pasos (3 barras de 28×6 px) a la derecha */}
+            <div className="w-full flex items-center justify-between mb-7 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (forgotStep === 'email_input') {
+                    setShowForgotModal(false);
+                  } else {
+                    setForgotStep('email_input');
+                    setForgotError(null);
+                  }
+                }}
+                aria-label="Volver"
+                className="w-[44px] h-[44px] rounded-[14px] flex items-center justify-center transition-colors cursor-pointer active:scale-95 shrink-0"
+                style={{
+                  backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
+                  border: `1.5px solid ${isLightTheme ? '#D5DEEA' : '#1E293B'}`,
+                  color: isLightTheme ? '#0F172A' : '#F8FAFC',
+                }}
+              >
+                <ChevronLeft
+                  className="w-5 h-5 stroke-[2]"
+                  style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                />
+              </button>
+
+              {forgotStep !== 'no_key' && (
+                <div
+                  className="flex items-center gap-2"
+                  role="progressbar"
+                  aria-valuenow={forgotStep === 'email_input' ? 1 : forgotStep === 'code_verify' ? 2 : 3}
+                  aria-valuemin={1}
+                  aria-valuemax={3}
+                  aria-label={
+                    forgotStep === 'email_input'
+                      ? 'Paso 1 de 3'
+                      : forgotStep === 'code_verify'
+                      ? 'Paso 2 de 3'
+                      : 'Paso 3 de 3'
+                  }
+                >
+                  {[1, 2, 3].map((stepIndex) => {
+                    const currentStepNum =
+                      forgotStep === 'email_input' ? 1 : forgotStep === 'code_verify' ? 2 : 3;
+                    const isActive = stepIndex <= currentStepNum;
+                    return (
+                      <span
+                        key={stepIndex}
+                        className="w-[28px] h-[6px] rounded-full transition-colors duration-200"
+                        style={{
+                          backgroundColor: isActive
+                            ? isLightTheme
+                              ? '#0B6FB8'
+                              : '#00E5FF'
+                            : isLightTheme
+                            ? '#CBD5E1'
+                            : '#1E293B',
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* STEP 1: VALIDATE REGISTERED EMAIL */}
             {forgotStep === 'email_input' && (
-              <div>
-                <div className="w-14 h-14 bg-[#00e5ff]/10 border border-[#00e5ff]/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-[#00e5ff] shadow-lg shadow-cyan-500/10">
-                  <Mail className="w-7 h-7" />
+              <div className="flex-1 flex flex-col">
+                {/* 2. Icono: tile azul sólido de 64×64 con esquinas de 20 px y un icono de sobre/correo blanco */}
+                <div
+                  className="pin-recovery-on-primary w-[64px] h-[64px] rounded-[20px] flex items-center justify-center mb-6 shrink-0"
+                  style={{ backgroundColor: '#0B6FB8' }}
+                >
+                  <Mail className="w-7 h-7 stroke-[2]" />
                 </div>
-                <h3 className="text-lg font-bold text-white mb-1.5">
-                  Recuperar <span className="text-[#00e5ff]">PIN con tu Correo</span>
-                </h3>
-                <p className="text-xs text-slate-400 mb-5 leading-relaxed">
-                  Escribe el correo electrónico con el que registraste tu cuenta. Validaremos que esté registrado y te enviaremos un código de 6 dígitos.
+
+                {/* 3. Título: "Recupera tu PIN" (30 px, peso 800, color casi negro) */}
+                <h2
+                  className="text-[30px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-3 text-left"
+                  style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                >
+                  Recupera tu PIN
+                </h2>
+
+                {/* 4. Descripción (16 px, gris oscuro) */}
+                <p
+                  className="text-[16px] font-medium leading-[1.5] mb-7 text-left"
+                  style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                >
+                  Escribe el correo con el que registraste tu cuenta. Si está registrado, te enviaremos un código de 6 dígitos.
                 </p>
 
-                <form onSubmit={handleSendRecoveryEmailCode} className="space-y-3.5 text-left">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Correo electrónico registrado
-                    </label>
+                <form onSubmit={handleSendRecoveryEmailCode} className="flex flex-col">
+                  {/* 5. Etiqueta: "Correo electrónico registrado" (14 px, peso 700) */}
+                  <label
+                    htmlFor="pin-recovery-email-input"
+                    className="block text-[14px] font-bold mb-2 text-left"
+                    style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                  >
+                    Correo electrónico registrado
+                  </label>
+
+                  {/* 6. Campo de texto: alto 56 px, esquinas de 16 px, fondo blanco, borde azul de 2 px (estado enfocado), icono de arroba a la izquierda */}
+                  <div
+                    className="w-full h-[56px] rounded-[16px] px-4 flex items-center gap-3 transition-colors box-border"
+                    style={{
+                      backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
+                      border: isEmailFocused
+                        ? `2px solid ${isLightTheme ? '#0B6FB8' : '#00E5FF'}`
+                        : `1.5px solid ${isLightTheme ? '#D5DEEA' : '#1E293B'}`,
+                    }}
+                  >
+                    <AtSign
+                      className="w-5 h-5 stroke-[2] shrink-0"
+                      style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                    />
                     <input
+                      id="pin-recovery-email-input"
                       type="email"
                       autoComplete="email"
                       value={forgotEmail}
+                      onFocus={() => setIsEmailFocused(true)}
+                      onBlur={() => setIsEmailFocused(false)}
                       onChange={(e) => {
                         setForgotEmail(e.target.value);
                         setForgotError(null);
@@ -924,90 +1045,186 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                       required
                       autoFocus
                       disabled={isForgotLoading}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-[#00e5ff] focus:ring-1 focus:ring-[#00e5ff] transition-all"
+                      className="bg-transparent w-full h-full border-0 p-0 text-[16px] font-medium focus:outline-none focus:ring-0"
+                      style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                     />
                   </div>
 
+                  {/* 7. Texto de ayuda (13 px) */}
+                  <p
+                    className="text-[13px] font-medium leading-[1.4] mt-2.5 text-left"
+                    style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                  >
+                    Si no ves el correo, revisa tu carpeta de spam.
+                  </p>
+
                   {forgotError && (
-                    <div className="flex items-start gap-2 text-rose-400 text-xs bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
-                      <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div
+                      className="mt-3.5 flex items-start gap-2.5 text-[13px] font-semibold p-3.5 rounded-[14px] border text-left"
+                      style={{
+                        backgroundColor: isLightTheme ? '#FFF1F2' : 'rgba(244, 63, 94, 0.12)',
+                        borderColor: isLightTheme ? '#FECDD3' : 'rgba(244, 63, 94, 0.3)',
+                        color: isLightTheme ? '#BE123C' : '#FDA4AF',
+                      }}
+                    >
+                      <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 stroke-[2]" />
                       <span>{forgotError}</span>
                     </div>
                   )}
 
+                  {/* 8. Botón principal: ancho completo, alto 56 px, esquinas de 16 px, azul sólido, texto blanco "Enviar código de 6 dígitos" con icono de avión de papel */}
                   <button
                     type="submit"
-                    disabled={isForgotLoading || !forgotEmail.trim()}
-                    className="w-full py-3 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 disabled:opacity-40"
-                    style={{
-                      background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                      boxShadow: '0 4px 14px -2px var(--theme-glow)',
-                    }}
+                    disabled={isForgotLoading || !isForgotEmailValid}
+                    className="pin-recovery-on-primary w-full h-[56px] rounded-[16px] mt-5 font-bold text-[16px] transition-opacity flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: '#0B6FB8' }}
                   >
                     {isForgotLoading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span className="text-white">Validando correo...</span>
+                        <Loader2 className="w-5 h-5 animate-spin stroke-[2]" />
+                        <span>Validando correo...</span>
                       </>
                     ) : (
                       <>
-                        <Send className="w-3.5 h-3.5 text-white" />
-                        <span className="text-white">Enviar código de 6 dígitos</span>
+                        <Send className="w-5 h-5 stroke-[2]" />
+                        <span>Enviar código de 6 dígitos</span>
                       </>
                     )}
                   </button>
-
-                  <div className="flex items-center justify-between pt-1 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setShowForgotModal(false)}
-                      className="text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setForgotStep('no_key')}
-                      className="text-slate-500 hover:text-amber-400 transition-colors cursor-pointer text-[11px]"
-                    >
-                      ¿Restablecer bóveda desde cero?
-                    </button>
-                  </div>
                 </form>
+
+                {/* 9. Espacio flexible que empuja lo siguiente hacia abajo */}
+                <div className="flex-1 min-h-[20px]" />
+
+                {/* 10. Tarjeta de zona de riesgo (fondo blanco, borde gris claro, esquinas de 20 px, padding 18) */}
+                <div
+                  className="w-full rounded-[20px] p-[18px] text-left box-border mt-4"
+                  style={{
+                    backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
+                    border: `1px solid ${isLightTheme ? '#E2E8F0' : '#1E293B'}`,
+                  }}
+                >
+                  <h3
+                    className="text-[16px] font-extrabold leading-[1.3] mb-1.5"
+                    style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                  >
+                    ¿No tienes acceso a ese correo?
+                  </h3>
+                  <p
+                    className="text-[13px] font-medium leading-[1.45] mb-4"
+                    style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                  >
+                    Puedes empezar con una bóveda nueva. Esta acción elimina el contenido actual y no se puede deshacer.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotError(null);
+                      setForgotStep('no_key');
+                    }}
+                    className="w-full h-[48px] rounded-[14px] font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer active:scale-[0.99]"
+                    style={{
+                      backgroundColor: isLightTheme ? '#FFFFFF' : '#0F172A',
+                      border: `1.5px solid ${isLightTheme ? '#B45309' : '#D97706'}`,
+                      color: isLightTheme ? '#92400E' : '#FBBF24',
+                    }}
+                  >
+                    Restablecer bóveda desde cero
+                  </button>
+                </div>
+
+                {/* 11. Botón de texto "Cancelar" (alto 48 px, gris oscuro) al final */}
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(false)}
+                  className="w-full h-[48px] mt-2 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
+                  style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                >
+                  Cancelar
+                </button>
               </div>
             )}
 
             {/* STEP 2: VERIFY 6-DIGIT EMAIL CODE */}
             {forgotStep === 'code_verify' && (
-              <div>
-                <div className="w-14 h-14 bg-[#00e5ff]/10 border border-[#00e5ff]/30 rounded-2xl flex items-center justify-center mx-auto mb-3 text-[#00e5ff] shadow-lg shadow-cyan-500/10">
-                  <KeyRound className="w-7 h-7" />
+              <div className="flex-1 flex flex-col">
+                <div
+                  className="pin-recovery-on-primary w-[64px] h-[64px] rounded-[20px] flex items-center justify-center mb-6 shrink-0"
+                  style={{ backgroundColor: '#0B6FB8' }}
+                >
+                  <KeyRound className="w-7 h-7 stroke-[2]" />
                 </div>
-                <h3 className="text-lg font-bold text-white mb-1">
-                  Verifica tu <span className="text-[#00e5ff]">Código</span>
-                </h3>
-                <p className="text-xs text-slate-400 mb-3 leading-relaxed">
-                  Enviamos un código de 6 dígitos a <strong className="text-slate-200 break-all">{forgotEmail.trim()}</strong>
+
+                <h2
+                  className="text-[30px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-3 text-left"
+                  style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                >
+                  Verifica tu código
+                </h2>
+
+                <p
+                  className="text-[16px] font-medium leading-[1.5] mb-4 text-left"
+                  style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                >
+                  Enviamos un código de 6 dígitos a{' '}
+                  <strong
+                    className="font-bold break-all"
+                    style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                  >
+                    {forgotEmail.trim()}
+                  </strong>
                 </p>
 
-                <div
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold mb-4 border ${
-                    forgotSecondsLeft <= 0
-                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                      : 'bg-[#00e5ff]/10 text-[#00e5ff] border-[#00e5ff]/25'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>
+                <div className="flex items-center gap-2 text-[13px] font-bold mb-6">
+                  <Clock
+                    className="w-4 h-4 stroke-[2] shrink-0"
+                    style={{
+                      color:
+                        forgotSecondsLeft <= 0
+                          ? isLightTheme
+                            ? '#BE123C'
+                            : '#FDA4AF'
+                          : isLightTheme
+                          ? '#0B6FB8'
+                          : '#00E5FF',
+                    }}
+                  />
+                  <span
+                    style={{
+                      color:
+                        forgotSecondsLeft <= 0
+                          ? isLightTheme
+                            ? '#BE123C'
+                            : '#FDA4AF'
+                          : isLightTheme
+                          ? '#0B6FB8'
+                          : '#00E5FF',
+                    }}
+                  >
                     {forgotSecondsLeft <= 0
                       ? 'Código caducado (5 min)'
                       : `Válido por ${formatCountdown(forgotSecondsLeft)}`}
                   </span>
                 </div>
 
-                <form onSubmit={handleVerifyRecoveryEmailCode} className="space-y-3.5 text-left">
-                  <div>
+                <form onSubmit={handleVerifyRecoveryEmailCode} className="flex flex-col">
+                  <label
+                    htmlFor="pin-recovery-code-input"
+                    className="block text-[14px] font-bold mb-2 text-left"
+                    style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                  >
+                    Código de verificación (6 dígitos)
+                  </label>
+
+                  <div
+                    className="w-full h-[56px] rounded-[16px] px-4 flex items-center transition-colors box-border"
+                    style={{
+                      backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
+                      border: `2px solid ${isLightTheme ? '#0B6FB8' : '#00E5FF'}`,
+                    }}
+                  >
                     <input
+                      id="pin-recovery-code-input"
                       type="text"
                       inputMode="numeric"
                       maxLength={6}
@@ -1021,13 +1238,21 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                       required
                       autoFocus
                       disabled={isForgotLoading || forgotSecondsLeft <= 0}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-3 text-center text-xl font-mono font-bold tracking-[0.35em] text-[#00e5ff] placeholder:text-slate-600 focus:outline-none focus:border-[#00e5ff] focus:ring-1 focus:ring-[#00e5ff] transition-all"
+                      className="bg-transparent w-full h-full border-0 p-0 text-center text-[22px] font-mono font-bold tracking-[0.35em] focus:outline-none focus:ring-0"
+                      style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                     />
                   </div>
 
                   {forgotError && (
-                    <div className="flex items-start gap-2 text-rose-400 text-xs bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
-                      <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div
+                      className="mt-3.5 flex items-start gap-2.5 text-[13px] font-semibold p-3.5 rounded-[14px] border text-left"
+                      style={{
+                        backgroundColor: isLightTheme ? '#FFF1F2' : 'rgba(244, 63, 94, 0.12)',
+                        borderColor: isLightTheme ? '#FECDD3' : 'rgba(244, 63, 94, 0.3)',
+                        color: isLightTheme ? '#BE123C' : '#FDA4AF',
+                      }}
+                    >
+                      <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 stroke-[2]" />
                       <span>{forgotError}</span>
                     </div>
                   )}
@@ -1035,33 +1260,31 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   <button
                     type="submit"
                     disabled={isForgotLoading || forgotSecondsLeft <= 0 || forgotCode.length !== 6}
-                    className="w-full py-3 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 disabled:opacity-40"
-                    style={{
-                      background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
-                      boxShadow: '0 4px 14px -2px var(--theme-glow)',
-                    }}
+                    className="pin-recovery-on-primary w-full h-[56px] rounded-[16px] mt-5 font-bold text-[16px] transition-opacity flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: '#0B6FB8' }}
                   >
                     {isForgotLoading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span className="text-white">Verificando código...</span>
+                        <Loader2 className="w-5 h-5 animate-spin stroke-[2]" />
+                        <span>Verificando código...</span>
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                        <span className="text-white">Verificar Código</span>
+                        <CheckCircle2 className="w-5 h-5 stroke-[2]" />
+                        <span>Verificar código</span>
                       </>
                     )}
                   </button>
 
-                  <div className="flex items-center justify-between pt-2 text-xs">
+                  <div className="flex items-center justify-between pt-4 text-[14px] font-bold">
                     <button
                       type="button"
                       onClick={() => handleSendRecoveryEmailCode()}
                       disabled={isForgotLoading || forgotResendCooldown > 0}
-                      className="inline-flex items-center gap-1 text-[#00e5ff] hover:underline disabled:opacity-40 cursor-pointer"
+                      className="min-h-[44px] inline-flex items-center gap-1.5 hover:underline disabled:opacity-45 cursor-pointer"
+                      style={{ color: isLightTheme ? '#0B6FB8' : '#00E5FF' }}
                     >
-                      <RefreshCw className="w-3 h-3" />
+                      <RefreshCw className="w-4 h-4 stroke-[2]" />
                       <span>
                         {forgotResendCooldown > 0
                           ? `Reenviar (${forgotResendCooldown}s)`
@@ -1074,34 +1297,66 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                         setForgotStep('email_input');
                         setForgotError(null);
                       }}
-                      className="text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                      className="min-h-[44px] inline-flex items-center transition-colors cursor-pointer"
+                      style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                     >
                       Cambiar correo
                     </button>
                   </div>
                 </form>
+
+                <div className="flex-1 min-h-[20px]" />
+
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(false)}
+                  className="w-full h-[48px] mt-2 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
+                  style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                >
+                  Cancelar
+                </button>
               </div>
             )}
 
             {/* STEP 3: NEW 4-DIGIT PIN INPUT */}
             {forgotStep === 'new_pin_input' && (
-              <div>
-                <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-400 shadow-lg shadow-emerald-500/10">
-                  <KeyRound className="w-7 h-7" />
+              <div className="flex-1 flex flex-col">
+                <div
+                  className="pin-recovery-on-primary w-[64px] h-[64px] rounded-[20px] flex items-center justify-center mb-6 shrink-0"
+                  style={{ backgroundColor: '#0B6FB8' }}
+                >
+                  <KeyRound className="w-7 h-7 stroke-[2]" />
                 </div>
-                <h3 className="text-lg font-bold text-white mb-1.5">
-                  Crear <span className="text-emerald-400">Nuevo PIN</span>
-                </h3>
-                <p className="text-xs text-slate-400 mb-5 leading-relaxed">
-                  Identidad verificada. Define tu nuevo PIN de 4 dígitos para abrir tu bóveda sin perder ninguna foto ni video:
+
+                <h2
+                  className="text-[30px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-3 text-left"
+                  style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                >
+                  Crea tu nuevo PIN
+                </h2>
+
+                <p
+                  className="text-[16px] font-medium leading-[1.5] mb-7 text-left"
+                  style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                >
+                  Identidad verificada. Define tu nuevo PIN de 4 dígitos para abrir tu bóveda conservando todos tus archivos.
                 </p>
 
-                <form onSubmit={handleResetPinWithRecovery} className="space-y-3 text-left">
+                <form onSubmit={handleResetPinWithRecovery} className="flex flex-col space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label
+                      className="block text-[14px] font-bold mb-2 text-left"
+                      style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                    >
                       Nuevo PIN (4 dígitos)
                     </label>
-                    <div className="relative flex items-center">
+                    <div
+                      className="w-full h-[56px] rounded-[16px] px-4 flex items-center justify-between transition-colors box-border"
+                      style={{
+                        backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
+                        border: `2px solid ${isLightTheme ? '#0B6FB8' : '#00E5FF'}`,
+                      }}
+                    >
                       <input
                         type={showNewPinText ? 'text' : 'password'}
                         inputMode="numeric"
@@ -1114,23 +1369,39 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                         placeholder="••••"
                         required
                         autoFocus
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 pr-10 text-sm text-slate-100 focus:outline-none focus:border-[#00e5ff] font-mono tracking-widest"
+                        className="bg-transparent w-full h-full border-0 p-0 text-[18px] font-mono font-bold tracking-[0.35em] focus:outline-none focus:ring-0"
+                        style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                       />
                       <button
                         type="button"
                         onClick={() => setShowNewPinText(!showNewPinText)}
-                        className="absolute right-2.5 text-slate-400 hover:text-slate-200 transition-colors p-1 cursor-pointer"
+                        className="w-[44px] h-[44px] flex items-center justify-center cursor-pointer shrink-0 -mr-2"
+                        style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                        aria-label={showNewPinText ? 'Ocultar PIN' : 'Mostrar PIN'}
                       >
-                        {showNewPinText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showNewPinText ? (
+                          <EyeOff className="w-5 h-5 stroke-[2]" />
+                        ) : (
+                          <Eye className="w-5 h-5 stroke-[2]" />
+                        )}
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Confirmar Nuevo PIN
+                    <label
+                      className="block text-[14px] font-bold mb-2 text-left"
+                      style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                    >
+                      Confirmar nuevo PIN
                     </label>
-                    <div className="relative flex items-center">
+                    <div
+                      className="w-full h-[56px] rounded-[16px] px-4 flex items-center transition-colors box-border"
+                      style={{
+                        backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
+                        border: `1.5px solid ${isLightTheme ? '#D5DEEA' : '#1E293B'}`,
+                      }}
+                    >
                       <input
                         type={showNewPinText ? 'text' : 'password'}
                         inputMode="numeric"
@@ -1142,83 +1413,142 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                         }}
                         placeholder="••••"
                         required
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 pr-10 text-sm text-slate-100 focus:outline-none focus:border-[#00e5ff] font-mono tracking-widest"
+                        className="bg-transparent w-full h-full border-0 p-0 text-[18px] font-mono font-bold tracking-[0.35em] focus:outline-none focus:ring-0"
+                        style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                       />
                     </div>
                   </div>
 
                   {forgotError && (
-                    <div className="flex items-center gap-1.5 text-rose-400 text-xs bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
-                      <ShieldAlert className="w-4 h-4 shrink-0" />
+                    <div
+                      className="flex items-start gap-2.5 text-[13px] font-semibold p-3.5 rounded-[14px] border text-left"
+                      style={{
+                        backgroundColor: isLightTheme ? '#FFF1F2' : 'rgba(244, 63, 94, 0.12)',
+                        borderColor: isLightTheme ? '#FECDD3' : 'rgba(244, 63, 94, 0.3)',
+                        color: isLightTheme ? '#BE123C' : '#FDA4AF',
+                      }}
+                    >
+                      <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 stroke-[2]" />
                       <span>{forgotError}</span>
                     </div>
                   )}
 
                   <button
                     type="submit"
-                    disabled={isForgotLoading || newPinInput.length !== 4 || newPinInput !== confirmNewPinInput}
-                    className="w-full py-3 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 disabled:opacity-40"
-                    style={{
-                      background: 'linear-gradient(135deg, #059669, #0284c7)',
-                      boxShadow: '0 4px 14px -2px rgba(5, 150, 105, 0.3)',
-                    }}
+                    disabled={
+                      isForgotLoading ||
+                      newPinInput.length !== 4 ||
+                      newPinInput !== confirmNewPinInput
+                    }
+                    className="pin-recovery-on-primary w-full h-[56px] rounded-[16px] mt-2 font-bold text-[16px] transition-opacity flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: '#0B6FB8' }}
                   >
                     {isForgotLoading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span className="text-white">Restableciendo PIN y bóveda...</span>
+                        <Loader2 className="w-5 h-5 animate-spin stroke-[2]" />
+                        <span>Restableciendo PIN...</span>
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                        <span className="text-white">Guardar Nuevo PIN y Acceder</span>
+                        <CheckCircle2 className="w-5 h-5 stroke-[2]" />
+                        <span>Guardar nuevo PIN y acceder</span>
                       </>
                     )}
                   </button>
                 </form>
+
+                <div className="flex-1 min-h-[20px]" />
+
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(false)}
+                  className="w-full h-[48px] mt-2 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
+                  style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                >
+                  Cancelar
+                </button>
               </div>
             )}
 
-            {/* FALLBACK: FULL VAULT RESET */}
+            {/* FALLBACK: FULL VAULT RESET CONFIRMATION */}
             {forgotStep === 'no_key' && (
-              <div>
-                <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-amber-400">
-                  <AlertTriangle className="w-6 h-6" />
-                </div>
-                <h3 className="text-lg font-bold text-center text-white mb-2">
-                  Restablecer Bóveda
-                </h3>
-                <p className="text-xs text-slate-400 mb-4 leading-relaxed text-center">
-                  Si ya no tienes acceso a tu correo registrado, puedes restablecer la bóveda desde cero:
-                </p>
-                <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs text-slate-400 mb-5 space-y-1.5 text-left">
-                  <p className="font-semibold text-slate-300">Aviso importante:</p>
-                  <p>Al restablecer desde cero sin verificar tu correo, se borrarán los archivos guardados en este dispositivo para configurar una bóveda nueva.</p>
+              <div className="flex-1 flex flex-col">
+                <div
+                  className="w-[64px] h-[64px] rounded-[20px] flex items-center justify-center mb-6 shrink-0"
+                  style={{
+                    backgroundColor: isLightTheme ? '#FFFBEB' : 'rgba(217, 119, 6, 0.14)',
+                    border: `1.5px solid ${isLightTheme ? '#B45309' : '#D97706'}`,
+                    color: isLightTheme ? '#92400E' : '#FBBF24',
+                  }}
+                >
+                  <AlertTriangle className="w-7 h-7 stroke-[2]" />
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowForgotModal(false);
-                      onResetVaultRequest();
-                    }}
-                    className="vault-reset-pink-btn w-full py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                <h2
+                  className="text-[30px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-3 text-left"
+                  style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
+                >
+                  Restablecer bóveda
+                </h2>
+
+                <p
+                  className="text-[16px] font-medium leading-[1.5] mb-6 text-left"
+                  style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                >
+                  Si ya no tienes acceso a tu correo registrado, puedes configurar una bóveda nueva desde cero.
+                </p>
+
+                <div
+                  className="w-full rounded-[20px] p-[18px] text-left box-border mb-6"
+                  style={{
+                    backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
+                    border: `1px solid ${isLightTheme ? '#E2E8F0' : '#1E293B'}`,
+                  }}
+                >
+                  <h3
+                    className="text-[15px] font-extrabold mb-1.5"
+                    style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Restablecer y borrar bóveda</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForgotStep('email_input');
-                      setForgotError(null);
-                    }}
-                    className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-colors cursor-pointer"
+                    Aviso importante
+                  </h3>
+                  <p
+                    className="text-[13px] font-medium leading-[1.45]"
+                    style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                   >
-                    Volver a recuperar con correo
-                  </button>
+                    Al restablecer desde cero sin verificar tu correo, se eliminarán de forma permanente los archivos guardados actualmente en este dispositivo.
+                  </p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForgotModal(false);
+                    onResetVaultRequest();
+                  }}
+                  className="w-full h-[56px] rounded-[16px] font-bold text-[16px] flex items-center justify-center gap-2.5 transition-colors cursor-pointer active:scale-[0.99]"
+                  style={{
+                    backgroundColor: isLightTheme ? '#FFFFFF' : '#0F172A',
+                    border: `1.5px solid ${isLightTheme ? '#B45309' : '#D97706'}`,
+                    color: isLightTheme ? '#92400E' : '#FBBF24',
+                  }}
+                >
+                  <RotateCcw className="w-5 h-5 stroke-[2]" />
+                  <span>Confirmar y restablecer bóveda</span>
+                </button>
+
+                <div className="flex-1 min-h-[20px]" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotStep('email_input');
+                    setForgotError(null);
+                  }}
+                  className="w-full h-[48px] mt-2 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
+                  style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
+                >
+                  Volver a recuperar con correo
+                </button>
               </div>
             )}
           </div>
