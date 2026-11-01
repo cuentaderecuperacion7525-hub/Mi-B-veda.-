@@ -32,6 +32,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
   const [status, setStatus] = useState<string>('');
   const [isNative, setIsNative] = useState<boolean>(false);
   const [activeChangelog, setActiveChangelog] = useState<string[]>(() => cachedCheck?.changelog || CURRENT_CHANGELOG);
+  const [activeReleaseDate, setActiveReleaseDate] = useState<string>(() => cachedCheck?.releaseDate || CURRENT_RELEASE_DATE);
   const [installCompleted, setInstallCompleted] = useState<boolean>(false);
 
   // Formatear hora de última comprobación estilo "03:08 p. m."
@@ -78,11 +79,16 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       if (res.buildNumber) {
         setServerVersionCode(res.buildNumber);
       }
+      if (res.releaseDate) {
+        setActiveReleaseDate(res.releaseDate);
+      }
       if (res.changelog && res.changelog.length > 0) {
         const hasGenericAutoText = res.changelog.some((line) =>
-          /compilaci[oó]n autom[aá]tica|generada en github/i.test(line)
+          /compilaci[oó]n autom[aá]tica|generada en github|nueva interfaz minimalista de registro e inicio de sesi[oó]n con verificaci[oó]n de correo mediante c[oó]digo de 6 d[ií]gitos/i.test(line)
         );
         setActiveChangelog(hasGenericAutoText ? CURRENT_CHANGELOG : res.changelog);
+      } else {
+        setActiveChangelog(CURRENT_CHANGELOG);
       }
       setLastCheckTime(getFormattedTime());
 
@@ -302,10 +308,10 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       <section className="pt-2 space-y-3.5 px-1 pb-16">
         <div className="flex items-center justify-between">
           <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
-            Novedades v{serverVersionName || installedVersionName}
+            Novedades v{updateAvailable ? (serverVersionName || installedVersionName) : installedVersionName}
           </h3>
           <span className="text-xs text-slate-400 font-normal">
-            {CURRENT_RELEASE_DATE}
+            {activeReleaseDate}
           </span>
         </div>
 

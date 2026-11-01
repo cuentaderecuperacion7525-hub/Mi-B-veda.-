@@ -52,6 +52,18 @@ jobs:
             const newVersionCode = 1000 + buildNum;
             const newVersionName = '1.2.' + newVersionCode;
             const repo = process.env.GITHUB_REPOSITORY || 'cuentaderecuperacion7525-hub/Mi-B-veda.-';
+            let existingChangelog = [];
+            try {
+              const currentJson = JSON.parse(fs.readFileSync('public/version.json', 'utf8'));
+              if (Array.isArray(currentJson.changelog) && currentJson.changelog.length > 0) {
+                existingChangelog = currentJson.changelog;
+              }
+            } catch (e) {}
+            if (existingChangelog.length === 0) {
+              existingChangelog = [
+                'Actualización de versión con mejoras y correcciones recientes en Mi Bóveda.'
+              ];
+            }
             const data = {
               version: newVersionName,
               version_name: newVersionName,
@@ -59,12 +71,7 @@ jobs:
               version_code: newVersionCode,
               download_url: 'https://github.com/' + repo + '/releases/latest/download/Boveda-Calculadora.apk',
               releaseDate: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }),
-              changelog: [
-                'Acceso y registro: Nueva interfaz minimalista de registro e inicio de sesión con verificación de correo mediante código de 6 dígitos.',
-                'Seguridad reforzada: Protección de códigos de un solo uso con vigencia de 5 minutos y validación de contraseña segura.',
-                'Rendimiento general: Mejoras de velocidad, estabilidad y fluidez al abrir tus fotos, videos, documentos y notas.',
-                'Protección de datos: Actualización directa del sistema conservando intactos todos los archivos guardados en tu bóveda.'
-              ],
+              changelog: existingChangelog,
               mandatory: false
             };
             fs.writeFileSync('public/version.json', JSON.stringify(data, null, 2));

@@ -167,7 +167,7 @@ class UpdateService {
                       Array.isArray(vjData.changelog) &&
                       vjData.changelog.length > 0 &&
                       !vjData.changelog.some((line: string) =>
-                        /compilaci[oó]n autom[aá]tica|generada en github/i.test(line)
+                        /compilaci[oó]n autom[aá]tica|generada en github|nueva interfaz minimalista de registro e inicio de sesi[oó]n con verificaci[oó]n de correo mediante c[oó]digo de 6 d[ií]gitos/i.test(line)
                       )
                     ) {
                       resolvedChangelog = vjData.changelog;
@@ -261,14 +261,23 @@ class UpdateService {
       const effectiveDownloadUrl = directApkUrl || (remoteData as any).download_url ||
         `https://github.com/${this.getGitHubRepo()}/releases/latest/download/Boveda-Calculadora.apk`;
 
+      const isLegacyStaticChangelog = Array.isArray(remoteData.changelog) &&
+        remoteData.changelog.some((line: string) =>
+          /nueva interfaz minimalista de registro e inicio de sesi[oó]n con verificaci[oó]n de correo mediante c[oó]digo de 6 d[ií]gitos/i.test(line)
+        );
+
+      const effectiveChangelog = hasRemoteUpdate && Array.isArray(remoteData.changelog) && remoteData.changelog.length > 0 && !isLegacyStaticChangelog
+        ? remoteData.changelog
+        : CURRENT_CHANGELOG;
+
       const result: UpdateCheckResult = {
         hasUpdate,
         currentVersion: installedVersionName,
         latestVersion: hasRemoteUpdate ? remoteVersionStr : installedVersionName,
         buildNumber: remoteBuild,
         repoName: this.getGitHubRepo(),
-        releaseDate: remoteData.releaseDate || CURRENT_RELEASE_DATE,
-        changelog: remoteData.changelog || CURRENT_CHANGELOG,
+        releaseDate: hasRemoteUpdate ? (remoteData.releaseDate || CURRENT_RELEASE_DATE) : CURRENT_RELEASE_DATE,
+        changelog: effectiveChangelog,
         mandatory: remoteData.mandatory || false,
         isServiceWorkerReady: swHasUpdate,
         downloadUrl: effectiveDownloadUrl,
