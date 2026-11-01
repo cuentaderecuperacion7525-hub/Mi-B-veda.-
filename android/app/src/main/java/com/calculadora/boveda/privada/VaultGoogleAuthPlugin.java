@@ -138,14 +138,67 @@ public class VaultGoogleAuthPlugin extends Plugin {
 
     @ActivityCallback
     private void handleConsentResult(PluginCall call, ActivityResult result) {
-        PluginCall activeCall = call != null ? call : (pendingCall != null ? pendingCall : getSavedCall());
+        final PluginCall activeCall = call != null ? call : (pendingCall != null ? pendingCall : getSavedCall());
         if (activeCall == null) return;
 
         int resultCode = result.getResultCode();
         if (resultCode == Activity.RESULT_OK) {
-            String email = pendingEmail != null ? pendingEmail : "";
-            String displayName = pendingDisplayName != null ? pendingDisplayName : "Usuario";
-            resolveSuccess(activeCall, email, displayName);
+            final String email = pendingEmail != null ? pendingEmail : "";
+            final String fallbackName = pendingDisplayName != null ? pendingDisplayName : "Usuario";
+            final Activity activity = getActivity();
+
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    String firstName = fallbackName;
+                    String lastName = "";
+                    String photoUrl = "";
+                    try {
+                        if (activity != null && !email.isEmpty()) {
+                            Account account = new Account(email, "com.google");
+                            AccountManager am = AccountManager.get(activity);
+                            AccountManagerFuture<Bundle> tokenFuture = am.getAuthToken(
+                                account,
+                                OAUTH_SCOPE,
+                                null,
+                                false,
+                                null,
+                                null
+                            );
+                            Bundle bundle = tokenFuture.getResult(2500, java.util.concurrent.TimeUnit.MILLISECONDS);
+                            if (bundle != null) {
+                                final String token = bundle.getString(AccountManager.KEY_AUTHTOKEN);
+                                if (token != null && !token.isEmpty()) {
+                                    String[] profileData = fetchGoogleUserInfoSync(token, 2500);
+                                    if (profileData != null) {
+                                        if (profileData[0] != null && !profileData[0].isEmpty()) {
+                                            firstName = profileData[0];
+                                        }
+                                        if (profileData[1] != null) {
+                                            lastName = profileData[1];
+                                        }
+                                        if (profileData[2] != null) {
+                                            photoUrl = profileData[2];
+                                        }
+                                    }
+                                    new Thread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            try {
+                                                am.invalidateAuthToken("com.google", token);
+                                                revokeGoogleTokenSync(token, 3500);
+                                            } catch (Exception ignored) {}
+                                        }
+                                    }).start();
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "Aviso al obtener perfil tras consentimiento: " + e.getMessage());
+                    }
+                    resolveSuccessWithProfile(activeCall, email, firstName, lastName, photoUrl);
+                }
+            }).start();
         } else {
             resolveCancelled(activeCall);
         }
@@ -258,8 +311,27 @@ public class VaultGoogleAuthPlugin extends Plugin {
                                                                 ? confirmedAccount.trim().toLowerCase()
                                                                 : cleanEmail;
 
-                                                            // 1. Devolvemos DE INMEDIATO la cuenta confirmada a la app para quitar "Abriendo..."
-                                                            resolveSuccess(call, finalEmail, displayName);
+                                                            String resolvedFirst = displayName;
+                                                            String resolvedLast = "";
+                                                            String resolvedPhoto = "";
+
+                                                            if (token != null && !token.isEmpty()) {
+                                                                String[] profileData = fetchGoogleUserInfoSync(token, 2500);
+                                                                if (profileData != null) {
+                                                                    if (profileData[0] != null && !profileData[0].isEmpty()) {
+                                                                        resolvedFirst = profileData[0];
+                                                                    }
+                                                                    if (profileData[1] != null) {
+                                                                        resolvedLast = profileData[1];
+                                                                    }
+                                                                    if (profileData[2] != null) {
+                                                                        resolvedPhoto = profileData[2];
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            // 1. Devolvemos la cuenta confirmada con su nombre real de Google a la app
+                                                            resolveSuccessWithProfile(call, finalEmail, resolvedFirst, resolvedLast, resolvedPhoto);
 
                                                             // 2. En un hilo independiente invalidamos/revocamos el token para futuras confirmaciones
                                                             if (token != null && !token.isEmpty()) {
@@ -307,6 +379,59 @@ public class VaultGoogleAuthPlugin extends Plugin {
     }
 
     /**
+     * Consulta el endpoint oficial de Google OAuth2 UserInfo para obtener el nombre real (given_name, family_name)
+     * y foto de perfil asociados a la cuenta de Google seleccionada.
+     */
+    private String[] fetchGoogleUserInfoSync(String token, int timeoutMs) {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL("https://www.googleapis.com/oauth2/v3/userinfo");
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Authorization", "Bearer " + token);
+            conn.setConnectTimeout(timeoutMs);
+            conn.setReadTimeout(timeoutMs);
+            int code = conn.getResponseCode();
+            if (code == 200) {
+                java.io.InputStream is = conn.getInputStream();
+                java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(is, "UTF-8"));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line);
+                }
+                reader.close();
+                org.json.JSONObject json = new org.json.JSONObject(sb.toString());
+                String givenName = json.optString("given_name", "").trim();
+                String familyName = json.optString("family_name", "").trim();
+                String fullName = json.optString("name", "").trim();
+                String picture = json.optString("picture", "").trim();
+
+                if (givenName.isEmpty() && !fullName.isEmpty()) {
+                    String[] parts = fullName.split("\\s+");
+                    givenName = parts[0];
+                    if (familyName.isEmpty() && parts.length > 1) {
+                        StringBuilder rest = new StringBuilder();
+                        for (int i = 1; i < parts.length; i++) {
+                            if (i > 1) rest.append(" ");
+                            rest.append(parts[i]);
+                        }
+                        familyName = rest.toString();
+                    }
+                }
+                return new String[]{givenName, familyName, picture};
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "No se pudo consultar userinfo de Google: " + e.getMessage());
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+        return null;
+    }
+
+    /**
      * Revoca el token OAuth2 en los servidores de Google para que la cuenta no quede pre-autorizada
      * y Google Play Services muestre siempre el cuadro original de "Permitir / Cancelar".
      */
@@ -337,6 +462,16 @@ public class VaultGoogleAuthPlugin extends Plugin {
     }
 
     private void resolveSuccess(final PluginCall call, final String email, final String displayName) {
+        resolveSuccessWithProfile(call, email, displayName, "", "");
+    }
+
+    private void resolveSuccessWithProfile(
+        final PluginCall call,
+        final String email,
+        final String firstName,
+        final String lastName,
+        final String photoUrl
+    ) {
         if (!isResolved.compareAndSet(false, true)) {
             return;
         }
@@ -352,7 +487,10 @@ public class VaultGoogleAuthPlugin extends Plugin {
                         JSObject ret = new JSObject();
                         ret.put("success", true);
                         ret.put("email", email);
-                        ret.put("displayName", displayName);
+                        ret.put("displayName", firstName);
+                        ret.put("firstName", firstName);
+                        ret.put("lastName", lastName != null ? lastName : "");
+                        ret.put("photoURL", photoUrl != null ? photoUrl : "");
                         ret.put("provider", "google.com");
                         call.setKeepAlive(false);
                         call.resolve(ret);
