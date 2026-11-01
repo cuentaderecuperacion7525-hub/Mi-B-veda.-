@@ -913,9 +913,9 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
             fontFamily: "'Manrope', system-ui, -apple-system, sans-serif",
           }}
         >
-          <div className="w-full max-w-[440px] min-h-screen flex flex-col px-6 pt-5 pb-6 box-border">
-            {/* 1. Barra superior: botón "Volver" cuadrado (44×44) a la izquierda e indicador de 3 pasos (3 barras de 28×6 px) a la derecha */}
-            <div className="w-full flex items-center justify-between mb-7 pt-1">
+          <div className="w-full max-w-[440px] flex flex-col px-6 pt-10 pb-8 box-border">
+            {/* 1. Barra superior: botón "Volver" cuadrado (44×44) a la izquierda (sin las 3 líneas a la derecha) */}
+            <div className="w-full flex items-center justify-start mb-4">
               <button
                 type="button"
                 onClick={() => {
@@ -939,68 +939,30 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                 />
               </button>
-
-              {forgotStep !== 'no_key' && (
-                <div
-                  className="flex items-center gap-2"
-                  role="progressbar"
-                  aria-valuenow={forgotStep === 'email_input' ? 1 : forgotStep === 'code_verify' ? 2 : 3}
-                  aria-valuemin={1}
-                  aria-valuemax={3}
-                  aria-label={
-                    forgotStep === 'email_input'
-                      ? 'Paso 1 de 3'
-                      : forgotStep === 'code_verify'
-                      ? 'Paso 2 de 3'
-                      : 'Paso 3 de 3'
-                  }
-                >
-                  {[1, 2, 3].map((stepIndex) => {
-                    const currentStepNum =
-                      forgotStep === 'email_input' ? 1 : forgotStep === 'code_verify' ? 2 : 3;
-                    const isActive = stepIndex <= currentStepNum;
-                    return (
-                      <span
-                        key={stepIndex}
-                        className="w-[28px] h-[6px] rounded-full transition-colors duration-200"
-                        style={{
-                          backgroundColor: isActive
-                            ? isLightTheme
-                              ? '#0B6FB8'
-                              : '#00E5FF'
-                            : isLightTheme
-                            ? '#CBD5E1'
-                            : '#1E293B',
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              )}
             </div>
 
             {/* STEP 1: VALIDATE REGISTERED EMAIL */}
             {forgotStep === 'email_input' && (
-              <div className="flex-1 flex flex-col">
-                {/* 2. Icono: tile azul sólido de 64×64 con esquinas de 20 px y un icono de sobre/correo blanco */}
+              <div className="flex flex-col">
+                {/* 2. Icono: tile azul sólido con icono de sobre/correo blanco */}
                 <div
-                  className="pin-recovery-on-primary w-[64px] h-[64px] rounded-[20px] flex items-center justify-center mb-6 shrink-0"
+                  className="pin-recovery-on-primary w-[56px] h-[56px] rounded-[18px] flex items-center justify-center mb-4 shrink-0"
                   style={{ backgroundColor: '#0B6FB8' }}
                 >
-                  <Mail className="w-7 h-7 stroke-[2]" />
+                  <Mail className="w-6 h-6 stroke-[2]" />
                 </div>
 
-                {/* 3. Título: "Recupera tu PIN" (30 px, peso 800, color casi negro) */}
+                {/* 3. Título: "Recupera tu PIN" */}
                 <h2
-                  className="text-[30px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-3 text-left"
+                  className="text-[26px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-2 text-left"
                   style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                 >
                   Recupera tu PIN
                 </h2>
 
-                {/* 4. Descripción (16 px, gris oscuro) */}
+                {/* 4. Descripción */}
                 <p
-                  className="text-[16px] font-medium leading-[1.5] mb-7 text-left"
+                  className="text-[15px] font-medium leading-[1.45] mb-5 text-left"
                   style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                 >
                   Escribe el correo con el que registraste tu cuenta. Si está registrado, te enviaremos un código de 6 dígitos.
@@ -1010,15 +972,15 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   {/* 5. Etiqueta: "Correo electrónico registrado" (14 px, peso 700) */}
                   <label
                     htmlFor="pin-recovery-email-input"
-                    className="block text-[14px] font-bold mb-2 text-left"
+                    className="block text-[14px] font-bold mb-1.5 text-left"
                     style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                   >
                     Correo electrónico registrado
                   </label>
 
-                  {/* 6. Campo de texto: alto 56 px, esquinas de 16 px, fondo blanco, borde azul de 2 px (estado enfocado), icono de arroba a la izquierda */}
+                  {/* 6. Campo de texto con icono de arroba a la izquierda */}
                   <div
-                    className="w-full h-[56px] rounded-[16px] px-4 flex items-center gap-3 transition-colors box-border"
+                    className="w-full h-[52px] rounded-[16px] px-4 flex items-center gap-3 transition-colors box-border"
                     style={{
                       backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
                       border: isEmailFocused
@@ -1052,7 +1014,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
                   {/* 7. Texto de ayuda (13 px) */}
                   <p
-                    className="text-[13px] font-medium leading-[1.4] mt-2.5 text-left"
+                    className="text-[13px] font-medium leading-[1.4] mt-2 text-left"
                     style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                   >
                     Si no ves el correo, revisa tu carpeta de spam.
@@ -1060,7 +1022,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
                   {forgotError && (
                     <div
-                      className="mt-3.5 flex items-start gap-2.5 text-[13px] font-semibold p-3.5 rounded-[14px] border text-left"
+                      className="mt-3 flex items-start gap-2.5 text-[13px] font-semibold p-3 rounded-[14px] border text-left"
                       style={{
                         backgroundColor: isLightTheme ? '#FFF1F2' : 'rgba(244, 63, 94, 0.12)',
                         borderColor: isLightTheme ? '#FECDD3' : 'rgba(244, 63, 94, 0.3)',
@@ -1072,11 +1034,11 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                     </div>
                   )}
 
-                  {/* 8. Botón principal: ancho completo, alto 56 px, esquinas de 16 px, azul sólido, texto blanco "Enviar código de 6 dígitos" con icono de avión de papel */}
+                  {/* 8. Botón principal: azul sólido, texto blanco "Enviar código de 6 dígitos" con icono de avión de papel */}
                   <button
                     type="submit"
                     disabled={isForgotLoading || !isForgotEmailValid}
-                    className="pin-recovery-on-primary w-full h-[56px] rounded-[16px] mt-5 font-bold text-[16px] transition-opacity flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="pin-recovery-on-primary w-full h-[52px] rounded-[16px] mt-4 font-bold text-[16px] transition-opacity flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ backgroundColor: '#0B6FB8' }}
                   >
                     {isForgotLoading ? (
@@ -1093,25 +1055,22 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   </button>
                 </form>
 
-                {/* 9. Espacio flexible que empuja lo siguiente hacia abajo */}
-                <div className="flex-1 min-h-[20px]" />
-
-                {/* 10. Tarjeta de zona de riesgo (fondo blanco, borde gris claro, esquinas de 20 px, padding 18) */}
+                {/* 9. Tarjeta de zona de riesgo compacta inmediatamente debajo */}
                 <div
-                  className="w-full rounded-[20px] p-[18px] text-left box-border mt-4"
+                  className="w-full rounded-[18px] p-4 text-left box-border mt-4"
                   style={{
                     backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
                     border: `1px solid ${isLightTheme ? '#E2E8F0' : '#1E293B'}`,
                   }}
                 >
                   <h3
-                    className="text-[16px] font-extrabold leading-[1.3] mb-1.5"
+                    className="text-[15px] font-extrabold leading-[1.3] mb-1"
                     style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                   >
                     ¿No tienes acceso a ese correo?
                   </h3>
                   <p
-                    className="text-[13px] font-medium leading-[1.45] mb-4"
+                    className="text-[13px] font-medium leading-[1.4] mb-3"
                     style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                   >
                     Puedes empezar con una bóveda nueva. Esta acción elimina el contenido actual y no se puede deshacer.
@@ -1122,7 +1081,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                       setForgotError(null);
                       setForgotStep('no_key');
                     }}
-                    className="w-full h-[48px] rounded-[14px] font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer active:scale-[0.99]"
+                    className="w-full h-[46px] rounded-[14px] font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer active:scale-[0.99]"
                     style={{
                       backgroundColor: isLightTheme ? '#FFFFFF' : '#0F172A',
                       border: `1.5px solid ${isLightTheme ? '#B45309' : '#D97706'}`,
@@ -1133,11 +1092,11 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   </button>
                 </div>
 
-                {/* 11. Botón de texto "Cancelar" (alto 48 px, gris oscuro) al final */}
+                {/* 10. Botón de texto "Cancelar" con margen cómodo arriba de la barra del sistema */}
                 <button
                   type="button"
                   onClick={() => setShowForgotModal(false)}
-                  className="w-full h-[48px] mt-2 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
+                  className="w-full h-[44px] mt-2 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
                   style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                 >
                   Cancelar
@@ -1147,23 +1106,23 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
             {/* STEP 2: VERIFY 6-DIGIT EMAIL CODE */}
             {forgotStep === 'code_verify' && (
-              <div className="flex-1 flex flex-col">
+              <div className="flex flex-col">
                 <div
-                  className="pin-recovery-on-primary w-[64px] h-[64px] rounded-[20px] flex items-center justify-center mb-6 shrink-0"
+                  className="pin-recovery-on-primary w-[56px] h-[56px] rounded-[18px] flex items-center justify-center mb-4 shrink-0"
                   style={{ backgroundColor: '#0B6FB8' }}
                 >
-                  <KeyRound className="w-7 h-7 stroke-[2]" />
+                  <KeyRound className="w-6 h-6 stroke-[2]" />
                 </div>
 
                 <h2
-                  className="text-[30px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-3 text-left"
+                  className="text-[26px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-2 text-left"
                   style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                 >
                   Verifica tu código
                 </h2>
 
                 <p
-                  className="text-[16px] font-medium leading-[1.5] mb-4 text-left"
+                  className="text-[15px] font-medium leading-[1.45] mb-3 text-left"
                   style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                 >
                   Enviamos un código de 6 dígitos a{' '}
@@ -1175,7 +1134,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   </strong>
                 </p>
 
-                <div className="flex items-center gap-2 text-[13px] font-bold mb-6">
+                <div className="flex items-center gap-2 text-[13px] font-bold mb-5">
                   <Clock
                     className="w-4 h-4 stroke-[2] shrink-0"
                     style={{
@@ -1210,14 +1169,14 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                 <form onSubmit={handleVerifyRecoveryEmailCode} className="flex flex-col">
                   <label
                     htmlFor="pin-recovery-code-input"
-                    className="block text-[14px] font-bold mb-2 text-left"
+                    className="block text-[14px] font-bold mb-1.5 text-left"
                     style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                   >
                     Código de verificación (6 dígitos)
                   </label>
 
                   <div
-                    className="w-full h-[56px] rounded-[16px] px-4 flex items-center transition-colors box-border"
+                    className="w-full h-[52px] rounded-[16px] px-4 flex items-center transition-colors box-border"
                     style={{
                       backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
                       border: `2px solid ${isLightTheme ? '#0B6FB8' : '#00E5FF'}`,
@@ -1245,7 +1204,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
                   {forgotError && (
                     <div
-                      className="mt-3.5 flex items-start gap-2.5 text-[13px] font-semibold p-3.5 rounded-[14px] border text-left"
+                      className="mt-3 flex items-start gap-2.5 text-[13px] font-semibold p-3 rounded-[14px] border text-left"
                       style={{
                         backgroundColor: isLightTheme ? '#FFF1F2' : 'rgba(244, 63, 94, 0.12)',
                         borderColor: isLightTheme ? '#FECDD3' : 'rgba(244, 63, 94, 0.3)',
@@ -1260,7 +1219,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   <button
                     type="submit"
                     disabled={isForgotLoading || forgotSecondsLeft <= 0 || forgotCode.length !== 6}
-                    className="pin-recovery-on-primary w-full h-[56px] rounded-[16px] mt-5 font-bold text-[16px] transition-opacity flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="pin-recovery-on-primary w-full h-[52px] rounded-[16px] mt-4 font-bold text-[16px] transition-opacity flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ backgroundColor: '#0B6FB8' }}
                   >
                     {isForgotLoading ? (
@@ -1276,7 +1235,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                     )}
                   </button>
 
-                  <div className="flex items-center justify-between pt-4 text-[14px] font-bold">
+                  <div className="flex items-center justify-between pt-3 text-[14px] font-bold">
                     <button
                       type="button"
                       onClick={() => handleSendRecoveryEmailCode()}
@@ -1305,12 +1264,10 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   </div>
                 </form>
 
-                <div className="flex-1 min-h-[20px]" />
-
                 <button
                   type="button"
                   onClick={() => setShowForgotModal(false)}
-                  className="w-full h-[48px] mt-2 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
+                  className="w-full h-[44px] mt-3 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
                   style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                 >
                   Cancelar
@@ -1320,38 +1277,38 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
             {/* STEP 3: NEW 4-DIGIT PIN INPUT */}
             {forgotStep === 'new_pin_input' && (
-              <div className="flex-1 flex flex-col">
+              <div className="flex flex-col">
                 <div
-                  className="pin-recovery-on-primary w-[64px] h-[64px] rounded-[20px] flex items-center justify-center mb-6 shrink-0"
+                  className="pin-recovery-on-primary w-[56px] h-[56px] rounded-[18px] flex items-center justify-center mb-4 shrink-0"
                   style={{ backgroundColor: '#0B6FB8' }}
                 >
-                  <KeyRound className="w-7 h-7 stroke-[2]" />
+                  <KeyRound className="w-6 h-6 stroke-[2]" />
                 </div>
 
                 <h2
-                  className="text-[30px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-3 text-left"
+                  className="text-[26px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-2 text-left"
                   style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                 >
                   Crea tu nuevo PIN
                 </h2>
 
                 <p
-                  className="text-[16px] font-medium leading-[1.5] mb-7 text-left"
+                  className="text-[15px] font-medium leading-[1.45] mb-5 text-left"
                   style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                 >
                   Identidad verificada. Define tu nuevo PIN de 4 dígitos para abrir tu bóveda conservando todos tus archivos.
                 </p>
 
-                <form onSubmit={handleResetPinWithRecovery} className="flex flex-col space-y-4">
+                <form onSubmit={handleResetPinWithRecovery} className="flex flex-col space-y-3.5">
                   <div>
                     <label
-                      className="block text-[14px] font-bold mb-2 text-left"
+                      className="block text-[14px] font-bold mb-1.5 text-left"
                       style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                     >
                       Nuevo PIN (4 dígitos)
                     </label>
                     <div
-                      className="w-full h-[56px] rounded-[16px] px-4 flex items-center justify-between transition-colors box-border"
+                      className="w-full h-[52px] rounded-[16px] px-4 flex items-center justify-between transition-colors box-border"
                       style={{
                         backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
                         border: `2px solid ${isLightTheme ? '#0B6FB8' : '#00E5FF'}`,
@@ -1390,13 +1347,13 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
                   <div>
                     <label
-                      className="block text-[14px] font-bold mb-2 text-left"
+                      className="block text-[14px] font-bold mb-1.5 text-left"
                       style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                     >
                       Confirmar nuevo PIN
                     </label>
                     <div
-                      className="w-full h-[56px] rounded-[16px] px-4 flex items-center transition-colors box-border"
+                      className="w-full h-[52px] rounded-[16px] px-4 flex items-center transition-colors box-border"
                       style={{
                         backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
                         border: `1.5px solid ${isLightTheme ? '#D5DEEA' : '#1E293B'}`,
@@ -1421,7 +1378,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
                   {forgotError && (
                     <div
-                      className="flex items-start gap-2.5 text-[13px] font-semibold p-3.5 rounded-[14px] border text-left"
+                      className="flex items-start gap-2.5 text-[13px] font-semibold p-3 rounded-[14px] border text-left"
                       style={{
                         backgroundColor: isLightTheme ? '#FFF1F2' : 'rgba(244, 63, 94, 0.12)',
                         borderColor: isLightTheme ? '#FECDD3' : 'rgba(244, 63, 94, 0.3)',
@@ -1440,7 +1397,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                       newPinInput.length !== 4 ||
                       newPinInput !== confirmNewPinInput
                     }
-                    className="pin-recovery-on-primary w-full h-[56px] rounded-[16px] mt-2 font-bold text-[16px] transition-opacity flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="pin-recovery-on-primary w-full h-[52px] rounded-[16px] mt-1 font-bold text-[16px] transition-opacity flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ backgroundColor: '#0B6FB8' }}
                   >
                     {isForgotLoading ? (
@@ -1457,12 +1414,10 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   </button>
                 </form>
 
-                <div className="flex-1 min-h-[20px]" />
-
                 <button
                   type="button"
                   onClick={() => setShowForgotModal(false)}
-                  className="w-full h-[48px] mt-2 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
+                  className="w-full h-[44px] mt-3 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
                   style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                 >
                   Cancelar
@@ -1472,41 +1427,41 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
             {/* FALLBACK: FULL VAULT RESET CONFIRMATION */}
             {forgotStep === 'no_key' && (
-              <div className="flex-1 flex flex-col">
+              <div className="flex flex-col">
                 <div
-                  className="w-[64px] h-[64px] rounded-[20px] flex items-center justify-center mb-6 shrink-0"
+                  className="w-[56px] h-[56px] rounded-[18px] flex items-center justify-center mb-4 shrink-0"
                   style={{
                     backgroundColor: isLightTheme ? '#FFFBEB' : 'rgba(217, 119, 6, 0.14)',
                     border: `1.5px solid ${isLightTheme ? '#B45309' : '#D97706'}`,
                     color: isLightTheme ? '#92400E' : '#FBBF24',
                   }}
                 >
-                  <AlertTriangle className="w-7 h-7 stroke-[2]" />
+                  <AlertTriangle className="w-6 h-6 stroke-[2]" />
                 </div>
 
                 <h2
-                  className="text-[30px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-3 text-left"
+                  className="text-[26px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-2 text-left"
                   style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                 >
                   Restablecer bóveda
                 </h2>
 
                 <p
-                  className="text-[16px] font-medium leading-[1.5] mb-6 text-left"
+                  className="text-[15px] font-medium leading-[1.45] mb-4 text-left"
                   style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                 >
                   Si ya no tienes acceso a tu correo registrado, puedes configurar una bóveda nueva desde cero.
                 </p>
 
                 <div
-                  className="w-full rounded-[20px] p-[18px] text-left box-border mb-6"
+                  className="w-full rounded-[18px] p-4 text-left box-border mb-5"
                   style={{
                     backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
                     border: `1px solid ${isLightTheme ? '#E2E8F0' : '#1E293B'}`,
                   }}
                 >
                   <h3
-                    className="text-[15px] font-extrabold mb-1.5"
+                    className="text-[15px] font-extrabold mb-1"
                     style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                   >
                     Aviso importante
@@ -1525,7 +1480,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                     setShowForgotModal(false);
                     onResetVaultRequest();
                   }}
-                  className="w-full h-[56px] rounded-[16px] font-bold text-[16px] flex items-center justify-center gap-2.5 transition-colors cursor-pointer active:scale-[0.99]"
+                  className="w-full h-[52px] rounded-[16px] font-bold text-[16px] flex items-center justify-center gap-2.5 transition-colors cursor-pointer active:scale-[0.99]"
                   style={{
                     backgroundColor: isLightTheme ? '#FFFFFF' : '#0F172A',
                     border: `1.5px solid ${isLightTheme ? '#B45309' : '#D97706'}`,
@@ -1536,15 +1491,13 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   <span>Confirmar y restablecer bóveda</span>
                 </button>
 
-                <div className="flex-1 min-h-[20px]" />
-
                 <button
                   type="button"
                   onClick={() => {
                     setForgotStep('email_input');
                     setForgotError(null);
                   }}
-                  className="w-full h-[48px] mt-2 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
+                  className="w-full h-[44px] mt-3 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
                   style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                 >
                   Volver a recuperar con correo
