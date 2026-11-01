@@ -22,6 +22,8 @@ import {
   checkEmailConfirmationStatus,
   saveRegisteredAccountToCloud,
   loginRegisteredAccount,
+  checkRegisteredAccountExists,
+  updateRegisteredAccountPassword,
 } from '../services/emailVerificationService';
 
 interface InitialRegisterViewProps {
@@ -33,7 +35,7 @@ interface InitialRegisterViewProps {
  * Filtra en tiempo real números y símbolos para que solo se puedan escribir letras y espacios,
  * aplicando mayúscula inicial a cada palabra (ej. "josé manuel" -> "José Manuel").
  */
-function sanitizePersonNameInput(raw: string): string {
+export function sanitizePersonNameInput(raw: string): string {
   const lettersAndSpaces = raw
     .replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '')
     .replace(/\s{2,}/g, ' ')
@@ -113,7 +115,7 @@ const VALID_CONNECTOR_WORDS = new Set([
  * Acepta nombres y apellidos reales en español (como Ayala, Reyes, Yáñez, Ochoa, Carlos, Cruz, Hernández)
  * y bloquea combinaciones de letras tecleadas al azar (como "jdjsjwiw", "idnwiwqv", "xxx", "asdf").
  */
-function validateRealPersonName(value: string, fieldLabel: string): { valid: boolean; error?: string } {
+export function validateRealPersonName(value: string, fieldLabel: string): { valid: boolean; error?: string } {
   const clean = value.trim();
   if (!clean) {
     return { valid: false, error: `Por favor ingresa tu ${fieldLabel.toLowerCase()}.` };
@@ -258,14 +260,17 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   onComplete,
   showToast,
 }) => {
-  // Control de vista: 'register' (Crear cuenta), 'login' (Iniciar sesión) o 'verify' (Pantalla 2 con 6 cajitas)
-  const [step, setStep] = useState<'register' | 'login' | 'verify'>('register');
+  // Control de vista: 'register', 'login', 'verify', 'forgot_email', 'forgot_verify', 'forgot_new_password'
+  const [step, setStep] = useState<
+    'register' | 'login' | 'verify' | 'forgot_email' | 'forgot_verify' | 'forgot_new_password'
+  >('register');
 
   // Campos de formulario
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
 
@@ -291,7 +296,9 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   const isPasswordAllValid = passHasValidLength && passHasUppercase && passHasNumber;
 
   // El desplegable dinámico se abre al instante cuando el campo Contraseña recibe foco o el usuario comienza a escribir
-  const showPasswordDropdown = !step.includes('login') && (isPasswordFocused || passwordInput.length > 0);
+  const showPasswordDropdown =
+    (step === 'register' || step === 'forgot_new_password') &&
+    (isPasswordFocused || passwordInput.length > 0);
 
   // Evaluación en tiempo real de Nombre y Apellidos reales
   const firstNameValidation = validateRealPersonName(firstName, 'Nombre');
@@ -344,7 +351,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
 
   // Reloj regresivo de 5 minutos (300s) y enfriamiento del botón Reenviar
   useEffect(() => {
-    if (step !== 'verify') return;
+    if (step !== 'verify' && step !== 'forgot_verify') return;
 
     const timer = setInterval(() => {
       setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
@@ -357,14 +364,22 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   // Escucha automática en segundo plano (cada 2 segundos) en la Pantalla 2
   // por si el usuario toca el enlace chiquito dentro de su correo
   useEffect(() => {
-    if (step !== 'verify' || !emailInput.trim() || secondsLeft <= 0) return;
+    if ((step !== 'verify' && step !== 'forgot_verify') || !emailInput.trim() || secondsLeft <= 0) return;
 
     const cleanEmail = emailInput.trim().toLowerCase();
     const interval = setInterval(async () => {
       const status = await checkEmailConfirmationStatus(cleanEmail, pendingToken);
       if (status.confirmed) {
         clearInterval(interval);
-        completeRegistration(status.email || cleanEmail, firstName || status.firstName || 'Usuario', lastName, true);
+        if (step === 'forgot_verify') {
+          setPasswordInput('');
+          setConfirmPasswordInput('');
+          setErrorMsg(null);
+          showToast('¡Correo verificado! Ahora crea tu nueva contraseña.', 'success');
+          setStep('forgot_new_password');
+        } else {
+          completeRegistration(status.email || cleanEmail, firstName || status.firstName || 'Usuario', lastName, true);
+        }
       }
     }, 2000);
 
@@ -496,6 +511,93 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     }
   };
 
+  // Paso 1 de "¿Olvidaste tu contraseña?": Validar correo registrado y enviar PIN de 6 dígitos
+  const handleForgotEmailSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setErrorMsg(null);
+
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+      setErrorMsg('Por favor ingresa un correo electrónico válido.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const checkRes = await checkRegisteredAccountExists(cleanEmail, false);
+      if (!checkRes.exists) {
+        setErrorMsg(
+          'Este correo no está registrado en la aplicación. Verifica que esté bien escrito o crea una cuenta.'
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (checkRes.firstName) setFirstName(checkRes.firstName);
+      if (checkRes.lastName !== undefined) setLastName(checkRes.lastName);
+
+      const res = await sendEmailPin(cleanEmail, checkRes.firstName || 'Usuario');
+      if (res.success) {
+        if (res.token) {
+          setPendingToken(res.token);
+        }
+        setPinDigits(['', '', '', '', '', '']);
+        setSecondsLeft(300);
+        setResendCooldown(20);
+        setStep('forgot_verify');
+        showToast(`Código de recuperación enviado a ${cleanEmail}`, 'success');
+        setTimeout(() => {
+          inputRefs.current[0]?.focus();
+        }, 120);
+      } else {
+        setErrorMsg(res.error || 'No se pudo enviar el correo de recuperación.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error al validar el correo electrónico.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Paso 3 de "¿Olvidaste tu contraseña?": Guardar nueva contraseña y entrar
+  const handleSaveNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    if (!isPasswordAllValid) {
+      setIsPasswordFocused(true);
+      setErrorMsg('La nueva contraseña debe tener entre 6 y 12 caracteres, al menos una mayúscula y un número.');
+      return;
+    }
+
+    if (passwordInput !== confirmPasswordInput) {
+      setErrorMsg('Las contraseñas no coinciden.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const cleanEmail = emailInput.trim().toLowerCase();
+      const updRes = await updateRegisteredAccountPassword(cleanEmail, passwordInput);
+      if (updRes.success) {
+        showToast('¡Contraseña actualizada con éxito!', 'success');
+        await completeRegistration(
+          updRes.email || cleanEmail,
+          updRes.firstName || firstName || 'Usuario',
+          updRes.lastName !== undefined ? updRes.lastName : lastName,
+          false
+        );
+      } else {
+        setErrorMsg(updRes.error || 'No se pudo actualizar la contraseña.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error al actualizar la contraseña.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Verificar los 6 dígitos ingresados en las cajitas
   const verifySixDigits = async (codeToVerify: string) => {
     if (isVerifyingPin) return;
@@ -516,7 +618,15 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       const cleanEmail = emailInput.trim().toLowerCase();
       const res = await verifyEmailPin(cleanEmail, codeToVerify, pendingToken);
       if (res.success) {
-        await completeRegistration(cleanEmail, firstName.trim() || res.firstName || 'Usuario', lastName.trim(), true);
+        if (step === 'forgot_verify') {
+          setPasswordInput('');
+          setConfirmPasswordInput('');
+          setErrorMsg(null);
+          showToast('¡Código verificado! Crea tu nueva contraseña.', 'success');
+          setStep('forgot_new_password');
+        } else {
+          await completeRegistration(cleanEmail, firstName.trim() || res.firstName || 'Usuario', lastName.trim(), true);
+        }
       } else {
         setErrorMsg(res.error || 'El código ingresado es incorrecto.');
       }
@@ -574,10 +684,11 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  // ==================== PANTALLA 2: VERIFICAR CÓDIGO DE 6 DÍGITOS (O ENLACE EN SEGUNDO PLANO) ====================
-  if (step === 'verify') {
+  // ==================== PANTALLA 2: VERIFICAR CÓDIGO DE 6 DÍGITOS (REGISTRO O RECUPERACIÓN DE CONTRASEÑA) ====================
+  if (step === 'verify' || step === 'forgot_verify') {
     const isExpired = secondsLeft <= 0;
     const currentCode = pinDigits.join('');
+    const isForgotFlow = step === 'forgot_verify';
 
     return (
       <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
@@ -587,7 +698,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           </div>
 
           <h1 className="text-[23px] font-bold tracking-tight text-center">
-            Verifica tu correo
+            {isForgotFlow ? 'Código de recuperación' : 'Verifica tu correo'}
           </h1>
           <p className="text-[13.5px] text-slate-500 dark:text-slate-400 text-center mt-1.5 mb-4 leading-relaxed">
             Enviamos un código de 6 dígitos a{' '}
@@ -667,7 +778,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           <div className="w-full flex items-center justify-between mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 text-[13px]">
             <button
               type="button"
-              onClick={() => handleRegisterSubmit()}
+              onClick={() => (isForgotFlow ? handleForgotEmailSubmit() : handleRegisterSubmit())}
               disabled={isSubmitting || resendCooldown > 0}
               className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:underline font-medium cursor-pointer disabled:opacity-45 disabled:no-underline"
             >
@@ -684,7 +795,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                setStep('register');
+                setStep(isForgotFlow ? 'forgot_email' : 'register');
                 setErrorMsg(null);
               }}
               className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:underline cursor-pointer"
@@ -693,6 +804,241 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               <span>Cambiar correo</span>
             </button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== PANTALLA: OLVIDASTE TU CONTRASEÑA (PASO 1: INGRESAR CORREO) ====================
+  if (step === 'forgot_email') {
+    return (
+      <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
+        <div className="w-full max-w-[360px] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/90 px-6 py-8 shadow-sm flex flex-col items-center animate-in fade-in duration-200">
+          <div className="w-13 h-13 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-3">
+            <Mail className="w-6 h-6 stroke-[1.75]" />
+          </div>
+
+          <h1 className="text-[22px] font-semibold tracking-tight text-center">
+            Recuperar contraseña
+          </h1>
+          <p className="text-[13.5px] text-slate-500 dark:text-slate-400 text-center mt-1.5 mb-6 leading-relaxed">
+            Ingresa el correo electrónico con el que registraste tu cuenta. Validaremos que exista y te enviaremos un código de 6 dígitos.
+          </p>
+
+          <form onSubmit={handleForgotEmailSubmit} className="w-full space-y-5">
+            <div className="w-full">
+              <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
+                <Mail className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+                <input
+                  type="email"
+                  autoComplete="email"
+                  placeholder="Tu correo registrado"
+                  value={emailInput}
+                  onChange={(e) => {
+                    setEmailInput(e.target.value);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
+                  required
+                  autoFocus
+                  className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                />
+              </div>
+            </div>
+
+            {errorMsg && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400 text-xs text-left animate-in fade-in duration-150">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSubmitting || !emailInput.trim()}
+              className="w-full h-[48px] rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium text-[15px] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Validando correo...</span>
+                </>
+              ) : (
+                <span>Enviar código de verificación</span>
+              )}
+            </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStep('login');
+              setErrorMsg(null);
+            }}
+            className="mt-5 inline-flex items-center gap-1.5 text-[13.5px] text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Volver al inicio de sesión</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== PANTALLA: OLVIDASTE TU CONTRASEÑA (PASO 3: CREAR NUEVA CONTRASEÑA) ====================
+  if (step === 'forgot_new_password') {
+    return (
+      <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
+        <div className="w-full max-w-[360px] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/90 px-6 py-8 shadow-sm flex flex-col items-center animate-in fade-in duration-200">
+          <div className="w-13 h-13 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-3">
+            <Lock className="w-6 h-6 stroke-[1.75]" />
+          </div>
+
+          <h1 className="text-[22px] font-semibold tracking-tight text-center">
+            Nueva contraseña
+          </h1>
+          <p className="text-[13.5px] text-slate-500 dark:text-slate-400 text-center mt-1.5 mb-6 leading-relaxed">
+            Crea una nueva contraseña segura para{' '}
+            <span className="font-semibold text-slate-800 dark:text-slate-200 break-all">
+              {emailInput.trim()}
+            </span>
+          </p>
+
+          <form onSubmit={handleSaveNewPassword} className="w-full space-y-5">
+            <div className="w-full">
+              <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
+                <Lock className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Nueva contraseña"
+                  maxLength={12}
+                  value={passwordInput}
+                  onFocus={() => setIsPasswordFocused(true)}
+                  onBlur={() => setIsPasswordFocused(false)}
+                  onChange={(e) => {
+                    setPasswordInput(e.target.value.slice(0, 12));
+                    if (errorMsg) setErrorMsg(null);
+                  }}
+                  required
+                  autoFocus
+                  className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer p-0.5 shrink-0"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-[18px] h-[18px] stroke-[1.7]" />
+                  ) : (
+                    <Eye className="w-[18px] h-[18px] stroke-[1.7]" />
+                  )}
+                </button>
+              </div>
+
+              <div
+                className={`overflow-hidden transition-all duration-200 ease-out ${
+                  showPasswordDropdown
+                    ? 'max-h-36 opacity-100 mt-2.5'
+                    : 'max-h-0 opacity-0 mt-0 pointer-events-none'
+                }`}
+              >
+                <div className="rounded-xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 px-3 py-2.5 space-y-1.5">
+                  <div
+                    className={`flex items-center gap-2 text-[11.5px] transition-colors ${
+                      passHasValidLength
+                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                        : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    <Check
+                      className={`w-3.5 h-3.5 shrink-0 transition-all ${
+                        passHasValidLength
+                          ? 'opacity-100 stroke-[2.6] text-emerald-500'
+                          : 'opacity-30 stroke-[1.7]'
+                      }`}
+                    />
+                    <span>Entre 6 y 12 caracteres ({passwordInput.length}/12)</span>
+                  </div>
+                  <div
+                    className={`flex items-center gap-2 text-[11.5px] transition-colors ${
+                      passHasUppercase
+                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                        : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    <Check
+                      className={`w-3.5 h-3.5 shrink-0 transition-all ${
+                        passHasUppercase
+                          ? 'opacity-100 stroke-[2.6] text-emerald-500'
+                          : 'opacity-30 stroke-[1.7]'
+                      }`}
+                    />
+                    <span>Al menos una letra mayúscula (A-Z)</span>
+                  </div>
+                  <div
+                    className={`flex items-center gap-2 text-[11.5px] transition-colors ${
+                      passHasNumber
+                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                        : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    <Check
+                      className={`w-3.5 h-3.5 shrink-0 transition-all ${
+                        passHasNumber
+                          ? 'opacity-100 stroke-[2.6] text-emerald-500'
+                          : 'opacity-30 stroke-[1.7]'
+                      }`}
+                    />
+                    <span>Al menos un número (0-9)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full">
+              <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
+                <Lock className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Confirmar nueva contraseña"
+                  maxLength={12}
+                  value={confirmPasswordInput}
+                  onChange={(e) => {
+                    setConfirmPasswordInput(e.target.value.slice(0, 12));
+                    if (errorMsg) setErrorMsg(null);
+                  }}
+                  required
+                  className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                />
+              </div>
+            </div>
+
+            {errorMsg && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400 text-xs text-left animate-in fade-in duration-150">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full h-[48px] rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium text-[15px] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Guardando contraseña...</span>
+                </>
+              ) : (
+                <span>Guardar y entrar</span>
+              )}
+            </button>
+          </form>
         </div>
       </div>
     );
@@ -843,6 +1189,22 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                 )}
               </button>
             </div>
+
+            {/* Enlace "¿Olvidaste tu contraseña?" en modo inicio de sesión */}
+            {isLoginMode && (
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMsg(null);
+                    setStep('forgot_email');
+                  }}
+                  className="text-[12.5px] text-blue-600 dark:text-blue-400 hover:underline font-medium cursor-pointer"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
+            )}
 
             {/* Desplegable dinámico que aparece instantáneamente cuando el campo recibe foco o el usuario comienza a escribir */}
             {!isLoginMode && (

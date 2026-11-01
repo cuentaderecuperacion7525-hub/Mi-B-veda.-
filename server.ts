@@ -20,9 +20,9 @@ const isProd = process.env.NODE_ENV === 'production';
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// Transporter oficial con la contraseña de aplicación de Gmail
-const GMAIL_USER = (process.env.GMAIL_USER || 'josemanuel5121@gmail.com').trim();
-const GMAIL_PASS = (process.env.GMAIL_PASS || 'diitlkrpftinupeo').replace(/\s+/g, '').trim();
+// Transporter oficial con la contraseña de aplicación de Gmail (cargada desde variables de entorno /.env)
+const GMAIL_USER = (process.env.GMAIL_USER || '').trim();
+const GMAIL_PASS = (process.env.GMAIL_PASS || '').replace(/\s+/g, '').trim();
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -314,7 +314,14 @@ async function cancelarSolicitudesAnterioresFirestore(email: string, currentToke
       const ca = f.createdAt?.stringValue || new Date().toISOString();
       const pn = f.pin?.stringValue || undefined;
 
-      if (tk && tk !== currentToken && tk !== 'pagina_confirmacion' && em === cleanEmail) {
+      if (
+        tk &&
+        tk !== currentToken &&
+        tk !== 'pagina_confirmacion' &&
+        !tk.startsWith('cuenta_') &&
+        st !== 'registered_account' &&
+        em === cleanEmail
+      ) {
         if (st === 'pending' || st === 'sending' || st === 'sent') {
           await saveVerificationToFirestore({
             token: tk,
@@ -354,7 +361,8 @@ async function enviarCorreoConfirmacion(
   const confirmLink = await createDirectConfirmationUrl(token, cleanCorreo, cleanNombre);
 
   const info = await transporter.sendMail({
-    from: `"Bóveda Familiar" <${GMAIL_USER}>`,
+    from: `"Mi Bóveda" <${GMAIL_USER}>`,
+    replyTo: '"Mi Bóveda (No responder)" <no-responder@miboveda.app>',
     to: cleanCorreo, // <- Se envía SIEMPRE al correo que el usuario escribió en su registro
     subject: `${cleanPin} es tu código de acceso a Mi Bóveda`,
     text: `Hola ${cleanNombre},\n\nTu código de verificación de 6 dígitos para Mi Bóveda es:\n\n${cleanPin}\n\nEste código es de un solo uso y vence en 5 minutos.\n\n¿Prefieres confirmar directamente con enlace? Abre: ${confirmLink}\n\nSaludos,\nMi Bóveda`,
@@ -450,7 +458,26 @@ async function pollFirestorePendingVerifications() {
       if (!token || token === 'pagina_confirmacion' || token.startsWith('cuenta_') || status === 'registered_account') continue;
 
       const createdMs = Date.parse(createdAt) || Date.now();
-      const isExpired = Date.now() - createdMs > VIGENCIA_MS;
+      const ageMs = Date.now() - createdMs;
+      const isExpired = ageMs > VIGENCIA_MS;
+      const isReadyForCleanup = ageMs > VIGENCIA_MS * 2; // Más de 10 minutos: eliminar documento temporal de Firestore
+
+      // Limpieza automática de códigos temporales vencidos o ya utilizados después de 10 minutos
+      // (NUNCA toca documentos 'cuenta_*' ni 'registered_account')
+      if (isReadyForCleanup && !token.startsWith('cuenta_') && status !== 'registered_account') {
+        try {
+          await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(token)}`, {
+            method: 'DELETE',
+          });
+          tokensProcesados.delete(token);
+          confirmacionesPorToken.delete(token);
+          const memReg = confirmacionesPorCorreo.get(email);
+          if (memReg && memReg.token === token) {
+            confirmacionesPorCorreo.delete(email);
+          }
+        } catch {}
+        continue;
+      }
 
       // Si ya pasaron más de 5 minutos y seguía en 'sent' o 'pending', marcarlo como 'expired'
       if (isExpired && (status === 'pending' || status === 'sending' || status === 'sent')) {

@@ -15,6 +15,8 @@ import {
   EyeOff,
   ArrowRight,
   ShieldCheck,
+  Clock,
+  RefreshCw,
 } from 'lucide-react';
 import { deriveKeyFromPin, verifyKey, hexToBuf, verifyDuressPinHash } from '../crypto/vaultCrypto';
 import {
@@ -25,12 +27,15 @@ import {
   authenticateWithBiometrics,
 } from '../services/biometricService';
 import {
-  isRecoveryKeyConfigured,
-  verifyRecoveryKey,
-  executePinResetWithRecoveryKey,
-  formatRecoveryKeyDisplay,
-  normalizeRecoveryKey,
+  setupAutomaticEmailRecoveryEscrow,
+  executePinResetAfterEmailVerified,
 } from '../services/recoveryKeyService';
+import {
+  checkRegisteredAccountExists,
+  sendEmailPin,
+  verifyEmailPin,
+  checkEmailConfirmationStatus,
+} from '../services/emailVerificationService';
 import { App as CapacitorApp } from '@capacitor/app';
 import { PinKeypad } from './PinKeypad';
 
@@ -53,9 +58,14 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   const [isShaking, setIsShaking] = useState(false);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
-  // Recovery via Master Key states
-  const [forgotStep, setForgotStep] = useState<'key_input' | 'new_pin_input' | 'no_key'>('key_input');
-  const [forgotKey, setForgotKey] = useState('');
+  // Recovery via Email Verification states (Step 1: Email -> Step 2: 6-digit code -> Step 3: New 4-digit PIN)
+  const [forgotStep, setForgotStep] = useState<'email_input' | 'code_verify' | 'new_pin_input' | 'no_key'>('email_input');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotFirstName, setForgotFirstName] = useState('Usuario');
+  const [forgotCode, setForgotCode] = useState('');
+  const [forgotToken, setForgotToken] = useState<string | null>(null);
+  const [forgotSecondsLeft, setForgotSecondsLeft] = useState(300);
+  const [forgotResendCooldown, setForgotResendCooldown] = useState(0);
   const [newPinInput, setNewPinInput] = useState('');
   const [confirmNewPinInput, setConfirmNewPinInput] = useState('');
   const [showNewPinText, setShowNewPinText] = useState(false);
@@ -65,23 +75,47 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   // Open Forgot PIN flow
   const handleOpenForgotPin = () => {
     setForgotError(null);
-    setForgotKey('');
+    setForgotEmail('');
+    setForgotCode('');
+    setForgotToken(null);
     setNewPinInput('');
     setConfirmNewPinInput('');
-    if (isRecoveryKeyConfigured()) {
-      setForgotStep('key_input');
-    } else {
-      setForgotStep('no_key');
-    }
+    setForgotStep('email_input');
     setShowForgotModal(true);
   };
 
-  // Step 1: Verify the 16-character recovery key
-  const handleVerifyRecoveryKey = async (e?: React.FormEvent) => {
+  // Countdown timer for 6-digit email recovery code
+  useEffect(() => {
+    if (!showForgotModal || forgotStep !== 'code_verify') return;
+    const timer = setInterval(() => {
+      setForgotSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
+      setForgotResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showForgotModal, forgotStep]);
+
+  // Background listener in case user clicks the confirmation link inside the email
+  useEffect(() => {
+    if (!showForgotModal || forgotStep !== 'code_verify' || !forgotEmail.trim() || forgotSecondsLeft <= 0) return;
+    const cleanEmail = forgotEmail.trim().toLowerCase();
+    const interval = setInterval(async () => {
+      const status = await checkEmailConfirmationStatus(cleanEmail, forgotToken);
+      if (status.confirmed) {
+        clearInterval(interval);
+        setForgotError(null);
+        showToast('¡Correo confirmado! Ahora elige tu nuevo PIN.', 'success');
+        setForgotStep('new_pin_input');
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [showForgotModal, forgotStep, forgotEmail, forgotToken, forgotSecondsLeft]);
+
+  // Step 1: Validate that the entered email is registered in the app and send 6-digit code
+  const handleSendRecoveryEmailCode = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const clean = normalizeRecoveryKey(forgotKey);
-    if (clean.length !== 16) {
-      setForgotError('La clave de recuperación debe tener 16 caracteres (4 bloques de 4).');
+    const cleanEmail = forgotEmail.trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setForgotError('Por favor ingresa un correo electrónico válido.');
       return;
     }
 
@@ -89,25 +123,74 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
     setForgotError(null);
 
     try {
-      const verification = await verifyRecoveryKey(clean);
-      if (verification.valid) {
+      const checkRes = await checkRegisteredAccountExists(cleanEmail, true);
+      if (!checkRes.exists) {
+        setForgotError(
+          checkRes.error || 'Este correo no está registrado en la aplicación. Verifica que esté bien escrito.'
+        );
+        setIsForgotLoading(false);
+        return;
+      }
+
+      const targetName = checkRes.firstName || 'Usuario';
+      setForgotFirstName(targetName);
+
+      const sendRes = await sendEmailPin(cleanEmail, targetName);
+      if (sendRes.success) {
+        setForgotToken(sendRes.token || null);
+        setForgotCode('');
+        setForgotSecondsLeft(300);
+        setForgotResendCooldown(20);
         setForgotError(null);
-        setForgotStep('new_pin_input');
+        setForgotStep('code_verify');
+        showToast(`Código de recuperación enviado a ${cleanEmail}`, 'success');
       } else {
-        setForgotError(verification.error || 'Clave de recuperación incorrecta.');
+        setForgotError(sendRes.error || 'No se pudo enviar el código de verificación.');
       }
     } catch (err: any) {
-      setForgotError(err?.message || 'Error al validar la clave.');
+      setForgotError(err?.message || 'Error al validar el correo.');
     } finally {
       setIsForgotLoading(false);
     }
   };
 
-  // Step 2: Change PIN and restore vault access without losing photos
+  // Step 2: Verify the 6-digit code sent to the email
+  const handleVerifyRecoveryEmailCode = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanCode = forgotCode.replace(/\D/g, '').trim();
+    if (forgotSecondsLeft <= 0) {
+      setForgotError('El código ha expirado (válido por 5 minutos). Toca "Reenviar código".');
+      return;
+    }
+    if (cleanCode.length !== 6) {
+      setForgotError('Por favor ingresa los 6 dígitos del código enviado a tu correo.');
+      return;
+    }
+
+    setIsForgotLoading(true);
+    setForgotError(null);
+
+    try {
+      const cleanEmail = forgotEmail.trim().toLowerCase();
+      const res = await verifyEmailPin(cleanEmail, cleanCode, forgotToken);
+      if (res.success) {
+        setForgotError(null);
+        setForgotStep('new_pin_input');
+      } else {
+        setForgotError(res.error || 'El código de 6 dígitos es incorrecto.');
+      }
+    } catch (err: any) {
+      setForgotError(err?.message || 'Error al verificar el código.');
+    } finally {
+      setIsForgotLoading(false);
+    }
+  };
+
+  // Step 3: Change PIN and restore vault access without losing photos
   const handleResetPinWithRecovery = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (newPinInput.length < 4) {
-      setForgotError('El nuevo PIN debe tener al menos 4 dígitos.');
+    if (newPinInput.length !== 4) {
+      setForgotError('El nuevo PIN debe tener exactamente 4 dígitos.');
       return;
     }
     if (newPinInput !== confirmNewPinInput) {
@@ -119,10 +202,9 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
     setForgotError(null);
 
     try {
-      const cleanKey = normalizeRecoveryKey(forgotKey);
-      const result = await executePinResetWithRecoveryKey(cleanKey, newPinInput);
+      const result = await executePinResetAfterEmailVerified(newPinInput);
       if (result.success && result.masterKey) {
-        showToast('¡PIN restablecido con éxito! Bienvenido a tu bóveda.', 'success');
+        showToast('¡PIN restablecido con éxito! Tus archivos están intactos.', 'success');
         setShowForgotModal(false);
         onUnlock(result.masterKey, newPinInput);
       } else {
@@ -338,6 +420,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
           recordAccessLog('success', method, false);
           localStorage.removeItem('nullvault_lockout_until');
           setRemainingLockout(0);
+          setupAutomaticEmailRecoveryEscrow(derivedKey).catch(() => {});
           onUnlock(derivedKey, pinToVerify);
         } else {
           const currentStreak = Number(localStorage.getItem('nullvault_failed_streak') || '0');
@@ -807,57 +890,54 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         </div>
       )}
 
-      {/* Forgot PIN / Recovery Key Modal */}
+      {/* Forgot PIN / Email Verification Recovery Modal */}
       {showForgotModal && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-[#131c2e] border border-slate-800 rounded-3xl p-6 shadow-2xl text-slate-200 text-center animate-in fade-in zoom-in-95 duration-200">
-            {/* STEP 1: RECOVERY KEY INPUT */}
-            {forgotStep === 'key_input' && (
+            {/* STEP 1: VALIDATE REGISTERED EMAIL */}
+            {forgotStep === 'email_input' && (
               <div>
                 <div className="w-14 h-14 bg-[#00e5ff]/10 border border-[#00e5ff]/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-[#00e5ff] shadow-lg shadow-cyan-500/10">
-                  <KeyRound className="w-7 h-7" />
+                  <Mail className="w-7 h-7" />
                 </div>
                 <h3 className="text-lg font-bold text-white mb-1.5">
-                  Recuperar con <span className="text-[#00e5ff]">Clave Maestra</span>
+                  Recuperar <span className="text-[#00e5ff]">PIN con tu Correo</span>
                 </h3>
                 <p className="text-xs text-slate-400 mb-5 leading-relaxed">
-                  Ingresa la clave de recuperación de 16 caracteres que guardaste al configurar tu bóveda.
+                  Escribe el correo electrónico con el que registraste tu cuenta. Validaremos que esté registrado y te enviaremos un código de 6 dígitos.
                 </p>
 
-                <form onSubmit={handleVerifyRecoveryKey} className="space-y-3.5 text-left">
+                <form onSubmit={handleSendRecoveryEmailCode} className="space-y-3.5 text-left">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Clave de Recuperación (16 dígitos)
+                      Correo electrónico registrado
                     </label>
                     <input
-                      type="text"
-                      autoCapitalize="characters"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      value={forgotKey}
+                      type="email"
+                      autoComplete="email"
+                      value={forgotEmail}
                       onChange={(e) => {
-                        const formatted = formatRecoveryKeyDisplay(e.target.value);
-                        setForgotKey(formatted);
+                        setForgotEmail(e.target.value);
                         setForgotError(null);
                       }}
-                      placeholder="XXXX-XXXX-XXXX-XXXX"
+                      placeholder="tucorreo@ejemplo.com"
                       required
                       autoFocus
                       disabled={isForgotLoading}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-3 text-center text-base sm:text-lg font-mono font-bold tracking-widest text-[#00e5ff] placeholder:text-slate-600 focus:outline-none focus:border-[#00e5ff] focus:ring-1 focus:ring-[#00e5ff] transition-all"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-[#00e5ff] focus:ring-1 focus:ring-[#00e5ff] transition-all"
                     />
                   </div>
 
                   {forgotError && (
-                    <div className="flex items-center gap-1.5 text-rose-400 text-xs bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
-                      <ShieldAlert className="w-4 h-4 shrink-0" />
+                    <div className="flex items-start gap-2 text-rose-400 text-xs bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
+                      <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
                       <span>{forgotError}</span>
                     </div>
                   )}
 
                   <button
                     type="submit"
-                    disabled={isForgotLoading || normalizeRecoveryKey(forgotKey).length !== 16}
+                    disabled={isForgotLoading || !forgotEmail.trim()}
                     className="w-full py-3 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 disabled:opacity-40"
                     style={{
                       background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
@@ -867,12 +947,12 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                     {isForgotLoading ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span className="text-white">Verificando clave...</span>
+                        <span className="text-white">Validando correo...</span>
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                        <span className="text-white">Verificar Clave de Respaldo</span>
+                        <Send className="w-3.5 h-3.5 text-white" />
+                        <span className="text-white">Enviar código de 6 dígitos</span>
                       </>
                     )}
                   </button>
@@ -890,24 +970,130 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                       onClick={() => setForgotStep('no_key')}
                       className="text-slate-500 hover:text-amber-400 transition-colors cursor-pointer text-[11px]"
                     >
-                      ¿Perdiste tu clave?
+                      ¿Restablecer bóveda desde cero?
                     </button>
                   </div>
                 </form>
               </div>
             )}
 
-            {/* STEP 2: NEW PIN INPUT */}
+            {/* STEP 2: VERIFY 6-DIGIT EMAIL CODE */}
+            {forgotStep === 'code_verify' && (
+              <div>
+                <div className="w-14 h-14 bg-[#00e5ff]/10 border border-[#00e5ff]/30 rounded-2xl flex items-center justify-center mx-auto mb-3 text-[#00e5ff] shadow-lg shadow-cyan-500/10">
+                  <KeyRound className="w-7 h-7" />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-1">
+                  Verifica tu <span className="text-[#00e5ff]">Código</span>
+                </h3>
+                <p className="text-xs text-slate-400 mb-3 leading-relaxed">
+                  Enviamos un código de 6 dígitos a <strong className="text-slate-200 break-all">{forgotEmail.trim()}</strong>
+                </p>
+
+                <div
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold mb-4 border ${
+                    forgotSecondsLeft <= 0
+                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                      : 'bg-[#00e5ff]/10 text-[#00e5ff] border-[#00e5ff]/25'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>
+                    {forgotSecondsLeft <= 0
+                      ? 'Código caducado (5 min)'
+                      : `Válido por ${formatCountdown(forgotSecondsLeft)}`}
+                  </span>
+                </div>
+
+                <form onSubmit={handleVerifyRecoveryEmailCode} className="space-y-3.5 text-left">
+                  <div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={forgotCode}
+                      onChange={(e) => {
+                        const clean = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setForgotCode(clean);
+                        setForgotError(null);
+                      }}
+                      placeholder="000000"
+                      required
+                      autoFocus
+                      disabled={isForgotLoading || forgotSecondsLeft <= 0}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-3 text-center text-xl font-mono font-bold tracking-[0.35em] text-[#00e5ff] placeholder:text-slate-600 focus:outline-none focus:border-[#00e5ff] focus:ring-1 focus:ring-[#00e5ff] transition-all"
+                    />
+                  </div>
+
+                  {forgotError && (
+                    <div className="flex items-start gap-2 text-rose-400 text-xs bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
+                      <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{forgotError}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isForgotLoading || forgotSecondsLeft <= 0 || forgotCode.length !== 6}
+                    className="w-full py-3 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 disabled:opacity-40"
+                    style={{
+                      background: 'linear-gradient(135deg, var(--theme-primary), #2563eb)',
+                      boxShadow: '0 4px 14px -2px var(--theme-glow)',
+                    }}
+                  >
+                    {isForgotLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span className="text-white">Verificando código...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                        <span className="text-white">Verificar Código</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="flex items-center justify-between pt-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => handleSendRecoveryEmailCode()}
+                      disabled={isForgotLoading || forgotResendCooldown > 0}
+                      className="inline-flex items-center gap-1 text-[#00e5ff] hover:underline disabled:opacity-40 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>
+                        {forgotResendCooldown > 0
+                          ? `Reenviar (${forgotResendCooldown}s)`
+                          : 'Reenviar código'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotStep('email_input');
+                        setForgotError(null);
+                      }}
+                      className="text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                    >
+                      Cambiar correo
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* STEP 3: NEW 4-DIGIT PIN INPUT */}
             {forgotStep === 'new_pin_input' && (
               <div>
                 <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-400 shadow-lg shadow-emerald-500/10">
                   <KeyRound className="w-7 h-7" />
                 </div>
                 <h3 className="text-lg font-bold text-white mb-1.5">
-                  Cambiar <span className="text-emerald-400">PIN Maestro</span>
+                  Crear <span className="text-emerald-400">Nuevo PIN</span>
                 </h3>
                 <p className="text-xs text-slate-400 mb-5 leading-relaxed">
-                  Clave verificada con éxito. Define tu nuevo PIN para acceder a tu bóveda sin perder ninguna foto:
+                  Identidad verificada. Define tu nuevo PIN de 4 dígitos para abrir tu bóveda sin perder ninguna foto ni video:
                 </p>
 
                 <form onSubmit={handleResetPinWithRecovery} className="space-y-3 text-left">
@@ -919,9 +1105,10 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                       <input
                         type={showNewPinText ? 'text' : 'password'}
                         inputMode="numeric"
+                        maxLength={4}
                         value={newPinInput}
                         onChange={(e) => {
-                          setNewPinInput(e.target.value.replace(/\D/g, ''));
+                          setNewPinInput(e.target.value.replace(/\D/g, '').slice(0, 4));
                           setForgotError(null);
                         }}
                         placeholder="••••"
@@ -947,9 +1134,10 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                       <input
                         type={showNewPinText ? 'text' : 'password'}
                         inputMode="numeric"
+                        maxLength={4}
                         value={confirmNewPinInput}
                         onChange={(e) => {
-                          setConfirmNewPinInput(e.target.value.replace(/\D/g, ''));
+                          setConfirmNewPinInput(e.target.value.replace(/\D/g, '').slice(0, 4));
                           setForgotError(null);
                         }}
                         placeholder="••••"
@@ -968,7 +1156,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
                   <button
                     type="submit"
-                    disabled={isForgotLoading || newPinInput.length < 4 || newPinInput !== confirmNewPinInput}
+                    disabled={isForgotLoading || newPinInput.length !== 4 || newPinInput !== confirmNewPinInput}
                     className="w-full py-3 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 disabled:opacity-40"
                     style={{
                       background: 'linear-gradient(135deg, #059669, #0284c7)',
@@ -991,21 +1179,21 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
               </div>
             )}
 
-            {/* FALLBACK: NO RECOVERY KEY REGISTERED */}
+            {/* FALLBACK: FULL VAULT RESET */}
             {forgotStep === 'no_key' && (
               <div>
                 <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-amber-400">
                   <AlertTriangle className="w-6 h-6" />
                 </div>
                 <h3 className="text-lg font-bold text-center text-white mb-2">
-                  Recuperación de PIN
+                  Restablecer Bóveda
                 </h3>
                 <p className="text-xs text-slate-400 mb-4 leading-relaxed text-center">
-                  Si no recuerdas tu PIN ni tienes tu clave de recuperación guardada:
+                  Si ya no tienes acceso a tu correo registrado, puedes restablecer la bóveda desde cero:
                 </p>
                 <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs text-slate-400 mb-5 space-y-1.5 text-left">
-                  <p className="font-semibold text-slate-300">Cifrado de Conocimiento Cero:</p>
-                  <p>Por seguridad matemática de cifrado, sin el PIN o la clave de recuperación no es posible descifrar los archivos. Puedes restablecer la bóveda para volver a usarla desde cero.</p>
+                  <p className="font-semibold text-slate-300">Aviso importante:</p>
+                  <p>Al restablecer desde cero sin verificar tu correo, se borrarán los archivos guardados en este dispositivo para configurar una bóveda nueva.</p>
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -1023,15 +1211,12 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      if (isRecoveryKeyConfigured()) {
-                        setForgotStep('key_input');
-                      } else {
-                        setShowForgotModal(false);
-                      }
+                      setForgotStep('email_input');
+                      setForgotError(null);
                     }}
                     className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-colors cursor-pointer"
                   >
-                    {isRecoveryKeyConfigured() ? 'Volver a intentar clave' : 'Cancelar'}
+                    Volver a recuperar con correo
                   </button>
                 </div>
               </div>

@@ -634,3 +634,204 @@ export async function loginRegisteredAccount(
   };
 }
 
+/**
+ * Verifica si un correo electrónico está registrado en la aplicación (en Firestore o localmente).
+ * Si checkLocalProfile es true (para recuperación de PIN de la bóveda en el dispositivo),
+ * también valida contra el perfil activo vinculado en el teléfono.
+ */
+export async function checkRegisteredAccountExists(
+  email: string,
+  checkLocalProfile = false
+): Promise<{
+  exists: boolean;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  error?: string;
+}> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return {
+      exists: false,
+      error: 'Por favor ingresa un correo electrónico con formato válido.',
+    };
+  }
+
+  const docKey = getAccountDocKey(cleanEmail);
+
+  // 1. Consultar en Firestore si existe el documento cuenta_<hex>
+  try {
+    const res = await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(docKey)}`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const doc = await res.json();
+      const f = doc?.fields;
+      if (f && (f.status?.stringValue === 'registered_account' || f.email?.stringValue)) {
+        // Si estamos validando para recuperar el PIN del dispositivo y hay un perfil local activo con otro correo distinto,
+        // asegurarnos de que coincida con el propietario de esta bóveda
+        if (checkLocalProfile) {
+          try {
+            const rawProf = localStorage.getItem('vault_user_profile') || localStorage.getItem('vault_user_profile_v1');
+            if (rawProf) {
+              const prof = JSON.parse(rawProf);
+              const profEmail = (prof?.email || '').trim().toLowerCase();
+              if (profEmail && profEmail !== cleanEmail) {
+                return {
+                  exists: false,
+                  error: 'Este correo no coincide con la cuenta vinculada a esta bóveda.',
+                };
+              }
+            }
+          } catch {}
+        }
+        return {
+          exists: true,
+          firstName: f.firstName?.stringValue || 'Usuario',
+          lastName: f.lastName?.stringValue || '',
+          email: f.email?.stringValue || cleanEmail,
+        };
+      }
+    }
+  } catch {}
+
+  // 2. Consultar perfil activo en este dispositivo ('vault_user_profile')
+  try {
+    const rawProfile = localStorage.getItem('vault_user_profile') || localStorage.getItem('vault_user_profile_v1');
+    if (rawProfile) {
+      const parsedProfile = JSON.parse(rawProfile);
+      const profileEmail = (parsedProfile?.email || '').trim().toLowerCase();
+      if (profileEmail && profileEmail === cleanEmail) {
+        return {
+          exists: true,
+          firstName: parsedProfile.firstName || 'Usuario',
+          lastName: parsedProfile.lastName || '',
+          email: cleanEmail,
+        };
+      }
+    }
+  } catch {}
+
+  // 3. Consultar respaldo local de cuentas registradas en localStorage
+  try {
+    const raw = localStorage.getItem(`vault_registered_acct_${cleanEmail}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        exists: true,
+        firstName: parsed.firstName || 'Usuario',
+        lastName: parsed.lastName || '',
+        email: cleanEmail,
+      };
+    }
+  } catch {}
+
+  return {
+    exists: false,
+    error: 'Este correo no está registrado en la aplicación. Verifica que esté bien escrito.',
+  };
+}
+
+/**
+ * Actualiza la contraseña de una cuenta registrada tras verificar el código de 6 dígitos enviado al correo.
+ */
+export async function updateRegisteredAccountPassword(
+  email: string,
+  newPassword: string
+): Promise<{
+  success: boolean;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  error?: string;
+}> {
+  const cleanEmail = email.trim().toLowerCase();
+  const docKey = getAccountDocKey(cleanEmail);
+  const newPasswordHash = await hashUserPassword(cleanEmail, newPassword);
+
+  let firstName = 'Usuario';
+  let lastName = '';
+  let createdAt = new Date().toISOString();
+
+  // Obtener datos existentes para conservar nombre, apellidos y fecha de creación
+  try {
+    const res = await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(docKey)}`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const doc = await res.json();
+      const f = doc?.fields;
+      if (f) {
+        firstName = f.firstName?.stringValue || firstName;
+        lastName = f.lastName?.stringValue || lastName;
+        createdAt = f.createdAt?.stringValue || createdAt;
+      }
+    }
+  } catch {}
+
+  try {
+    const rawLocal = localStorage.getItem(`vault_registered_acct_${cleanEmail}`);
+    if (rawLocal) {
+      const parsed = JSON.parse(rawLocal);
+      if (parsed.firstName && firstName === 'Usuario') firstName = parsed.firstName;
+      if (parsed.lastName && !lastName) lastName = parsed.lastName;
+      if (parsed.createdAt) createdAt = parsed.createdAt;
+    }
+  } catch {}
+
+  // Actualizar en localStorage
+  try {
+    localStorage.setItem(
+      `vault_registered_acct_${cleanEmail}`,
+      JSON.stringify({
+        firstName,
+        lastName,
+        email: cleanEmail,
+        passwordHash: newPasswordHash,
+        createdAt,
+      })
+    );
+  } catch {}
+
+  // Actualizar en Firestore
+  try {
+    const patchRes = await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(docKey)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          token: { stringValue: docKey },
+          email: { stringValue: cleanEmail },
+          firstName: { stringValue: firstName },
+          lastName: { stringValue: lastName },
+          passwordHash: { stringValue: newPasswordHash },
+          status: { stringValue: 'registered_account' },
+          confirmed: { booleanValue: true },
+          createdAt: { stringValue: createdAt },
+        },
+      }),
+    });
+    if (!patchRes.ok) {
+      return {
+        success: false,
+        error: 'No se pudo actualizar la contraseña en el servidor. Revisa tu conexión.',
+      };
+    }
+  } catch {
+    return {
+      success: false,
+      error: 'Error de red al guardar la nueva contraseña.',
+    };
+  }
+
+  return {
+    success: true,
+    firstName,
+    lastName,
+    email: cleanEmail,
+  };
+}
+
+
