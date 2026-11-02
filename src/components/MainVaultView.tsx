@@ -158,9 +158,9 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   const [items, setItems] = useState<DecryptedVaultItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'all' | 'photo' | 'video' | 'audio' | 'app' | 'favorites'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'photo' | 'video' | 'audio' | 'app' | 'document' | 'favorites'>('all');
   const [activeNavTab, setActiveNavTab] = useState<'vault' | 'import' | 'security' | 'profile' | 'settings'>('vault');
-  const [activeCategory, setActiveCategory] = useState<'photo' | 'video' | 'audio' | 'app' | null>(null);
+  const [activeCategory, setActiveCategory] = useState<VaultItemCategory | null>(null);
   const [lastAccessTime] = useState<string>(() => {
     return localStorage.getItem('nullvault_last_access') || '21:14';
   });
@@ -268,8 +268,9 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     video: string[];
     audio: string[];
     app: string[];
+    document: string[];
   }>(() => {
-    const load = (cat: 'photo' | 'video' | 'audio' | 'app') => {
+    const load = (cat: VaultItemCategory) => {
       try {
         const saved = localStorage.getItem(`vault_subfolders_${cat}`);
         if (saved) {
@@ -286,6 +287,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       video: load('video'),
       audio: load('audio'),
       app: load('app'),
+      document: load('document'),
     };
   });
 
@@ -325,6 +327,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const appInputRef = useRef<HTMLInputElement | null>(null);
+  const docInputRef = useRef<HTMLInputElement | null>(null);
   const blobUrlsRef = useRef<string[]>([]);
   const masterKeyRef = useRef<CryptoKey>(masterKey);
   const sessionPinRef = useRef<string | null | undefined>(sessionPin);
@@ -502,7 +505,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     loadVaultItems();
 
     // Reload folders in case a backup brought new custom folders
-    const loadFolder = (cat: 'photo' | 'video' | 'audio' | 'app') => {
+    const loadFolder = (cat: VaultItemCategory) => {
       try {
         const saved = localStorage.getItem(`vault_subfolders_${cat}`);
         if (saved) {
@@ -519,6 +522,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       video: loadFolder('video'),
       audio: loadFolder('audio'),
       app: loadFolder('app'),
+      document: loadFolder('document'),
     });
 
     const handleTrashUpdated = () => {
@@ -893,7 +897,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     return () => window.removeEventListener('vault_open_updates_menu', handleOpenUpdatesMenu);
   }, []);
 
-  const openCategory = (cat: 'photo' | 'video' | 'audio' | 'app') => {
+  const openCategory = (cat: VaultItemCategory) => {
     window.history.pushState({ vaultCat: cat }, '');
     setActiveCategory(cat);
     setActiveTab(cat);
@@ -1087,10 +1091,12 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       let videoCount = 0;
       let audioCount = 0;
       let appCount = 0;
+      let docCount = 0;
       newRecords.forEach((r) => {
         if (r.category === 'photo') photoCount++;
         else if (r.category === 'video') videoCount++;
         else if (r.category === 'audio') audioCount++;
+        else if (r.category === 'document') docCount++;
         else appCount++;
       });
 
@@ -1098,19 +1104,22 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       if (photoCount > 0) destList.push(`${photoCount} a Fotos`);
       if (videoCount > 0) destList.push(`${videoCount} a Videos`);
       if (audioCount > 0) destList.push(`${audioCount} a Audio`);
+      if (docCount > 0) destList.push(`${docCount} a Documentos`);
       if (appCount > 0) destList.push(`${appCount} a Aplicaciones`);
 
       showToast(`Guardados en sus carpetas: ${destList.join(', ')}`, 'success');
 
       // Navigate to destination folder so user immediately sees their files if not already inside a category
       if (activeCategory === null) {
-        if (photoCount > 0 && videoCount === 0 && audioCount === 0 && appCount === 0) {
+        if (docCount > 0 && photoCount === 0 && videoCount === 0 && audioCount === 0 && appCount === 0) {
+          openCategory('document');
+        } else if (photoCount > 0 && videoCount === 0 && audioCount === 0 && appCount === 0 && docCount === 0) {
           openCategory('photo');
-        } else if (videoCount > 0 && photoCount === 0 && audioCount === 0 && appCount === 0) {
+        } else if (videoCount > 0 && photoCount === 0 && audioCount === 0 && appCount === 0 && docCount === 0) {
           openCategory('video');
-        } else if (audioCount > 0 && photoCount === 0 && videoCount === 0 && appCount === 0) {
+        } else if (audioCount > 0 && photoCount === 0 && videoCount === 0 && appCount === 0 && docCount === 0) {
           openCategory('audio');
-        } else if (appCount > 0 && photoCount === 0 && videoCount === 0 && audioCount === 0) {
+        } else if (appCount > 0 && photoCount === 0 && videoCount === 0 && audioCount === 0 && docCount === 0) {
           openCategory('app');
         }
       }
@@ -1444,12 +1453,14 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     let videos = 0;
     let audios = 0;
     let apps = 0;
+    let documents = 0;
     let favs = 0;
     let totalBytes = 0;
     let photoBytes = 0;
     let videoBytes = 0;
     let audioBytes = 0;
     let appBytes = 0;
+    let documentBytes = 0;
 
     items.forEach((item) => {
       const sz = item.record.size || 0;
@@ -1463,6 +1474,9 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       } else if (item.record.category === 'audio') {
         audios++;
         audioBytes += sz;
+      } else if (item.record.category === 'document') {
+        documents++;
+        documentBytes += sz;
       } else {
         apps++;
         appBytes += sz;
@@ -1476,13 +1490,20 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       videos,
       audios,
       apps,
+      documents,
       favs,
       totalBytes,
+      photoBytes,
+      videoBytes,
+      audioBytes,
+      appBytes,
+      documentBytes,
       totalMB: (totalBytes / (1024 * 1024)).toFixed(1),
       photoSize: formatSize(photoBytes),
       videoSize: formatSize(videoBytes),
       audioSize: formatSize(audioBytes),
       appSize: formatSize(appBytes),
+      documentSize: formatSize(documentBytes),
     };
   }, [items]);
 
@@ -2072,6 +2093,61 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   />
                 </div>
               </button>
+
+              {/* Documentos */}
+              <button
+                type="button"
+                onClick={() => openCategory('document')}
+                className="w-full border rounded-2xl p-3 sm:p-3.5 flex items-center justify-between text-left transition-all active:scale-[0.99] group shadow-sm hover:shadow-md cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                }}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border transition-transform group-hover:scale-105"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 14%, var(--theme-bg-secondary, #0f172a))',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 35%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                      boxShadow: '0 0 12px color-mix(in srgb, var(--theme-primary, #00e5ff) 20%, transparent)',
+                    }}
+                  >
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4
+                      className="text-sm sm:text-base font-bold tracking-tight truncate group-hover:text-[var(--theme-primary)] transition-colors"
+                      style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                    >
+                      Documentos
+                    </h4>
+                    <p
+                      className="text-[11px] sm:text-xs truncate mt-0.5"
+                      style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                    >
+                      {counts.documents} {counts.documents === 1 ? 'documento cifrado' : 'documentos cifrados'} · {counts.documentSize}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-3">
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono border"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 12%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 30%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                    }}
+                  >
+                    {counts.documents}
+                  </span>
+                  <ChevronRight
+                    className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  />
+                </div>
+              </button>
             </div>
           ) : (
             /* VISTA 2: CUADRÍCULA (Estilo 2x2 elegante y compacto, adaptado al tema activo) */
@@ -2271,6 +2347,56 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                       style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
                     >
                       {counts.appSize}
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Documentos */}
+              <button
+                type="button"
+                onClick={() => openCategory('document')}
+                className="col-span-2 sm:col-span-1 border rounded-2xl p-3 flex flex-col justify-between text-left transition-all active:scale-[0.98] group shadow-sm hover:shadow-md cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--theme-bg-card, #0a121d)',
+                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center border transition-transform group-hover:scale-105"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 12%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 25%, transparent)',
+                      color: 'var(--theme-primary, #00e5ff)',
+                    }}
+                  >
+                    <FileText className="w-4.5 h-4.5" />
+                  </div>
+                  <ChevronRight
+                    className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  />
+                </div>
+                <div>
+                  <p
+                    className="text-[11px] font-medium"
+                    style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                  >
+                    Documentos
+                  </p>
+                  <div className="flex items-baseline justify-between mt-0.5">
+                    <h4
+                      className="text-lg font-bold leading-tight"
+                      style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                    >
+                      {counts.documents}
+                    </h4>
+                    <span
+                      className="text-[10px] font-mono"
+                      style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+                    >
+                      {counts.documentSize}
                     </span>
                   </div>
                 </div>
@@ -2483,6 +2609,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                                 ? 'Videos'
                                 : activeCategory === 'audio'
                                 ? 'Audios'
+                                : activeCategory === 'document'
+                                ? 'Documentos'
                                 : 'Aplicaciones'
                             }`}
                       </h1>
@@ -2655,6 +2783,23 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    setActiveCategory('document');
+                    setActiveTab('document');
+                    setActiveSubfolder(null);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    activeCategory === 'document' || activeTab === 'document'
+                      ? 'bg-zinc-100 text-zinc-950 font-semibold shadow-sm'
+                      : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80'
+                  }`}
+                >
+                  <FileText size={15} strokeWidth={1.5} />
+                  <span>Documentos ({counts.documents})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
                     setActiveTab('favorites');
                     setActiveSubfolder(null);
                   }}
@@ -2703,7 +2848,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 <div className="flex items-center justify-between px-1">
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
                     <Folder size={15} strokeWidth={1.5} className="text-amber-400" />
-                    <span>Álbumes de {activeCategory === 'photo' ? 'Fotos' : activeCategory === 'video' ? 'Videos' : activeCategory === 'audio' ? 'Audios' : activeCategory === 'app' ? 'Aplicaciones' : 'Favoritos'}</span>
+                    <span>Álbumes de {activeCategory === 'photo' ? 'Fotos' : activeCategory === 'video' ? 'Videos' : activeCategory === 'audio' ? 'Audios' : activeCategory === 'document' ? 'Documentos' : activeCategory === 'app' ? 'Aplicaciones' : 'Favoritos'}</span>
                   </h2>
                   <span className="text-xs text-zinc-500 font-mono">
                     {listaCarpetas.length} {listaCarpetas.length === 1 ? 'carpeta' : 'carpetas'}
@@ -2844,6 +2989,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                             const isPhoto = item.record.category === 'photo';
                             const isVideo = item.record.category === 'video';
                             const isAudio = item.record.category === 'audio';
+                            const isDocument = item.record.category === 'document';
                             const isApp = item.record.category === 'app';
 
                             return (
@@ -2949,6 +3095,29 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                                           {item.record.name}
                                         </p>
                                         <p className="text-[10px] text-slate-500">Cifrado local</p>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Document Card Display */}
+                                  {isDocument && (
+                                    <div className="w-full h-full bg-gradient-to-br from-[#0c1829] to-slate-950 p-3.5 flex flex-col justify-between items-center text-center pointer-events-none">
+                                      <div className="w-full flex items-center justify-between text-[10px] text-cyan-400">
+                                        <span className="font-mono font-bold bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
+                                          {item.record.name.split('.').pop()?.toUpperCase() || 'DOC'}
+                                        </span>
+                                        <span className="text-slate-400">{formatSize(item.record.size)}</span>
+                                      </div>
+
+                                      <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform shadow-md shadow-cyan-500/10">
+                                        <FileText className="w-6 h-6 text-cyan-400" />
+                                      </div>
+
+                                      <div className="w-full text-center">
+                                        <p className="text-xs font-semibold text-slate-200 truncate w-full">
+                                          {item.record.name}
+                                        </p>
+                                        <p className="text-[10px] text-cyan-400/80">Documento seguro</p>
                                       </div>
                                     </div>
                                   )}
@@ -3300,6 +3469,18 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           }}
           onChange={handleFileInputChange}
         />
+        <input
+          ref={docInputRef}
+          type="file"
+          accept=".pdf,.docx,.doc,.txt,.rtf,.md,.csv,.xlsx,.xls,.pptx,.ppt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+          multiple
+          className="hidden"
+          onClick={() => {
+            (window as any).__isPickingFile = true;
+            (window as any).__filePickingStartTime = Date.now();
+          }}
+          onChange={handleFileInputChange}
+        />
 
       {/* Botón flotante (+) estilo WhatsApp para todas las funciones de añadir e importar en carpetas y subcarpetas */}
       {activeNavTab === 'vault' && activeCategory !== null && !isSelectMode && selectedIds.size === 0 && (
@@ -3463,8 +3644,30 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 </button>
               )}
 
+              {activeCategory === 'document' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsWhatsAppFabOpen(false);
+                    triggerPicker(docInputRef);
+                  }}
+                  className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
+                >
+                  <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                    Añadir documentos
+                  </span>
+                  <div className="vault-fab-circle-blue w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 border border-blue-400/40 transition-all">
+                    <FileText
+                      className="w-5 h-5 stroke-[2.4]"
+                      color="#ffffff"
+                      style={{ color: '#ffffff', stroke: '#ffffff' }}
+                    />
+                  </div>
+                </button>
+              )}
+
               {/* Botón para añadir archivos de cualquier tipo si está dentro de una carpeta específica */}
-              {activeCategory !== 'app' && (
+              {activeCategory !== 'app' && activeCategory !== 'document' && (
                 <button
                   type="button"
                   onClick={() => {
@@ -3474,7 +3677,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
                 >
                   <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
-                    Otros documentos
+                    Otros archivos
                   </span>
                   <div className="vault-fab-circle-docs w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 text-[#00e5ff] flex items-center justify-center shadow-lg shadow-black/40 border border-slate-700 transition-all">
                     <FileText

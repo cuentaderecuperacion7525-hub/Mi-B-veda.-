@@ -48,11 +48,13 @@ interface ProfileVaultViewProps {
     videos: number;
     audios: number;
     apps: number;
+    documents?: number;
     totalBytes: number;
     photoBytes?: number;
     videoBytes?: number;
     audioBytes?: number;
     appBytes?: number;
+    documentBytes?: number;
   };
   showToast: (message: string, type?: 'info' | 'success' | 'alert' | 'error') => void;
   onOpenSettings?: () => void;
@@ -279,7 +281,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     }
   };
 
-  const totalItems = counts.photos + counts.videos + counts.audios + counts.apps;
+  const totalItems = counts.photos + counts.videos + counts.audios + counts.apps + (counts.documents || 0);
   const initials = userProfileService.getInitials(profile);
 
   return (

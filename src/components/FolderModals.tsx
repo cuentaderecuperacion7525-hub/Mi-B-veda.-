@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Folder, FolderPlus, X, Check, ArrowRight, Trash2, Edit2 } from 'lucide-react';
 
+import { VaultItemCategory } from '../db/vaultDb';
+
 interface CreateFolderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  category: 'photo' | 'video' | 'audio' | 'app';
+  category: VaultItemCategory;
   existingFolders: string[];
   onCreate: (folderName: string) => void;
 }
@@ -28,6 +30,8 @@ export function CreateFolderModal({
       ? 'Videos'
       : category === 'audio'
       ? 'Audio'
+      : category === 'document'
+      ? 'Documentos'
       : 'Archivos';
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -116,7 +120,7 @@ export function CreateFolderModal({
 interface RenameFolderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  category: 'photo' | 'video' | 'audio' | 'app';
+  category: VaultItemCategory;
   currentFolderName: string;
   existingFolders: string[];
   onRename: (oldName: string, newName: string) => void;
@@ -147,6 +151,8 @@ export function RenameFolderModal({
       ? 'Videos'
       : category === 'audio'
       ? 'Audio'
+      : category === 'document'
+      ? 'Documentos'
       : 'Archivos';
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -236,7 +242,7 @@ interface MoveToFolderModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedCount: number;
-  category: 'photo' | 'video' | 'audio' | 'app';
+  category: VaultItemCategory;
   currentFolder?: string | null;
   folders: string[];
   onMove: (targetFolder: string) => void;
@@ -262,6 +268,8 @@ export function MoveToFolderModal({
       ? 'videos'
       : category === 'audio'
       ? 'audios'
+      : category === 'document'
+      ? 'documentos'
       : 'archivos';
 
   return (

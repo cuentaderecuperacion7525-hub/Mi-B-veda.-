@@ -8,6 +8,7 @@ import {
   Loader2,
   ShieldCheck,
   Sparkles,
+  FileText,
 } from 'lucide-react';
 import { encryptBuffer } from '../crypto/vaultCrypto';
 import {
@@ -42,6 +43,7 @@ export const ImportVaultView: React.FC<ImportVaultViewProps> = ({
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const docInputRef = useRef<HTMLInputElement | null>(null);
+  const appInputRef = useRef<HTMLInputElement | null>(null);
 
   // Safely trigger native or web file picker without triggering premature auto-lock
   const triggerPicker = (inputRef: React.RefObject<HTMLInputElement | null>) => {
@@ -244,6 +246,26 @@ export const ImportVaultView: React.FC<ImportVaultViewProps> = ({
             type="button"
             onClick={() => triggerPicker(docInputRef)}
             disabled={isEncrypting}
+            className="w-full py-3.5 px-4 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/40 text-left flex items-center justify-between transition-all active:scale-98 cursor-pointer group disabled:opacity-50"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-cyan-500/15 text-cyan-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-white group-hover:text-cyan-300">
+                  Documentos (PDF, Word, TXT)
+                </h4>
+                <p className="text-[11px] text-slate-500">PDFs, Word .docx, textos y hojas de cálculo</p>
+              </div>
+            </div>
+            <Plus className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 group-hover:scale-110 transition-all" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => triggerPicker(appInputRef)}
+            disabled={isEncrypting}
             className="w-full py-3.5 px-4 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 text-left flex items-center justify-between transition-all active:scale-98 cursor-pointer group disabled:opacity-50"
           >
             <div className="flex items-center gap-3.5">
@@ -252,9 +274,9 @@ export const ImportVaultView: React.FC<ImportVaultViewProps> = ({
               </div>
               <div>
                 <h4 className="text-xs font-bold text-white group-hover:text-emerald-300">
-                  Archivos y Aplicaciones (.apk)
+                  Aplicaciones y Archivos (.apk)
                 </h4>
-                <p className="text-[11px] text-slate-500">Documentos privados, paquetes y zips</p>
+                <p className="text-[11px] text-slate-500">Paquetes APK, ejecutables y archivos ZIP</p>
               </div>
             </div>
             <Plus className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 group-hover:scale-110 transition-all" />
@@ -348,7 +370,19 @@ export const ImportVaultView: React.FC<ImportVaultViewProps> = ({
       <input
         ref={docInputRef}
         type="file"
-        accept=".apk,.zip,.pdf,.doc,.docx,.txt,.rar,application/*,*/*"
+        accept=".pdf,.doc,.docx,.txt,.rtf,.md,.csv,.xlsx,.xls,.pptx,.ppt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+        multiple
+        className="hidden"
+        onClick={() => {
+          (window as any).__isPickingFile = true;
+          (window as any).__filePickingStartTime = Date.now();
+        }}
+        onChange={handleCustomFileSelect}
+      />
+      <input
+        ref={appInputRef}
+        type="file"
+        accept=".apk,.zip,.rar,.exe,.dmg,.pkg,.ipa,.bin,.tar,.gz,*/*"
         multiple
         className="hidden"
         onClick={() => {

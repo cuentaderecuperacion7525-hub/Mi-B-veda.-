@@ -24,6 +24,7 @@ import {
   Music,
   Check,
   Edit2,
+  FileText,
 } from 'lucide-react';
 import { EncryptedVaultItem } from '../db/vaultDb';
 import { registerBackHandler } from '../services/backButtonService';
@@ -31,6 +32,7 @@ import { exportVaultItemToDevice } from '../services/nativeVaultBridge';
 import { BarraAccionesInferior } from './BarraAccionesInferior';
 import { ModalEliminar } from './ModalEliminar';
 import { formatSize as formatBytes } from '../utils/formatUtils';
+import { DocumentReader } from './DocumentReader';
 
 export interface DecryptedVaultItem {
   id: string;
@@ -586,9 +588,10 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   if (!activeItem) return null;
 
   const isVideo = activeItem.record.category === 'video';
+  const isAudio = activeItem.record.category === 'audio' || activeItem.record.mimeType?.startsWith('audio/');
+  const isDocument = activeItem.record.category === 'document';
   const isApp = activeItem.record.category === 'app';
   const isPhoto = activeItem.record.category === 'photo';
-  const isAudio = activeItem.record.category === 'audio' || activeItem.record.mimeType?.startsWith('audio/');
 
   const handleExport = async () => {
     if (!activeItem || isExporting) return;
@@ -848,6 +851,8 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               <div className="flex items-center gap-1.5">
                 {isVideo && <Film className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
                 {isApp && <Smartphone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                {isAudio && <Music className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                {isDocument && <FileText className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
                 <h4 className="text-xs sm:text-sm font-semibold text-slate-100 max-w-[200px] sm:max-w-xs truncate">
                   {activeItem.record.name}
                 </h4>
@@ -855,7 +860,17 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               <div className="flex items-center gap-2 text-[11px] text-slate-400">
                 <span>{new Date(activeItem.record.timestamp).toLocaleDateString()}</span>
                 <span>·</span>
-                <span className="capitalize">{activeItem.record.category}</span>
+                <span>
+                  {activeItem.record.category === 'document'
+                    ? 'Documentos'
+                    : activeItem.record.category === 'app'
+                    ? 'Aplicaciones'
+                    : activeItem.record.category === 'audio'
+                    ? 'Audio'
+                    : activeItem.record.category === 'video'
+                    ? 'Videos'
+                    : 'Fotos'}
+                </span>
                 <span>·</span>
                 <span>
                   {currentIndex + 1} de {allItems.length}
@@ -1126,6 +1141,16 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               El archivo se descifrará en tu navegador para que puedas guardarlo o abrirlo en tu dispositivo.
             </p>
           </div>
+        )}
+
+        {/* DOCUMENT VIEW & READER */}
+        {isDocument && (
+          <DocumentReader
+            activeItem={activeItem}
+            onExport={handleExport}
+            isExporting={isExporting}
+            showToast={showToast}
+          />
         )}
 
         {/* Details Flyout */}

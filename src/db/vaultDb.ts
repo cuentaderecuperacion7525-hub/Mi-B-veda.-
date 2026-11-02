@@ -5,7 +5,7 @@
 
 import { hexToBuf } from '../crypto/vaultCrypto';
 
-export type VaultItemCategory = 'photo' | 'video' | 'audio' | 'app';
+export type VaultItemCategory = 'photo' | 'video' | 'audio' | 'app' | 'document';
 
 export function detectCategory(filename: string, mimeType: string): VaultItemCategory {
   const lowerName = filename.toLowerCase();
@@ -25,14 +25,34 @@ export function detectCategory(filename: string, mimeType: string): VaultItemCat
     return 'audio';
   }
 
+  // Documentos: PDF, Word, Excel, PowerPoint, Textos, RTF, Markdown, etc.
+  if (
+    lowerMime.includes('pdf') ||
+    lowerMime.includes('word') ||
+    lowerMime.includes('msword') ||
+    lowerMime.includes('officedocument') ||
+    lowerMime.includes('presentation') ||
+    lowerMime.includes('spreadsheet') ||
+    lowerMime.includes('excel') ||
+    lowerMime.includes('powerpoint') ||
+    lowerMime.includes('text/plain') ||
+    lowerMime.includes('text/markdown') ||
+    lowerMime.includes('text/csv') ||
+    lowerMime.startsWith('text/') ||
+    /\.(pdf|docx?|xlsx?|pptx?|txt|rtf|md|csv|odt|ods|odp|epub|log)$/i.test(lowerName) ||
+    lowerName.startsWith('doc-') ||
+    lowerName.includes('document')
+  ) {
+    return 'document';
+  }
+
   if (
     lowerMime.includes('android.package-archive') ||
     lowerMime.includes('x-msdownload') ||
     lowerMime.includes('zip') ||
     lowerMime.includes('x-zip') ||
     lowerMime.includes('octet-stream') ||
-    lowerMime.includes('pdf') ||
-    /\.(apk|exe|msi|dmg|pkg|deb|rpm|ipa|zip|rar|tar|gz|7z|bin|iso|appimage|jar|pdf|docx?|xlsx?|pptx?|txt)$/i.test(lowerName)
+    /\.(apk|exe|msi|dmg|pkg|deb|rpm|ipa|zip|rar|tar|gz|7z|bin|iso|appimage|jar)$/i.test(lowerName)
   ) {
     return 'app';
   }
@@ -44,8 +64,8 @@ export function detectCategory(filename: string, mimeType: string): VaultItemCat
     return 'photo';
   }
 
-  // Fallback for document or application packages
-  return 'app';
+  // Fallback para documentos o archivos no reconocidos
+  return 'document';
 }
 
 export interface EncryptedVaultItem {
@@ -133,7 +153,13 @@ export async function getAllEncryptedItems(includeTrash: boolean = false): Promi
       const all: EncryptedVaultItem[] = (request.result || []).map((raw: any) => {
         const name = raw.name || `item_${raw.id}`;
         const mimeType = raw.mimeType || (raw.category === 'video' ? 'video/mp4' : 'image/jpeg');
-        const category = raw.category || detectCategory(name, mimeType);
+        let category: VaultItemCategory = raw.category || detectCategory(name, mimeType);
+
+        // Migración/reclasificación automática: si un archivo previamente se catalogó como 'app' o desconocido,
+        // pero detectCategory identifica que es un documento (ej: DOC-..., .pdf, .docx, .txt, etc.), asignarlo a 'document'.
+        if (category === 'app' && detectCategory(name, mimeType) === 'document') {
+          category = 'document';
+        }
 
         return {
           id: raw.id,
