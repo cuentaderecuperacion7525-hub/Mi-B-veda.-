@@ -1,6 +1,6 @@
 {
-  "summary":  "Plan de actualización de las leyendas de texto en la pantalla de Actualizaciones (BovedaUpdater.tsx) para cambiar la mención técnica de GitHub Releases por el mensaje más limpio y profesional seleccionado por el usuario: \"Comprobando actualizaciones del sistema...\", manteniendo el código 100% intacto y protegido.",
-  "updatedAt":  "2026-11-02T03:48:21.266049461Z",
+  "summary":  "Plan para remover el icono de sensor de huella en la parte superior de la pantalla de bloqueo (LockVaultView.tsx), dejando el diseño más limpio y directo con el título arriba, manteniendo el acceso biométrico disponible en el teclado táctil y protegiendo el 100% de los códigos criptográficos.",
+  "updatedAt":  "2026-11-02T13:09:54.813515874Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

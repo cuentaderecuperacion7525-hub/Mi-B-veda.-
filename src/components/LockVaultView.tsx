@@ -865,47 +865,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
             borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
           }}
         >
-          {/* Lock / Fingerprint Sensor Icon */}
-          <button
-            type="button"
-            onClick={handleBiometricClick}
-            disabled={isVerifying}
-            className={`w-18 h-18 sm:w-20 sm:h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 transition-all relative group shadow-xl cursor-pointer active:scale-95 ${
-              isBioLoading
-                ? 'border-2'
-                : isBioEnrolled
-                ? 'border'
-                : 'border border-slate-700/60'
-            }`}
-            style={{
-              backgroundColor: isBioEnrolled ? 'rgba(var(--theme-primary-rgb, 0, 229, 255), 0.12)' : undefined,
-              borderColor: isBioEnrolled ? 'var(--theme-primary, #00e5ff)' : undefined,
-              color: isBioEnrolled ? 'var(--theme-primary, #00e5ff)' : undefined,
-              boxShadow: isBioEnrolled ? '0 0 20px var(--theme-glow)' : undefined,
-            }}
-            title={
-              isBioEnrolled
-                ? 'Toca para activar sensor de huella'
-                : 'Toca para vincular sensor de huella'
-            }
-            aria-label="Sensor de huella digital"
-          >
-            {isBioLoading ? (
-              <div className="relative flex items-center justify-center">
-                <span
-                  className="absolute w-12 h-12 rounded-full border-2 border-t-transparent animate-spin"
-                  style={{ borderColor: 'var(--theme-primary, #00e5ff)' }}
-                />
-                <Fingerprint className="w-8 h-8 sm:w-9 sm:h-9 animate-pulse" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
-              </div>
-            ) : isBioEnrolled ? (
-              <Fingerprint className="w-8 h-8 sm:w-9 sm:h-9 group-hover:scale-110 transition-transform" style={{ color: 'var(--theme-primary, #00e5ff)' }} />
-            ) : (
-              <Fingerprint className="w-8 h-8 sm:w-9 sm:h-9 text-slate-400 group-hover:text-white group-hover:scale-110 transition-transform" />
-            )}
-          </button>
-
-          <h1 className="text-2xl font-black tracking-tight mb-0.5" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
+          <h1 className="text-2xl font-black tracking-tight mb-0.5 mt-2" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
             Bóveda de <span style={{ color: 'var(--theme-primary, #00e5ff)' }}>Seguridad</span>
           </h1>
           <p className="text-[10px] font-semibold tracking-[0.18em] uppercase mb-1" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>

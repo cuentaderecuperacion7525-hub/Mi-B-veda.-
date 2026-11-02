@@ -16242,7 +16242,7 @@ registerPlugin("SystemBars", {
   web: () => new SystemBarsPluginWeb()
 });
 const App$1 = registerPlugin("App", {
-  web: () => __vitePreload(() => import("./web-CzC2LIiT.js"), true ? [] : void 0).then((m2) => new m2.AppWeb())
+  web: () => __vitePreload(() => import("./web-DUFfKVwe.js"), true ? [] : void 0).then((m2) => new m2.AppWeb())
 });
 const TEST_VERIFICATION_STRING = "VAULT_VERIFY_KEY_OK";
 function bufToHex(buffer) {
@@ -20065,34 +20065,7 @@ const LockVaultView = ({
                 borderColor: "var(--theme-border, rgba(51, 65, 85, 0.75))"
               },
               children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "button",
-                  {
-                    type: "button",
-                    onClick: handleBiometricClick,
-                    disabled: isVerifying,
-                    className: `w-18 h-18 sm:w-20 sm:h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 transition-all relative group shadow-xl cursor-pointer active:scale-95 ${isBioLoading ? "border-2" : isBioEnrolled ? "border" : "border border-slate-700/60"}`,
-                    style: {
-                      backgroundColor: isBioEnrolled ? "rgba(var(--theme-primary-rgb, 0, 229, 255), 0.12)" : void 0,
-                      borderColor: isBioEnrolled ? "var(--theme-primary, #00e5ff)" : void 0,
-                      color: isBioEnrolled ? "var(--theme-primary, #00e5ff)" : void 0,
-                      boxShadow: isBioEnrolled ? "0 0 20px var(--theme-glow)" : void 0
-                    },
-                    title: isBioEnrolled ? "Toca para activar sensor de huella" : "Toca para vincular sensor de huella",
-                    "aria-label": "Sensor de huella digital",
-                    children: isBioLoading ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative flex items-center justify-center", children: [
-                      /* @__PURE__ */ jsxRuntimeExports.jsx(
-                        "span",
-                        {
-                          className: "absolute w-12 h-12 rounded-full border-2 border-t-transparent animate-spin",
-                          style: { borderColor: "var(--theme-primary, #00e5ff)" }
-                        }
-                      ),
-                      /* @__PURE__ */ jsxRuntimeExports.jsx(Fingerprint, { className: "w-8 h-8 sm:w-9 sm:h-9 animate-pulse", style: { color: "var(--theme-primary, #00e5ff)" } })
-                    ] }) : isBioEnrolled ? /* @__PURE__ */ jsxRuntimeExports.jsx(Fingerprint, { className: "w-8 h-8 sm:w-9 sm:h-9 group-hover:scale-110 transition-transform", style: { color: "var(--theme-primary, #00e5ff)" } }) : /* @__PURE__ */ jsxRuntimeExports.jsx(Fingerprint, { className: "w-8 h-8 sm:w-9 sm:h-9 text-slate-400 group-hover:text-white group-hover:scale-110 transition-transform" })
-                  }
-                ),
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("h1", { className: "text-2xl font-black tracking-tight mb-0.5", style: { color: "var(--theme-text-main, #ffffff)" }, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("h1", { className: "text-2xl font-black tracking-tight mb-0.5 mt-2", style: { color: "var(--theme-text-main, #ffffff)" }, children: [
                   "Bóveda de ",
                   /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { color: "var(--theme-primary, #00e5ff)" }, children: "Seguridad" })
                 ] }),
@@ -21059,7 +21032,7 @@ const DocumentReader = ({
           const buffer = await resp.arrayBuffer();
           if (lowerName.endsWith(".docx") || mimeType.includes("openxmlformats")) {
             try {
-              const mammothModule = await __vitePreload(() => import("./index-D2roCNim.js").then((n2) => n2.i), true ? [] : void 0);
+              const mammothModule = await __vitePreload(() => import("./index-COjiuLXt.js").then((n2) => n2.i), true ? [] : void 0);
               const mammoth = mammothModule.default || mammothModule;
               const result = await mammoth.convertToHtml({ arrayBuffer: buffer });
               if (!isCancelled) {
@@ -27062,7 +27035,7 @@ var Encoding;
   Encoding2["UTF16"] = "utf16";
 })(Encoding || (Encoding = {}));
 const Filesystem = registerPlugin("Filesystem", {
-  web: () => __vitePreload(() => import("./web-BiTzAWk4.js"), true ? [] : void 0).then((m2) => new m2.FilesystemWeb())
+  web: () => __vitePreload(() => import("./web-_2D_bxH-.js"), true ? [] : void 0).then((m2) => new m2.FilesystemWeb())
 });
 f();
 const BACKUP_DB_NAME = "VaultLocalBackupsDB";
