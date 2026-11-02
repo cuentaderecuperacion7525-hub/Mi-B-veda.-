@@ -14452,22 +14452,11 @@ const createLucideIcon = (iconName, iconNode) => {
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const __iconNode$1j = [
+const __iconNode$1i = [
   ["path", { d: "m12 19-7-7 7-7", key: "1l729n" }],
   ["path", { d: "M19 12H5", key: "x3x0zl" }]
 ];
-const ArrowLeft = createLucideIcon("arrow-left", __iconNode$1j);
-/**
- * @license lucide-react v0.546.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const __iconNode$1i = [
-  ["path", { d: "M5 12h14", key: "1ays0h" }],
-  ["path", { d: "m12 5 7 7-7 7", key: "xquz4c" }]
-];
-const ArrowRight = createLucideIcon("arrow-right", __iconNode$1i);
+const ArrowLeft = createLucideIcon("arrow-left", __iconNode$1i);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14475,10 +14464,10 @@ const ArrowRight = createLucideIcon("arrow-right", __iconNode$1i);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$1h = [
-  ["circle", { cx: "12", cy: "12", r: "4", key: "4exip2" }],
-  ["path", { d: "M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8", key: "7n84p3" }]
+  ["path", { d: "M5 12h14", key: "1ays0h" }],
+  ["path", { d: "m12 5 7 7-7 7", key: "xquz4c" }]
 ];
-const AtSign = createLucideIcon("at-sign", __iconNode$1h);
+const ArrowRight = createLucideIcon("arrow-right", __iconNode$1h);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -16242,7 +16231,7 @@ registerPlugin("SystemBars", {
   web: () => new SystemBarsPluginWeb()
 });
 const App$1 = registerPlugin("App", {
-  web: () => __vitePreload(() => import("./web-DUFfKVwe.js"), true ? [] : void 0).then((m2) => new m2.AppWeb())
+  web: () => __vitePreload(() => import("./web-B14DUFHX.js"), true ? [] : void 0).then((m2) => new m2.AppWeb())
 });
 const TEST_VERIFICATION_STRING = "VAULT_VERIFY_KEY_OK";
 function bufToHex(buffer) {
@@ -20206,44 +20195,35 @@ const LockVaultView = ({
                       children: "Correo electrónico registrado"
                     }
                   ),
-                  /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
-                      className: "w-full h-[56px] rounded-[16px] px-4 flex items-center gap-3 transition-colors box-border",
+                      className: "w-full h-[48px] rounded-[14px] px-3.5 flex items-center transition-all box-border shadow-sm",
                       style: {
                         backgroundColor: isLightTheme ? "#FFFFFF" : "#0A121D",
-                        border: isEmailFocused ? `2px solid ${isLightTheme ? "#0B6FB8" : "#00E5FF"}` : `1.5px solid ${isLightTheme ? "#D5DEEA" : "#1E293B"}`
+                        border: isEmailFocused ? `1.5px solid ${isLightTheme ? "#0B6FB8" : "#00E5FF"}` : `1.5px solid ${isLightTheme ? "#D5DEEA" : "#1E293B"}`
                       },
-                      children: [
-                        /* @__PURE__ */ jsxRuntimeExports.jsx(
-                          AtSign,
-                          {
-                            className: "w-5 h-5 stroke-[2] shrink-0",
-                            style: { color: isLightTheme ? "#475569" : "#94A3B8" }
-                          }
-                        ),
-                        /* @__PURE__ */ jsxRuntimeExports.jsx(
-                          "input",
-                          {
-                            id: "pin-recovery-email-input",
-                            type: "email",
-                            autoComplete: "email",
-                            value: forgotEmail,
-                            onFocus: () => setIsEmailFocused(true),
-                            onBlur: () => setIsEmailFocused(false),
-                            onChange: (e2) => {
-                              setForgotEmail(e2.target.value);
-                              setForgotError(null);
-                            },
-                            placeholder: "tucorreo@ejemplo.com",
-                            required: true,
-                            autoFocus: true,
-                            disabled: isForgotLoading,
-                            className: "bg-transparent w-full h-full border-0 p-0 text-[16px] font-medium focus:outline-none focus:ring-0",
-                            style: { color: isLightTheme ? "#0F172A" : "#F8FAFC" }
-                          }
-                        )
-                      ]
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        "input",
+                        {
+                          id: "pin-recovery-email-input",
+                          type: "email",
+                          autoComplete: "email",
+                          value: forgotEmail,
+                          onFocus: () => setIsEmailFocused(true),
+                          onBlur: () => setIsEmailFocused(false),
+                          onChange: (e2) => {
+                            setForgotEmail(e2.target.value);
+                            setForgotError(null);
+                          },
+                          placeholder: "tucorreo@ejemplo.com",
+                          required: true,
+                          autoFocus: true,
+                          disabled: isForgotLoading,
+                          className: "bg-transparent w-full h-full border-0 p-0 text-[15px] font-medium focus:outline-none focus:ring-0",
+                          style: { color: isLightTheme ? "#0F172A" : "#F8FAFC" }
+                        }
+                      )
                     }
                   ),
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -21032,7 +21012,7 @@ const DocumentReader = ({
           const buffer = await resp.arrayBuffer();
           if (lowerName.endsWith(".docx") || mimeType.includes("openxmlformats")) {
             try {
-              const mammothModule = await __vitePreload(() => import("./index-COjiuLXt.js").then((n2) => n2.i), true ? [] : void 0);
+              const mammothModule = await __vitePreload(() => import("./index-BiSrMIFP.js").then((n2) => n2.i), true ? [] : void 0);
               const mammoth = mammothModule.default || mammothModule;
               const result = await mammoth.convertToHtml({ arrayBuffer: buffer });
               if (!isCancelled) {
@@ -27035,7 +27015,7 @@ var Encoding;
   Encoding2["UTF16"] = "utf16";
 })(Encoding || (Encoding = {}));
 const Filesystem = registerPlugin("Filesystem", {
-  web: () => __vitePreload(() => import("./web-_2D_bxH-.js"), true ? [] : void 0).then((m2) => new m2.FilesystemWeb())
+  web: () => __vitePreload(() => import("./web-8qjMsgGH.js"), true ? [] : void 0).then((m2) => new m2.FilesystemWeb())
 });
 f();
 const BACKUP_DB_NAME = "VaultLocalBackupsDB";

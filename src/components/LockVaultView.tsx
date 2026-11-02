@@ -1018,20 +1018,16 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                     Correo electrónico registrado
                   </label>
 
-                  {/* 6. Campo de texto: alto 56 px, esquinas de 16 px, fondo blanco, borde azul de 2 px (estado enfocado), icono de arroba a la izquierda */}
+                  {/* 6. Campo de texto: estilizado h-[48px], esquinas suaves rounded-[14px], sin icono @ */}
                   <div
-                    className="w-full h-[56px] rounded-[16px] px-4 flex items-center gap-3 transition-colors box-border"
+                    className="w-full h-[48px] rounded-[14px] px-3.5 flex items-center transition-all box-border shadow-sm"
                     style={{
                       backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
                       border: isEmailFocused
-                        ? `2px solid ${isLightTheme ? '#0B6FB8' : '#00E5FF'}`
+                        ? `1.5px solid ${isLightTheme ? '#0B6FB8' : '#00E5FF'}`
                         : `1.5px solid ${isLightTheme ? '#D5DEEA' : '#1E293B'}`,
                     }}
                   >
-                    <AtSign
-                      className="w-5 h-5 stroke-[2] shrink-0"
-                      style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
-                    />
                     <input
                       id="pin-recovery-email-input"
                       type="email"
@@ -1047,7 +1043,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                       required
                       autoFocus
                       disabled={isForgotLoading}
-                      className="bg-transparent w-full h-full border-0 p-0 text-[16px] font-medium focus:outline-none focus:ring-0"
+                      className="bg-transparent w-full h-full border-0 p-0 text-[15px] font-medium focus:outline-none focus:ring-0"
                       style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                     />
                   </div>
