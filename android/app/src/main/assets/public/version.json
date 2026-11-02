@@ -1,18 +1,15 @@
 {
-  "version": "1.2.32",
-  "version_name": "1.2.32",
-  "buildNumber": 1032,
-  "version_code": 1032,
-  "download_url": "https://github.com/cuentadecuperacion7525-hub/Mi-B-veda.-/releases/latest/download/Boveda-Calculadora.apk",
-  "releaseDate": "13 de Octubre, 2026",
+  "version": "1.2.46",
+  "version_name": "1.2.46",
+  "buildNumber": 1046,
+  "version_code": 1046,
+  "download_url": "https://github.com/cuentaderecuperacion7525-hub/Mi-B-veda.-/releases/latest/download/Boveda-Calculadora.apk",
+  "releaseDate": "1 de noviembre de 2026",
   "changelog": [
-    "Encabezados de carpetas y subcarpetas fijos: al deslizar hacia arriba, el título y controles permanecen siempre visibles sin tapar tus fotos.",
-    "Zoom táctil interactivo: haz zoom con pellizco de dos dedos y desplaza la imagen libremente por cualquier parte de la pantalla.",
-    "Límite de desplazamiento perfeccionado: se eliminaron los márgenes negros excesivos al mover imágenes aumentadas.",
-    "Navegación simplificada: eliminación de botones redundantes, ahora vuelves atrás de forma limpia con la flecha o deslizamiento.",
-    "Detección inteligente de actualizaciones: aviso automático al entrar si hay mejoras disponibles y botón para actualizar en 1 toque.",
-    "Verificador manual de versiones y novedades integrado en Configuración.",
-    "Instalador nativo automático para Android APK (UpdaterPlugin) con descarga e instalación directa."
+    "Perfil de usuario: Nuevo diseño oscuro en Editar Perfil con campos simplificados de nombre, apellidos y correo vinculado.",
+    "Cambio de cuenta con Google: Reconocimiento y actualización automática de tu nombre y foto de perfil al cambiar de correo con Gmail.",
+    "Recuperación de PIN segura: Validación inmediata para verificar que el correo ingresado pertenezca a la cuenta registrada.",
+    "Registro de novedades dinámico: Ahora cada actualización muestra únicamente los cambios reales incluidos en la versión."
   ],
   "mandatory": false
 }

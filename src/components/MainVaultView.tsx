@@ -73,7 +73,7 @@ import { PhotoViewerModal, DecryptedVaultItem } from './PhotoViewerModal';
 import { CameraCaptureModal } from './CameraCaptureModal';
 import { DeleteGalleryReminderModal } from './DeleteGalleryReminderModal';
 import { CreateFolderModal, MoveToFolderModal, RenameFolderModal } from './FolderModals';
-import { isNativeApp, requestNativeBatchGalleryDeletion, exportVaultItemToDevice } from '../services/nativeVaultBridge';
+import { isNativeApp, requestNativeBatchGalleryDeletion, exportVaultItemToDevice, getNativeDeviceStorage } from '../services/nativeVaultBridge';
 import { ImportVaultView } from './ImportVaultView';
 import { SecurityVaultView } from './SecurityVaultView';
 import { SettingsVaultView } from './SettingsVaultView';
@@ -910,12 +910,35 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     return items.reduce((acc, it) => acc + (it.record.size || 0), 0);
   }, [items]);
 
+  // Real device storage estimation
+  const [deviceStorage, setDeviceStorage] = useState<{ quota: number; usage: number; free: number } | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    getNativeDeviceStorage()
+      .then((storage) => {
+        if (!isMounted || !storage) return;
+        setDeviceStorage(storage);
+      })
+      .catch(() => {
+        // Fallback silencioso
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [items.length]);
+
+  // Percentage representing storage occupied by vault files
   const storagePercent = useMemo(() => {
     if (items.length === 0) return 0;
-    // Percentage calculated on a standard 500MB secure quota partition
+    if (deviceStorage && deviceStorage.quota > 0) {
+      const pct = Math.round((totalStorageBytes / deviceStorage.quota) * 100);
+      return Math.min(100, Math.max(1, pct));
+    }
     const baseQuota = 500 * 1024 * 1024;
     return Math.min(100, Math.max(1, Math.round((totalStorageBytes / baseQuota) * 100)));
-  }, [items.length, totalStorageBytes]);
+  }, [deviceStorage, items.length, totalStorageBytes]);
 
   // Recent files list matching real user saved files - exactly last 5 records
   const recentList = useMemo(() => {
@@ -1799,7 +1822,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 className="text-[10px] truncate"
                 style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
               >
-                {items.length > 0
+                {deviceStorage && deviceStorage.free > 0
+                  ? `${formatSize(totalStorageBytes)} en bóveda · ${
+                      deviceStorage.free >= 1024 * 1024 * 1024
+                        ? `${(deviceStorage.free / (1024 * 1024 * 1024)).toFixed(1)} GB`
+                        : `${Math.round(deviceStorage.free / (1024 * 1024))} MB`
+                    } libres`
+                  : items.length > 0
                   ? `${formatSize(totalStorageBytes)} usados · Hoy ${lastAccessTime}`
                   : `Último acceso: hoy ${lastAccessTime}`}
               </p>

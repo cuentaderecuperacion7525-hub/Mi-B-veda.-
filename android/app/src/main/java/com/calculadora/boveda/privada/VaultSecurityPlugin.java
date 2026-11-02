@@ -1,5 +1,7 @@
 package com.calculadora.boveda.privada;
 
+import android.os.Environment;
+import android.os.StatFs;
 import android.view.WindowManager;
 import androidx.fragment.app.FragmentActivity;
 import com.getcapacitor.JSObject;
@@ -7,6 +9,7 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.io.File;
 
 @CapacitorPlugin(name = "VaultSecurity")
 public class VaultSecurityPlugin extends Plugin {
@@ -56,6 +59,32 @@ public class VaultSecurityPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("success", true);
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void getRealDeviceStorage(PluginCall call) {
+        JSObject ret = new JSObject();
+        try {
+            File path = Environment.getDataDirectory();
+            StatFs stat = new StatFs(path.getPath());
+            long blockSize = stat.getBlockSizeLong();
+            long availableBlocks = stat.getAvailableBlocksLong();
+            long totalBlocks = stat.getBlockCountLong();
+
+            long freeBytes = availableBlocks * blockSize;
+            long totalBytes = totalBlocks * blockSize;
+            long usedBytes = Math.max(0, totalBytes - freeBytes);
+
+            ret.put("success", true);
+            ret.put("freeBytes", freeBytes);
+            ret.put("totalBytes", totalBytes);
+            ret.put("usedBytes", usedBytes);
+            call.resolve(ret);
+        } catch (Exception e) {
+            ret.put("success", false);
+            ret.put("error", e.getMessage());
+            call.resolve(ret);
+        }
     }
 }
 

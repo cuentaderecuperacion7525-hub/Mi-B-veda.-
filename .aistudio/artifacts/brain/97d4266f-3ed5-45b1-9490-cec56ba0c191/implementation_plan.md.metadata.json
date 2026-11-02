@@ -1,6 +1,6 @@
 {
-  "summary":  "Corrección del error de Permissions Policy en WebAuthn: se implementó detección automática de restricciones de iframe para entornos de desarrollo/preview web con cifrado seguro local de respaldo, manteniendo intacto el soporte para el sensor biométrico nativo en Android (Capacitor/WebAPK).",
-  "updatedAt":  "2026-10-26T23:38:21.604025219Z",
+  "summary":  "Plan para leer el almacenamiento físico real del teléfono en Android mediante la API StatFs del sistema operativo, reemplazando la cuota limitada de 10 GB de la sandbox del navegador web y mostrando los GB libres reales de cualquier celular donde se instale la aplicación.",
+  "updatedAt":  "2026-11-02T03:32:02.423466011Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

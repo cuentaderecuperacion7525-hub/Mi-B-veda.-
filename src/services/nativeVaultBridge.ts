@@ -60,8 +60,60 @@ export interface NativeVaultMediaPlugin {
   }): Promise<{ success: boolean; path?: string; folder?: string; filename?: string; message?: string }>;
 }
 
+export interface NativeVaultSecurityPlugin {
+  enableScreenshotBlock(): Promise<{ success: boolean }>;
+  disableScreenshotBlock(): Promise<{ success: boolean }>;
+  setSystemBarsTheme(options: { isDark: boolean }): Promise<{ success: boolean }>;
+  getRealDeviceStorage(): Promise<{
+    success: boolean;
+    freeBytes?: number;
+    totalBytes?: number;
+    usedBytes?: number;
+    error?: string;
+  }>;
+}
+
 // Registro del plugin nativo de Capacitor (se enlaza en Android con VaultMediaPlugin.java)
 export const NativeVaultMedia = registerPlugin<NativeVaultMediaPlugin>('VaultMedia');
+
+// Registro del plugin nativo de seguridad y hardware
+export const NativeVaultSecurity = registerPlugin<NativeVaultSecurityPlugin>('VaultSecurity');
+
+/**
+ * Consulta el almacenamiento físico real del dispositivo (Android StatFs o Web Estimate)
+ */
+export const getNativeDeviceStorage = async (): Promise<{
+  quota: number;
+  usage: number;
+  free: number;
+} | null> => {
+  if (isNativeApp()) {
+    try {
+      const res = await NativeVaultSecurity.getRealDeviceStorage();
+      if (res && res.success && res.totalBytes && res.totalBytes > 0) {
+        return {
+          quota: res.totalBytes,
+          usage: res.usedBytes || 0,
+          free: res.freeBytes || 0,
+        };
+      }
+    } catch (e) {
+      console.warn('Native getRealDeviceStorage failed, fallback to web:', e);
+    }
+  }
+
+  // Fallback web
+  if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
+    try {
+      const est = await navigator.storage.estimate();
+      const quota = est.quota || 0;
+      const usage = est.usage || 0;
+      const free = Math.max(0, quota - usage);
+      return { quota, usage, free };
+    } catch {}
+  }
+  return null;
+};
 
 /**
  * Retorna true si la app se está ejecutando como un APK nativo en Android o iOS

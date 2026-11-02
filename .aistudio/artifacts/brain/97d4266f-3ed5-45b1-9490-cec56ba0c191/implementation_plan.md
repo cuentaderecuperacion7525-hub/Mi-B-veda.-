@@ -1,20 +1,40 @@
-# Corrección de Error de Permissions Policy en Autenticación Biométrica
+# Plan de Implementación: Lectura del Almacenamiento Físico Real de Cualquier Teléfono (StatFs)
 
-## Estado: ¡Corregido y Verificado!
+## 1. Diagnóstico del Problema (¿Por qué marcaba 10 GB?)
+La función del navegador web `navigator.storage.estimate()` está sujeta a restricciones de seguridad del motor Chromium/WebView, el cual asigna una cuota fija de "caja de arena" (sandbox) de aproximadamente 10 GB para aplicaciones web, sin importar que el teléfono tenga 64 GB, 128 GB o 256 GB de memoria física.
+
+Para que la aplicación lea los **GB reales y físicos de cualquier celular** (el tuyo o el de cualquier familiar):
+Debemos consultar directamente el sistema operativo Android usando **`android.os.StatFs`** a través del puente nativo de la aplicación.
 
 ---
 
-### Diagnóstico del Error:
-- **Causa**: Al ejecutarse en el entorno de previsualización web (iframe cruzado de desarrollo), el navegador bloqueaba las llamadas directas a `navigator.credentials.create` y `navigator.credentials.get` debido a la política de seguridad del navegador:
-  `The 'publickey-credentials-create' feature is not enabled in this document. Permissions Policy may be used to delegate Web Authentication capabilities to cross-origin child frames.`
+## 2. Archivos a Modificar y Permiso Requerido
+En estricto cumplimiento con la regla:
+> *"No se deben tocar ninguno de los códigos protegidos que tenemos, ninguna y en caso de que se requiera hacer modificaciones, avisar y pedir permiso antes de modificar"*
 
-### Solución Implementada:
-1. **Detección Automática de Restricción en Iframe**:
-   - `biometricService.ts` ahora detecta si la política de permisos de la ventana (`Permissions Policy`) restringe WebAuthn.
-   - En lugar de lanzar una excepción que interrumpa la experiencia, activa de inmediato un modo de respaldo local cifrado con AES-GCM (`BIO_TYPE_KEY = 'preview'`).
+Los archivos específicos que se tocarán de forma puntual son:
+1. **`android/app/src/main/java/com/calculadora/boveda/privada/VaultSecurityPlugin.java`**:
+   - Añadir el método `@PluginMethod public void getRealDeviceStorage(PluginCall call)`.
+   - Utiliza `android.os.StatFs` sobre `Environment.getDataDirectory()` para medir los bytes físicos totales y libres reales del hardware del teléfono.
+2. **`src/services/nativeVaultBridge.ts`**:
+   - Declarar e invocar la función nativa `getRealDeviceStorage()`.
+3. **`src/components/MainVaultView.tsx`**:
+   - Usar la respuesta nativa de `getRealDeviceStorage()` cuando la app se ejecute en el teléfono.
+   - Si no está en APK nativo (ej. pruebas en navegador web de la PC), usa como respaldo `navigator.storage.estimate()`.
 
-2. **Compatibilidad Total en Android Nativo (Capacitor / GitHub Actions APK)**:
-   - En la aplicación nativa de Android (`Capacitor.isNativePlatform()`), continúa utilizando el plugin de huella nativo (`NativeVaultBiometrics`), comunicándose directamente con el sensor biométrico del dispositivo.
+**Garantía de códigos protegidos:**
+- Cifrado AES-GCM, derivación de claves PBKDF2, PIN de acceso, contraseñas y base de datos quedan **100% intactos**.
 
-3. **Compatibilidad en Navegador Móvil Independiente (PWA / WebAPK)**:
-   - Cuando se ejecuta fuera de un iframe (en Chrome o instalado como WebAPK), WebAuthn continúa interactuando con el sensor de huella de Google Play Services.
+---
+
+## 3. Comportamiento Resultante
+- En **cualquier teléfono** donde se instale la app:
+  - Leerá directamente la memoria interna libre del celular (ejemplo: `0.19 Mb en bóveda · 48.7 GB libres` o `64.2 GB libres`).
+  - El círculo porcentual se mantiene marcando el espacio ocupado por la bóveda (ej. `1%` con tus archivos cifrados).
+
+---
+
+## 4. Verificación
+1. Compilar la aplicación web con `compile_applet`.
+2. Validar con `lint_applet`.
+3. Sincronizar el puente con el proyecto Android.
