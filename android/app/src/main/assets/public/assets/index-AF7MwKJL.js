@@ -16242,7 +16242,7 @@ registerPlugin("SystemBars", {
   web: () => new SystemBarsPluginWeb()
 });
 const App$1 = registerPlugin("App", {
-  web: () => __vitePreload(() => import("./web-UKrnHHso.js"), true ? [] : void 0).then((m2) => new m2.AppWeb())
+  web: () => __vitePreload(() => import("./web-CzC2LIiT.js"), true ? [] : void 0).then((m2) => new m2.AppWeb())
 });
 const TEST_VERIFICATION_STRING = "VAULT_VERIFY_KEY_OK";
 function bufToHex(buffer) {
@@ -21059,7 +21059,7 @@ const DocumentReader = ({
           const buffer = await resp.arrayBuffer();
           if (lowerName.endsWith(".docx") || mimeType.includes("openxmlformats")) {
             try {
-              const mammothModule = await __vitePreload(() => import("./index-DDmNCTdf.js").then((n2) => n2.i), true ? [] : void 0);
+              const mammothModule = await __vitePreload(() => import("./index-D2roCNim.js").then((n2) => n2.i), true ? [] : void 0);
               const mammoth = mammothModule.default || mammothModule;
               const result = await mammoth.convertToHtml({ arrayBuffer: buffer });
               if (!isCancelled) {
@@ -26778,7 +26778,7 @@ const BovedaUpdater = () => {
   const verificarActualizaciones = reactExports.useCallback(async (esManual = false) => {
     setLoading(true);
     if (esManual) {
-      setStatus("Escaneando GitHub Releases en busca de nuevas compilaciones...");
+      setStatus("Comprobando actualizaciones del sistema...");
     }
     try {
       let versionActual = CURRENT_BUILD_NUMBER;
@@ -26825,7 +26825,7 @@ const BovedaUpdater = () => {
       setUpdateAvailable(false);
       setLastCheckTime(getFormattedTime());
       if (esManual) {
-        setStatus((error == null ? void 0 : error.message) || "No se pudo conectar a GitHub. Revisa tu conexión.");
+        setStatus((error == null ? void 0 : error.message) || "No se pudo conectar con el servidor. Revisa tu conexión.");
       }
     } finally {
       setLoading(false);
@@ -26839,7 +26839,7 @@ const BovedaUpdater = () => {
     setIsInstalling(true);
     setInstallCompleted(false);
     setDownloadPercent(8);
-    setDownloadStage("Conectando con GitHub Releases...");
+    setDownloadStage("Conectando con el servidor...");
     setDownloadSize("");
     let listenerHandle = null;
     let progressTimer = null;
@@ -27062,7 +27062,7 @@ var Encoding;
   Encoding2["UTF16"] = "utf16";
 })(Encoding || (Encoding = {}));
 const Filesystem = registerPlugin("Filesystem", {
-  web: () => __vitePreload(() => import("./web-XZMEhEAf.js"), true ? [] : void 0).then((m2) => new m2.FilesystemWeb())
+  web: () => __vitePreload(() => import("./web-BiTzAWk4.js"), true ? [] : void 0).then((m2) => new m2.FilesystemWeb())
 });
 f();
 const BACKUP_DB_NAME = "VaultLocalBackupsDB";

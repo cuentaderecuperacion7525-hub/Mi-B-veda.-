@@ -1,6 +1,6 @@
 {
-  "summary":  "Plan para leer el almacenamiento físico real del teléfono en Android mediante la API StatFs del sistema operativo, reemplazando la cuota limitada de 10 GB de la sandbox del navegador web y mostrando los GB libres reales de cualquier celular donde se instale la aplicación.",
-  "updatedAt":  "2026-11-02T03:32:02.423466011Z",
+  "summary":  "Plan de actualización de las leyendas de texto en la pantalla de Actualizaciones (BovedaUpdater.tsx) para cambiar la mención técnica de GitHub Releases por el mensaje más limpio y profesional seleccionado por el usuario: \"Comprobando actualizaciones del sistema...\", manteniendo el código 100% intacto y protegido.",
+  "updatedAt":  "2026-11-02T03:48:21.266049461Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

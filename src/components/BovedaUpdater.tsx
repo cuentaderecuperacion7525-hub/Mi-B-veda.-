@@ -51,7 +51,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
   const verificarActualizaciones = useCallback(async (esManual: boolean = false) => {
     setLoading(true);
     if (esManual) {
-      setStatus('Escaneando GitHub Releases en busca de nuevas compilaciones...');
+      setStatus('Comprobando actualizaciones del sistema...');
     }
 
     try {
@@ -104,7 +104,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       setUpdateAvailable(false);
       setLastCheckTime(getFormattedTime());
       if (esManual) {
-        setStatus(error?.message || 'No se pudo conectar a GitHub. Revisa tu conexión.');
+        setStatus(error?.message || 'No se pudo conectar con el servidor. Revisa tu conexión.');
       }
     } finally {
       setLoading(false);
@@ -122,7 +122,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
     setIsInstalling(true);
     setInstallCompleted(false);
     setDownloadPercent(8);
-    setDownloadStage('Conectando con GitHub Releases...');
+    setDownloadStage('Conectando con el servidor...');
     setDownloadSize('');
 
     let listenerHandle: { remove: () => void } | null = null;

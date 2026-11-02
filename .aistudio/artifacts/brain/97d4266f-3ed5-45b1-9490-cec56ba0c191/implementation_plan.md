@@ -1,40 +1,31 @@
-# Plan de Implementación: Lectura del Almacenamiento Físico Real de Cualquier Teléfono (StatFs)
+# Plan de Implementación: Reemplazo de Leyenda Técnica en Pantalla de Actualizaciones
 
-## 1. Diagnóstico del Problema (¿Por qué marcaba 10 GB?)
-La función del navegador web `navigator.storage.estimate()` está sujeta a restricciones de seguridad del motor Chromium/WebView, el cual asigna una cuota fija de "caja de arena" (sandbox) de aproximadamente 10 GB para aplicaciones web, sin importar que el teléfono tenga 64 GB, 128 GB o 256 GB de memoria física.
+## 1. Resumen del Cambio
+Reemplazar el mensaje técnico:
+> *"Escaneando GitHub Releases en busca de nuevas compilaciones..."*
 
-Para que la aplicación lea los **GB reales y físicos de cualquier celular** (el tuyo o el de cualquier familiar):
-Debemos consultar directamente el sistema operativo Android usando **`android.os.StatFs`** a través del puente nativo de la aplicación.
+Por la leyenda seleccionada:
+> **"Comprobando actualizaciones del sistema..."**
+
+Asimismo, para mantener la coherencia y profesionalismo en toda la pantalla de actualizaciones, se ajustarán de forma complementaria:
+- De *"Conectando con GitHub Releases..."* a *"Conectando con el servidor..."*
+- De *"No se pudo conectar a GitHub. Revisa tu conexión."* a *"No se pudo conectar con el servidor. Revisa tu conexión."*
 
 ---
 
-## 2. Archivos a Modificar y Permiso Requerido
+## 2. Archivo a Modificar y Permiso Requerido
 En estricto cumplimiento con la regla:
 > *"No se deben tocar ninguno de los códigos protegidos que tenemos, ninguna y en caso de que se requiera hacer modificaciones, avisar y pedir permiso antes de modificar"*
+> *"no modifiques el código solo la leyenda que dice eso"*
 
-Los archivos específicos que se tocarán de forma puntual son:
-1. **`android/app/src/main/java/com/calculadora/boveda/privada/VaultSecurityPlugin.java`**:
-   - Añadir el método `@PluginMethod public void getRealDeviceStorage(PluginCall call)`.
-   - Utiliza `android.os.StatFs` sobre `Environment.getDataDirectory()` para medir los bytes físicos totales y libres reales del hardware del teléfono.
-2. **`src/services/nativeVaultBridge.ts`**:
-   - Declarar e invocar la función nativa `getRealDeviceStorage()`.
-3. **`src/components/MainVaultView.tsx`**:
-   - Usar la respuesta nativa de `getRealDeviceStorage()` cuando la app se ejecute en el teléfono.
-   - Si no está en APK nativo (ej. pruebas en navegador web de la PC), usa como respaldo `navigator.storage.estimate()`.
-
-**Garantía de códigos protegidos:**
-- Cifrado AES-GCM, derivación de claves PBKDF2, PIN de acceso, contraseñas y base de datos quedan **100% intactos**.
+- **Único archivo afectado:** `src/components/BovedaUpdater.tsx`
+- **Líneas puntuales:** Línea 54 (y opcionalmente 107 y 125 para no mostrar "GitHub" al conectar o si falla la red).
+- **Protección garantizada:**
+  - La lógica de descarga, verificación de versión, APK, firma e instalación **no se modifica en lo absoluto**.
+  - No se toca ningún componente de cifrado, PIN, base de datos ni archivos protegidos.
 
 ---
 
-## 3. Comportamiento Resultante
-- En **cualquier teléfono** donde se instale la app:
-  - Leerá directamente la memoria interna libre del celular (ejemplo: `0.19 Mb en bóveda · 48.7 GB libres` o `64.2 GB libres`).
-  - El círculo porcentual se mantiene marcando el espacio ocupado por la bóveda (ej. `1%` con tus archivos cifrados).
-
----
-
-## 4. Verificación
-1. Compilar la aplicación web con `compile_applet`.
-2. Validar con `lint_applet`.
-3. Sincronizar el puente con el proyecto Android.
+## 3. Verificación
+1. Compilar con `compile_applet`.
+2. Verificar con `lint_applet` para garantizar que no existan errores de sintaxis ni tipos.
