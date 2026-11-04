@@ -56,23 +56,14 @@ export async function downloadAndInstallApk(apkUrl: string): Promise<{ success: 
 
   if (Capacitor.isNativePlatform()) {
     try {
-      await UpdaterPlugin.downloadAndInstall({ url: apkUrl });
-      return { success: true, message: 'Descarga iniciada en el sistema nativo' };
+      const res = await UpdaterPlugin.downloadAndInstall({ url: apkUrl });
+      return { success: true, message: res?.message || 'Instalador abierto con éxito' };
     } catch (nativeErr: any) {
-      console.warn('[NativeUpdater] Error en UpdaterPlugin nativo, recurriendo a apertura de URL:', nativeErr);
-      // Fallback nativo: intentar abrir el enlace directamente con el navegador del teléfono
-      window.open(apkUrl, '_system');
-      return { success: true, message: 'Abriendo enlace de descarga en el navegador' };
+      console.error('[NativeUpdater] Error en UpdaterPlugin nativo:', nativeErr);
+      throw new Error(nativeErr?.message || 'No se pudo abrir el instalador de Android. Comprueba los permisos.');
     }
   } else {
-    // Entorno Web: abrir en nueva pestaña o iniciar descarga
-    const a = document.createElement('a');
-    a.href = apkUrl;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    return { success: true, message: 'Descarga iniciada en el navegador' };
+    // Entorno Web: no abrir GitHub automáticamente en nueva pestaña si falla
+    throw new Error('La instalación automática directa de APK solo está disponible en la app Android instalada.');
   }
 }

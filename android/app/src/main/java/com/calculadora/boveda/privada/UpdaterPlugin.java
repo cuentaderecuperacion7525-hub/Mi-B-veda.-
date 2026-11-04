@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import java.util.List;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
@@ -143,8 +145,10 @@ public class UpdaterPlugin extends Plugin {
                     }
 
                     // Permiso de fuentes desconocidas en Android 8.0+ (Oreo+)
+                    boolean hasUnknownSourcePermission = true;
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        if (!context.getPackageManager().canRequestPackageInstalls()) {
+                        hasUnknownSourcePermission = context.getPackageManager().canRequestPackageInstalls();
+                        if (!hasUnknownSourcePermission) {
                             try {
                                 Intent manageIntent = new Intent(
                                     Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
@@ -169,12 +173,20 @@ public class UpdaterPlugin extends Plugin {
                     installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
                     installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    installIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+                    // Conceder permisos explícitos de lectura a todos los componentes instaladores del sistema
+                    List<ResolveInfo> resInfoList = context.getPackageManager().queryIntentActivities(installIntent, PackageManager.MATCH_DEFAULT_ONLY);
+                    for (ResolveInfo resolveInfo : resInfoList) {
+                        String targetPackage = resolveInfo.activityInfo.packageName;
+                        context.grantUriPermission(targetPackage, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    }
 
                     context.startActivity(installIntent);
 
                     JSObject res = new JSObject();
                     res.put("success", true);
-                    res.put("message", "Instalador iniciado");
+                    res.put("message", hasUnknownSourcePermission ? "Instalador iniciado" : "Activa 'Permitir desde esta fuente' y regresa para continuar");
                     call.resolve(res);
 
                 } catch (Exception e) {
