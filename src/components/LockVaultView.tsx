@@ -40,6 +40,9 @@ import {
 } from '../services/emailVerificationService';
 import { themeService, VaultTheme } from '../services/themeService';
 import { registerBackHandler } from '../services/backButtonService';
+import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
+import { userProfileService, UserProfile } from '../services/userProfileService';
 import { PinKeypad } from './PinKeypad';
 
 interface LockVaultViewProps {
@@ -83,6 +86,40 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
   const isLightTheme = currentTheme === 'light';
   const isForgotEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotEmail.trim());
+
+  // User profile and welcome mode state
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => userProfileService.getUserProfile());
+  const isRegisteredUser = Boolean(userProfile && (userProfile.firstName || userProfile.email));
+  const [authViewMode, setAuthViewMode] = useState<'welcome' | 'keypad'>(() => {
+    return userProfileService.isUserRegistered() ? 'welcome' : 'keypad';
+  });
+
+  useEffect(() => {
+    return userProfileService.subscribe((p) => {
+      setUserProfile(p);
+      if (!p) {
+        setAuthViewMode('keypad');
+      }
+    });
+  }, []);
+
+  const userDisplayName = userProfile?.firstName?.trim()
+    ? `${userProfile.firstName.trim()}${userProfile.lastName?.trim() ? ' ' + userProfile.lastName.trim() : ''}`
+    : 'Jose Manuel';
+
+  const userInitials = userProfileService.getInitials(userProfile) || 'JM';
+
+  const handleCloseWelcome = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        await CapacitorApp.minimizeApp();
+      } else {
+        showToast('Bóveda protegida y bloqueada', 'info');
+      }
+    } catch {
+      showToast('Bóveda protegida y bloqueada', 'info');
+    }
+  };
 
   // Open Forgot PIN flow
   const handleOpenForgotPin = () => {
@@ -367,6 +404,23 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       window.removeEventListener('focus', syncLockoutRemaining);
     };
   }, [remainingLockout]);
+
+  // Intercept back gesture / hardware back button when on keypad mode to return to welcome screen
+  useEffect(() => {
+    if (authViewMode === 'keypad' && isRegisteredUser && !showForgotModal && remainingLockout <= 0) {
+      const unregister = registerBackHandler(
+        'lock-vault-keypad-mode',
+        () => {
+          setAuthViewMode('welcome');
+          setErrorMessage(null);
+          setPin('');
+          return true;
+        },
+        40
+      );
+      return () => unregister();
+    }
+  }, [authViewMode, isRegisteredUser, showForgotModal, remainingLockout]);
 
   /* ==================== BLOQUE DE HISTORIAL (REGISTRO) ==================== */
   const recordAccessLog = (
@@ -853,6 +907,94 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
             <span>Tus archivos siguen protegidos</span>
           </div>
         </div>
+      ) : authViewMode === 'welcome' && isRegisteredUser ? (
+        /* ==================== PANTALLA DE BIENVENIDA (ESTILO BANCOMER / BBVA) ==================== */
+        <div className="relative w-full max-w-sm sm:max-w-md mx-auto flex flex-col justify-between min-h-[85vh] py-6 px-4 select-none animate-in fade-in duration-300">
+          {/* 1. Header con Iniciar sesión centrado y botón X a la derecha */}
+          <div className="w-full flex items-center justify-between relative pt-2 pb-4">
+            <div className="w-10" />
+            <h1 className="text-base sm:text-lg font-medium text-slate-200 tracking-wide text-center">
+              Iniciar sesión
+            </h1>
+            <button
+              type="button"
+              onClick={handleCloseWelcome}
+              title="Minimizar o salir"
+              className="w-11 h-11 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-md"
+              style={{
+                backgroundColor: 'rgba(10, 25, 47, 0.85)',
+                border: '1px solid rgba(30, 58, 138, 0.45)',
+                color: '#60a5fa',
+              }}
+            >
+              <X className="w-5 h-5 stroke-[2.2]" />
+            </button>
+          </div>
+
+          {/* 2. Zona central: Saludo "Hola, [Nombre]" y Avatar con iniciales */}
+          <div className="w-full my-auto py-8 px-2">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight leading-tight">
+                Hola, {userDisplayName}
+              </h2>
+
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center text-white font-medium text-2xl shadow-xl shrink-0 border border-white/20 select-none overflow-hidden"
+                style={{
+                  background: userProfile?.avatarColor || '#5b9bd5',
+                }}
+              >
+                {userProfile?.photoURL ? (
+                  <img
+                    src={userProfile.photoURL}
+                    alt={userDisplayName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span>{userInitials}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Error discreto si la huella falló o se canceló */}
+            {errorMessage && (
+              <div className="mt-6 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2.5 text-xs font-semibold text-rose-300 animate-in fade-in">
+                <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Zona inferior: Dos botones grandes de acción estilo Bancomer */}
+          <div className="w-full flex flex-col gap-3.5 pb-4 px-1">
+            <button
+              type="button"
+              onClick={handleBiometricClick}
+              disabled={isBioLoading}
+              className="w-full py-4 px-6 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.98] text-[#0b2149] font-bold text-base shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-75"
+            >
+              {isBioLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin text-[#0b2149]" />
+                  <span>Verificando huella...</span>
+                </>
+              ) : (
+                <span>Entra con biometria</span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setErrorMessage(null);
+                setAuthViewMode('keypad');
+              }}
+              className="w-full py-4 px-6 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.98] text-[#0b2149] font-bold text-base shadow-xl transition-all flex items-center justify-center cursor-pointer"
+            >
+              <span>Entra con contraseña</span>
+            </button>
+          </div>
+        </div>
       ) : (
         /* ==================== FIN BLOQUE DE HISTORIAL: PANTALLA COMPLETA DE BLOQUEO ==================== */
         /* ==================== PANTALLA HABITUAL DE DESBLOQUEO CON PIN ==================== */
@@ -865,6 +1007,23 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
             borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
           }}
         >
+          {/* Botón para volver a la pantalla de bienvenida si está registrado */}
+          {isRegisteredUser && (
+            <div className="w-full flex items-center justify-start mb-2 -mt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMessage(null);
+                  setPin('');
+                  setAuthViewMode('welcome');
+                }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-[#00e5ff] transition-colors cursor-pointer py-1.5 px-2.5 -ml-2 rounded-xl hover:bg-slate-800/50"
+              >
+                <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+                <span>Volver</span>
+              </button>
+            </div>
+          )}
           <h1 className="text-2xl font-black tracking-tight mb-0.5 mt-2" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
             Bóveda de <span style={{ color: 'var(--theme-primary, #00e5ff)' }}>Seguridad</span>
           </h1>
