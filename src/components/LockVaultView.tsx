@@ -103,9 +103,8 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
     });
   }, []);
 
-  const userDisplayName = userProfile?.firstName?.trim()
-    ? `${userProfile.firstName.trim()}${userProfile.lastName?.trim() ? ' ' + userProfile.lastName.trim() : ''}`
-    : 'Jose Manuel';
+  // Solo toma el nombre (sin los apellidos) exclusivamente para el saludo de esta ventana
+  const userDisplayName = userProfile?.firstName?.trim() || 'Jose Manuel';
 
   const userInitials = userProfileService.getInitials(userProfile) || 'JM';
 
