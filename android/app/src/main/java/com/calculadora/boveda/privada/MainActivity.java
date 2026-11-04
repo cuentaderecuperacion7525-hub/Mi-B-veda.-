@@ -26,7 +26,7 @@ import java.util.Locale;
 
 public class MainActivity extends BridgeActivity {
     private static final int PERMISSION_REQ_CODE = 1001;
-    private static boolean currentIsDarkTheme = false;
+    private static boolean currentIsDarkTheme = true;
 
     public static void syncSafeAreaInsetsToWebView(final Activity activity) {
         if (activity == null) return;

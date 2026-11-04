@@ -43,7 +43,13 @@ export const DeleteGalleryReminderModal: React.FC<DeleteGalleryReminderModalProp
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 select-none">
-      <div className="w-full max-w-md bg-[#131c2e] border border-indigo-500/30 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+      <div
+        className="w-full max-w-md border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200"
+        style={{
+          backgroundColor: 'var(--theme-bg-card, #0a121d)',
+          borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+        }}
+      >
         {/* Header Icon */}
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">

@@ -762,30 +762,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-[#131c2e] border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div
+        className="w-full max-w-lg border rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        style={{
+          backgroundColor: 'var(--theme-bg-card, #0a121d)',
+          borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+        }}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#00e5ff]/15 text-[#00e5ff] border border-[#00e5ff]/30 flex items-center justify-center">
               <Shield className="w-4 h-4" />
             </div>
             <h3 className="text-base font-bold text-white">Configuración y Seguridad</h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab navigation */}
-        <div className="flex border-b border-slate-800/80 px-4 sm:px-6 pt-2 bg-slate-900/40 text-xs font-medium overflow-x-auto no-scrollbar">
+        <div className="flex border-b border-slate-800/80 px-4 sm:px-6 pt-2 bg-slate-900/60 text-xs font-medium overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('security')}
-            className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-all ${
+            className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'security'
-                ? 'border-indigo-500 text-indigo-400 font-semibold'
+                ? 'border-[#00e5ff] text-[#00e5ff] font-bold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -793,9 +799,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('backup')}
-            className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-all ${
+            className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'backup'
-                ? 'border-indigo-500 text-indigo-400 font-semibold'
+                ? 'border-[#00e5ff] text-[#00e5ff] font-bold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -803,9 +809,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('install')}
-            className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-all flex items-center gap-1.5 ${
+            className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'install'
-                ? 'border-indigo-500 text-indigo-400 font-semibold'
+                ? 'border-[#00e5ff] text-[#00e5ff] font-bold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -816,9 +822,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('danger')}
-            className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-all ${
+            className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'danger'
-                ? 'border-rose-500 text-rose-400 font-semibold'
+                ? 'border-rose-500 text-rose-400 font-bold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >

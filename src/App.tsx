@@ -511,12 +511,23 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen flex flex-col font-sans select-none w-full max-w-full overflow-x-hidden transition-colors duration-250"
+      className="min-h-screen flex flex-col font-sans select-none w-full max-w-full overflow-x-hidden transition-colors duration-250 relative"
       style={{
         backgroundColor: 'var(--theme-bg-main, #060b14)',
         color: 'var(--theme-text-main, #f8fafc)',
       }}
     >
+      {/* Resplandor ambiental cian unificado para toda la aplicación */}
+      <div className="fixed inset-0 pointer-events-none flex justify-center items-center overflow-hidden z-0">
+        <div
+          className="w-[520px] h-[520px] rounded-full blur-[140px] transition-all duration-700"
+          style={{
+            backgroundColor: 'var(--theme-primary, #00e5ff)',
+            opacity: 0.16,
+          }}
+        />
+      </div>
+
       {/* Toast Notification Layer */}
       <ToastContainer toasts={toasts} />
 

@@ -691,18 +691,35 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     const isForgotFlow = step === 'forgot_verify';
 
     return (
-      <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-        <div className="w-full max-w-[360px] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 px-6 py-8 shadow-sm flex flex-col items-center animate-in fade-in duration-200">
-          <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-3">
+      <div
+        className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 relative select-none font-sans"
+        style={{
+          backgroundColor: 'var(--theme-bg-main, #060b14)',
+          color: 'var(--theme-text-main, #f8fafc)',
+        }}
+      >
+        {/* Resplandor ambiental cian */}
+        <div className="fixed inset-0 pointer-events-none flex justify-center items-center overflow-hidden">
+          <div className="w-[500px] h-[500px] bg-[#00e5ff]/14 rounded-full blur-[140px]" />
+        </div>
+
+        <div
+          className="w-full max-w-[360px] rounded-3xl border px-6 py-8 shadow-2xl backdrop-blur-xl flex flex-col items-center animate-in fade-in duration-200 relative z-10"
+          style={{
+            backgroundColor: 'var(--theme-bg-card, #0a121d)',
+            borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+          }}
+        >
+          <div className="w-14 h-14 rounded-2xl bg-[#00e5ff]/10 border border-[#00e5ff]/30 flex items-center justify-center text-[#00e5ff] mb-3 shadow-[0_0_20px_rgba(0,229,255,0.15)]">
             <Mail className="w-7 h-7 stroke-[1.8]" />
           </div>
 
-          <h1 className="text-[23px] font-bold tracking-tight text-center">
+          <h1 className="text-[23px] font-bold tracking-tight text-center text-white">
             {isForgotFlow ? 'Código de recuperación' : 'Verifica tu correo'}
           </h1>
-          <p className="text-[13.5px] text-slate-500 dark:text-slate-400 text-center mt-1.5 mb-4 leading-relaxed">
+          <p className="text-[13.5px] text-slate-400 text-center mt-1.5 mb-4 leading-relaxed">
             Enviamos un código de 6 dígitos a{' '}
-            <span className="font-semibold text-slate-800 dark:text-slate-200 break-all">
+            <span className="font-semibold text-slate-200 break-all">
               {emailInput.trim()}
             </span>
           </p>
@@ -711,10 +728,10 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           <div
             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium mb-5 border ${
               isExpired
-                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                 : secondsLeft <= 60
-                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                : 'bg-[#00e5ff]/10 text-[#00e5ff] border-[#00e5ff]/30'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
@@ -740,13 +757,13 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                 value={digit}
                 onChange={(e) => handleDigitChange(idx, e.target.value)}
                 onKeyDown={(e) => handleDigitKeyDown(idx, e)}
-                className="w-11 h-13 rounded-xl border border-slate-300 dark:border-slate-700 focus:border-blue-600 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 text-center text-[20px] font-bold bg-transparent outline-none transition-all disabled:opacity-40"
+                className="w-11 h-13 rounded-xl border border-slate-700 bg-slate-900/80 focus:border-[#00e5ff] focus:ring-2 focus:ring-[#00e5ff]/20 text-center text-[20px] font-bold text-white outline-none transition-all disabled:opacity-40"
               />
             ))}
           </div>
 
           {errorMsg && (
-            <div className="w-full p-3 mb-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400 text-xs text-left animate-in fade-in duration-150">
+            <div className="w-full p-3 mb-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-400 text-xs text-left animate-in fade-in duration-150">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
@@ -756,7 +773,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             type="button"
             onClick={() => verifySixDigits(currentCode)}
             disabled={isVerifyingPin || isExpired || currentCode.length !== 6}
-            className="w-full h-[48px] rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium text-[15px] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            className="w-full h-[50px] rounded-2xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 font-bold text-[15px] shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {isVerifyingPin ? (
               <>
@@ -770,17 +787,17 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
 
           {!isExpired && (
             <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 mt-3">
-              <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
+              <Loader2 className="w-3 h-3 animate-spin text-[#00e5ff]" />
               <span>También puedes tocar el enlace dentro del correo</span>
             </div>
           )}
 
-          <div className="w-full flex items-center justify-between mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 text-[13px]">
+          <div className="w-full flex items-center justify-between mt-6 pt-4 border-t border-slate-800 text-[13px]">
             <button
               type="button"
               onClick={() => (isForgotFlow ? handleForgotEmailSubmit() : handleRegisterSubmit())}
               disabled={isSubmitting || resendCooldown > 0}
-              className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:underline font-medium cursor-pointer disabled:opacity-45 disabled:no-underline"
+              className="inline-flex items-center gap-1.5 text-[#00e5ff] hover:underline font-semibold cursor-pointer disabled:opacity-45 disabled:no-underline"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
               <span>
@@ -798,7 +815,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                 setStep(isForgotFlow ? 'forgot_email' : 'register');
                 setErrorMsg(null);
               }}
-              className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:underline cursor-pointer"
+              className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-200 hover:underline cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Cambiar correo</span>
@@ -812,23 +829,40 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   // ==================== PANTALLA: OLVIDASTE TU CONTRASEÑA (PASO 1: INGRESAR CORREO) ====================
   if (step === 'forgot_email') {
     return (
-      <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
-        <div className="w-full max-w-[360px] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/90 px-6 py-8 shadow-sm flex flex-col items-center animate-in fade-in duration-200">
-          <div className="w-13 h-13 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-3">
+      <div
+        className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 relative select-none font-sans"
+        style={{
+          backgroundColor: 'var(--theme-bg-main, #060b14)',
+          color: 'var(--theme-text-main, #f8fafc)',
+        }}
+      >
+        {/* Resplandor ambiental cian */}
+        <div className="fixed inset-0 pointer-events-none flex justify-center items-center overflow-hidden">
+          <div className="w-[500px] h-[500px] bg-[#00e5ff]/14 rounded-full blur-[140px]" />
+        </div>
+
+        <div
+          className="w-full max-w-[360px] rounded-3xl border px-6 py-8 shadow-2xl backdrop-blur-xl flex flex-col items-center animate-in fade-in duration-200 relative z-10"
+          style={{
+            backgroundColor: 'var(--theme-bg-card, #0a121d)',
+            borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+          }}
+        >
+          <div className="w-13 h-13 rounded-2xl bg-[#00e5ff]/10 border border-[#00e5ff]/30 flex items-center justify-center text-[#00e5ff] mb-3 shadow-[0_0_20px_rgba(0,229,255,0.15)]">
             <Mail className="w-6 h-6 stroke-[1.75]" />
           </div>
 
-          <h1 className="text-[22px] font-semibold tracking-tight text-center">
+          <h1 className="text-[22px] font-bold tracking-tight text-center text-white">
             Recuperar contraseña
           </h1>
-          <p className="text-[13.5px] text-slate-500 dark:text-slate-400 text-center mt-1.5 mb-6 leading-relaxed">
+          <p className="text-[13.5px] text-slate-400 text-center mt-1.5 mb-6 leading-relaxed">
             Ingresa el correo electrónico con el que registraste tu cuenta. Validaremos que exista y te enviaremos un código de 6 dígitos.
           </p>
 
           <form onSubmit={handleForgotEmailSubmit} className="w-full space-y-5">
             <div className="w-full">
-              <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
-                <Mail className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+              <div className="flex items-center border-b border-slate-700 focus-within:border-[#00e5ff] pb-2.5 transition-colors">
+                <Mail className="w-[19px] h-[19px] text-slate-400 stroke-[1.7] shrink-0" />
                 <input
                   type="email"
                   autoComplete="email"
@@ -840,13 +874,13 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   }}
                   required
                   autoFocus
-                  className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                  className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-500 text-white outline-none"
                 />
               </div>
             </div>
 
             {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400 text-xs text-left animate-in fade-in duration-150">
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-400 text-xs text-left animate-in fade-in duration-150">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{errorMsg}</span>
               </div>
@@ -855,7 +889,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || !emailInput.trim()}
-              className="w-full h-[48px] rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium text-[15px] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65"
+              className="w-full h-[50px] rounded-2xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 font-bold text-[15px] shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65"
             >
               {isSubmitting ? (
                 <>
@@ -874,7 +908,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               setStep('login');
               setErrorMsg(null);
             }}
-            className="mt-5 inline-flex items-center gap-1.5 text-[13.5px] text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+            className="mt-5 inline-flex items-center gap-1.5 text-[13.5px] text-slate-400 hover:text-[#00e5ff] transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Volver al inicio de sesión</span>
@@ -887,26 +921,43 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
   // ==================== PANTALLA: OLVIDASTE TU CONTRASEÑA (PASO 3: CREAR NUEVA CONTRASEÑA) ====================
   if (step === 'forgot_new_password') {
     return (
-      <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
-        <div className="w-full max-w-[360px] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/90 px-6 py-8 shadow-sm flex flex-col items-center animate-in fade-in duration-200">
-          <div className="w-13 h-13 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-3">
+      <div
+        className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 relative select-none font-sans"
+        style={{
+          backgroundColor: 'var(--theme-bg-main, #060b14)',
+          color: 'var(--theme-text-main, #f8fafc)',
+        }}
+      >
+        {/* Resplandor ambiental cian */}
+        <div className="fixed inset-0 pointer-events-none flex justify-center items-center overflow-hidden">
+          <div className="w-[500px] h-[500px] bg-[#00e5ff]/14 rounded-full blur-[140px]" />
+        </div>
+
+        <div
+          className="w-full max-w-[360px] rounded-3xl border px-6 py-8 shadow-2xl backdrop-blur-xl flex flex-col items-center animate-in fade-in duration-200 relative z-10"
+          style={{
+            backgroundColor: 'var(--theme-bg-card, #0a121d)',
+            borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+          }}
+        >
+          <div className="w-13 h-13 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-3 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
             <Lock className="w-6 h-6 stroke-[1.75]" />
           </div>
 
-          <h1 className="text-[22px] font-semibold tracking-tight text-center">
+          <h1 className="text-[22px] font-bold tracking-tight text-center text-white">
             Nueva contraseña
           </h1>
-          <p className="text-[13.5px] text-slate-500 dark:text-slate-400 text-center mt-1.5 mb-6 leading-relaxed">
+          <p className="text-[13.5px] text-slate-400 text-center mt-1.5 mb-6 leading-relaxed">
             Crea una nueva contraseña segura para{' '}
-            <span className="font-semibold text-slate-800 dark:text-slate-200 break-all">
+            <span className="font-semibold text-slate-200 break-all">
               {emailInput.trim()}
             </span>
           </p>
 
           <form onSubmit={handleSaveNewPassword} className="w-full space-y-5">
             <div className="w-full">
-              <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
-                <Lock className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+              <div className="flex items-center border-b border-slate-700 focus-within:border-[#00e5ff] pb-2.5 transition-colors">
+                <Lock className="w-[19px] h-[19px] text-slate-400 stroke-[1.7] shrink-0" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
@@ -921,14 +972,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   }}
                   required
                   autoFocus
-                  className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                  className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-500 text-white outline-none"
                 />
                 <button
                   type="button"
                   tabIndex={-1}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => setShowPassword((prev) => !prev)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer p-0.5 shrink-0"
+                  className="text-slate-400 hover:text-white transition-colors cursor-pointer p-0.5 shrink-0"
                 >
                   {showPassword ? (
                     <EyeOff className="w-[18px] h-[18px] stroke-[1.7]" />
@@ -945,18 +996,18 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                     : 'max-h-0 opacity-0 mt-0 pointer-events-none'
                 }`}
               >
-                <div className="rounded-xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 px-3 py-2.5 space-y-1.5">
+                <div className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2.5 space-y-1.5">
                   <div
                     className={`flex items-center gap-2 text-[11.5px] transition-colors ${
                       passHasValidLength
-                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
-                        : 'text-slate-500 dark:text-slate-400'
+                        ? 'text-emerald-400 font-medium'
+                        : 'text-slate-400'
                     }`}
                   >
                     <Check
                       className={`w-3.5 h-3.5 shrink-0 transition-all ${
                         passHasValidLength
-                          ? 'opacity-100 stroke-[2.6] text-emerald-500'
+                          ? 'opacity-100 stroke-[2.6] text-emerald-400'
                           : 'opacity-30 stroke-[1.7]'
                       }`}
                     />
@@ -965,14 +1016,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   <div
                     className={`flex items-center gap-2 text-[11.5px] transition-colors ${
                       passHasUppercase
-                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
-                        : 'text-slate-500 dark:text-slate-400'
+                        ? 'text-emerald-400 font-medium'
+                        : 'text-slate-400'
                     }`}
                   >
                     <Check
                       className={`w-3.5 h-3.5 shrink-0 transition-all ${
                         passHasUppercase
-                          ? 'opacity-100 stroke-[2.6] text-emerald-500'
+                          ? 'opacity-100 stroke-[2.6] text-emerald-400'
                           : 'opacity-30 stroke-[1.7]'
                       }`}
                     />
@@ -981,14 +1032,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   <div
                     className={`flex items-center gap-2 text-[11.5px] transition-colors ${
                       passHasNumber
-                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
-                        : 'text-slate-500 dark:text-slate-400'
+                        ? 'text-emerald-400 font-medium'
+                        : 'text-slate-400'
                     }`}
                   >
                     <Check
                       className={`w-3.5 h-3.5 shrink-0 transition-all ${
                         passHasNumber
-                          ? 'opacity-100 stroke-[2.6] text-emerald-500'
+                          ? 'opacity-100 stroke-[2.6] text-emerald-400'
                           : 'opacity-30 stroke-[1.7]'
                       }`}
                     />
@@ -999,8 +1050,8 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             </div>
 
             <div className="w-full">
-              <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
-                <Lock className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+              <div className="flex items-center border-b border-slate-700 focus-within:border-[#00e5ff] pb-2.5 transition-colors">
+                <Lock className="w-[19px] h-[19px] text-slate-400 stroke-[1.7] shrink-0" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
@@ -1012,13 +1063,13 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                     if (errorMsg) setErrorMsg(null);
                   }}
                   required
-                  className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                  className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-500 text-white outline-none"
                 />
               </div>
             </div>
 
             {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400 text-xs text-left animate-in fade-in duration-150">
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-400 text-xs text-left animate-in fade-in duration-150">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{errorMsg}</span>
               </div>
@@ -1027,7 +1078,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full h-[48px] rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium text-[15px] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65"
+              className="w-full h-[50px] rounded-2xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 font-bold text-[15px] shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65"
             >
               {isSubmitting ? (
                 <>
@@ -1048,18 +1099,35 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
 
   // ==================== PANTALLA 1: CREAR CUENTA / INICIAR SESIÓN (DISEÑO MINIMALISTA DE LÍNEA FINA) ====================
   return (
-    <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
-      <div className="w-full max-w-[360px] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/90 px-6 py-8 shadow-sm flex flex-col items-center animate-in fade-in duration-200">
+    <div
+      className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 relative select-none font-sans"
+      style={{
+        backgroundColor: 'var(--theme-bg-main, #060b14)',
+        color: 'var(--theme-text-main, #f8fafc)',
+      }}
+    >
+      {/* Resplandor ambiental cian */}
+      <div className="fixed inset-0 pointer-events-none flex justify-center items-center overflow-hidden">
+        <div className="w-[500px] h-[500px] bg-[#00e5ff]/14 rounded-full blur-[140px]" />
+      </div>
+
+      <div
+        className="w-full max-w-[360px] rounded-3xl border px-6 py-8 shadow-2xl backdrop-blur-xl flex flex-col items-center animate-in fade-in duration-200 relative z-10"
+        style={{
+          backgroundColor: 'var(--theme-bg-card, #0a121d)',
+          borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+        }}
+      >
         {/* Ícono superior */}
-        <div className="w-13 h-13 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-3">
+        <div className="w-13 h-13 rounded-2xl bg-[#00e5ff]/10 border border-[#00e5ff]/30 flex items-center justify-center text-[#00e5ff] mb-3 shadow-[0_0_20px_rgba(0,229,255,0.15)]">
           <Lock className="w-6 h-6 stroke-[1.75]" />
         </div>
 
         {/* Título y subtítulo */}
-        <h1 className="text-[24px] font-semibold tracking-tight text-center">
+        <h1 className="text-[24px] font-bold tracking-tight text-center text-white">
           Mi bóveda
         </h1>
-        <p className="text-[14px] text-slate-500 dark:text-slate-400 text-center mt-1 mb-7 max-w-[260px] leading-snug font-normal">
+        <p className="text-[14px] text-slate-400 text-center mt-1 mb-7 max-w-[260px] leading-snug font-normal">
           {isLoginMode
             ? 'Inicia sesión con tu cuenta registrada'
             : 'Crea tu cuenta para guardar tus archivos'}
@@ -1077,11 +1145,11 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                 <div
                   className={`flex items-center border-b pb-2.5 transition-colors ${
                     isFirstNameInvalid
-                      ? 'border-rose-500 dark:border-rose-500'
-                      : 'border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400'
+                      ? 'border-rose-500'
+                      : 'border-slate-700 focus-within:border-[#00e5ff]'
                   }`}
                 >
-                  <User className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+                  <User className="w-[19px] h-[19px] text-slate-400 stroke-[1.7] shrink-0" />
                   <input
                     type="text"
                     autoComplete="given-name"
@@ -1091,14 +1159,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                       setFirstName(sanitizePersonNameInput(e.target.value));
                       if (errorMsg) setErrorMsg(null);
                     }}
-                    className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                    className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-500 text-white outline-none"
                   />
                   {isFirstNameReal && (
-                    <Check className="w-4 h-4 text-emerald-500 stroke-[2.2] shrink-0" />
+                    <Check className="w-4 h-4 text-emerald-400 stroke-[2.2] shrink-0" />
                   )}
                 </div>
                 {isFirstNameInvalid && (
-                  <p className="mt-1 pl-1 text-[11px] text-rose-500 dark:text-rose-400 animate-in fade-in duration-150">
+                  <p className="mt-1 pl-1 text-[11px] text-rose-400 animate-in fade-in duration-150">
                     {firstNameValidation.error || 'Ingresa un nombre real válido.'}
                   </p>
                 )}
@@ -1109,11 +1177,11 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                 <div
                   className={`flex items-center border-b pb-2.5 transition-colors ${
                     isLastNameInvalid
-                      ? 'border-rose-500 dark:border-rose-500'
-                      : 'border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400'
+                      ? 'border-rose-500'
+                      : 'border-slate-700 focus-within:border-[#00e5ff]'
                   }`}
                 >
-                  <IdCard className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+                  <IdCard className="w-[19px] h-[19px] text-slate-400 stroke-[1.7] shrink-0" />
                   <input
                     type="text"
                     autoComplete="family-name"
@@ -1123,14 +1191,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                       setLastName(sanitizePersonNameInput(e.target.value));
                       if (errorMsg) setErrorMsg(null);
                     }}
-                    className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                    className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-500 text-white outline-none"
                   />
                   {isLastNameReal && (
-                    <Check className="w-4 h-4 text-emerald-500 stroke-[2.2] shrink-0" />
+                    <Check className="w-4 h-4 text-emerald-400 stroke-[2.2] shrink-0" />
                   )}
                 </div>
                 {isLastNameInvalid && (
-                  <p className="mt-1 pl-1 text-[11px] text-rose-500 dark:text-rose-400 animate-in fade-in duration-150">
+                  <p className="mt-1 pl-1 text-[11px] text-rose-400 animate-in fade-in duration-150">
                     {lastNameValidation.error || 'Ingresa apellidos reales válidos.'}
                   </p>
                 )}
@@ -1140,8 +1208,8 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
 
           {/* 3. Campo "Correo electrónico" con icono lineal de sobre */}
           <div className="w-full">
-            <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
-              <Mail className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+            <div className="flex items-center border-b border-slate-700 focus-within:border-[#00e5ff] pb-2.5 transition-colors">
+              <Mail className="w-[19px] h-[19px] text-slate-400 stroke-[1.7] shrink-0" />
               <input
                 type="email"
                 autoComplete="email"
@@ -1151,15 +1219,15 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   setEmailInput(e.target.value);
                   if (errorMsg) setErrorMsg(null);
                 }}
-                className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-500 text-white outline-none"
               />
             </div>
           </div>
 
           {/* 4. Campo "Contraseña" con candado a la izquierda, ojo a la derecha y desplegable dinámico */}
           <div className="w-full">
-            <div className="flex items-center border-b border-slate-300 dark:border-slate-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 pb-2.5 transition-colors">
-              <Lock className="w-[19px] h-[19px] text-slate-400 dark:text-slate-500 stroke-[1.7] shrink-0" />
+            <div className="flex items-center border-b border-slate-700 focus-within:border-[#00e5ff] pb-2.5 transition-colors">
+              <Lock className="w-[19px] h-[19px] text-slate-400 stroke-[1.7] shrink-0" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 autoComplete={isLoginMode ? 'current-password' : 'new-password'}
@@ -1172,14 +1240,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   setPasswordInput(e.target.value.slice(0, 12));
                   if (errorMsg) setErrorMsg(null);
                 }}
-                className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                className="w-full pl-3 pr-2 bg-transparent text-[15px] font-normal placeholder-slate-500 text-white outline-none"
               />
               <button
                 type="button"
                 tabIndex={-1}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setShowPassword((prev) => !prev)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer p-0.5 shrink-0"
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer p-0.5 shrink-0"
                 aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
               >
                 {showPassword ? (
@@ -1199,14 +1267,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                     setErrorMsg(null);
                     setStep('forgot_email');
                   }}
-                  className="text-[12.5px] text-blue-600 dark:text-blue-400 hover:underline font-medium cursor-pointer"
+                  className="text-[12.5px] text-[#00e5ff] hover:underline font-semibold cursor-pointer"
                 >
                   ¿Olvidaste tu contraseña?
                 </button>
               </div>
             )}
 
-            {/* Desplegable dinámico que aparece instantáneamente cuando el campo recibe foco o el usuario comienza a escribir */}
+            {/* Desplegable dinámico que aparece instantáneamente cuando el campo recibe foco */}
             {!isLoginMode && (
               <div
                 className={`overflow-hidden transition-all duration-200 ease-out ${
@@ -1215,18 +1283,18 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                     : 'max-h-0 opacity-0 mt-0 pointer-events-none'
                 }`}
               >
-                <div className="rounded-xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 px-3 py-2.5 space-y-1.5">
+                <div className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2.5 space-y-1.5">
                   <div
                     className={`flex items-center gap-2 text-[11.5px] transition-colors ${
                       passHasValidLength
-                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
-                        : 'text-slate-500 dark:text-slate-400'
+                        ? 'text-emerald-400 font-medium'
+                        : 'text-slate-400'
                     }`}
                   >
                     <Check
                       className={`w-3.5 h-3.5 shrink-0 transition-all ${
                         passHasValidLength
-                          ? 'opacity-100 stroke-[2.6] text-emerald-500'
+                          ? 'opacity-100 stroke-[2.6] text-emerald-400'
                           : 'opacity-30 stroke-[1.7]'
                       }`}
                     />
@@ -1236,14 +1304,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   <div
                     className={`flex items-center gap-2 text-[11.5px] transition-colors ${
                       passHasUppercase
-                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
-                        : 'text-slate-500 dark:text-slate-400'
+                        ? 'text-emerald-400 font-medium'
+                        : 'text-slate-400'
                     }`}
                   >
                     <Check
                       className={`w-3.5 h-3.5 shrink-0 transition-all ${
                         passHasUppercase
-                          ? 'opacity-100 stroke-[2.6] text-emerald-500'
+                          ? 'opacity-100 stroke-[2.6] text-emerald-400'
                           : 'opacity-30 stroke-[1.7]'
                       }`}
                     />
@@ -1253,14 +1321,14 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   <div
                     className={`flex items-center gap-2 text-[11.5px] transition-colors ${
                       passHasNumber
-                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
-                        : 'text-slate-500 dark:text-slate-400'
+                        ? 'text-emerald-400 font-medium'
+                        : 'text-slate-400'
                     }`}
                   >
                     <Check
                       className={`w-3.5 h-3.5 shrink-0 transition-all ${
                         passHasNumber
-                          ? 'opacity-100 stroke-[2.6] text-emerald-500'
+                          ? 'opacity-100 stroke-[2.6] text-emerald-400'
                           : 'opacity-30 stroke-[1.7]'
                       }`}
                     />
@@ -1273,7 +1341,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
 
           {/* Mensaje de error */}
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400 text-xs text-left animate-in fade-in duration-150">
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-400 text-xs text-left animate-in fade-in duration-150">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
@@ -1283,7 +1351,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full h-[48px] rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium text-[15px] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65 mt-2"
+            className="w-full h-[50px] rounded-2xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 font-bold text-[15px] shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65 mt-2"
           >
             {isSubmitting ? (
               <>
@@ -1297,7 +1365,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
         </form>
 
         {/* Enlace de navegación secundaria centrado */}
-        <div className="mt-4 text-center text-[13.5px] text-slate-500 dark:text-slate-400">
+        <div className="mt-4 text-center text-[13.5px] text-slate-400">
           {isLoginMode ? (
             <>
               ¿No tienes cuenta?{' '}
@@ -1307,7 +1375,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   setStep('register');
                   setErrorMsg(null);
                 }}
-                className="text-blue-600 dark:text-blue-400 font-medium hover:underline cursor-pointer"
+                className="text-[#00e5ff] font-semibold hover:underline cursor-pointer"
               >
                 Crear cuenta
               </button>
@@ -1321,7 +1389,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   setStep('login');
                   setErrorMsg(null);
                 }}
-                className="text-blue-600 dark:text-blue-400 font-medium hover:underline cursor-pointer"
+                className="text-[#00e5ff] font-semibold hover:underline cursor-pointer"
               >
                 Inicia sesión
               </button>
@@ -1331,8 +1399,8 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
 
         {/* Separador "o continúa con" */}
         <div className="relative my-5 w-full flex items-center justify-center">
-          <div className="w-full border-t border-slate-200 dark:border-slate-800" />
-          <span className="absolute bg-white dark:bg-slate-900 px-3 text-[12px] text-slate-400 dark:text-slate-500 font-normal">
+          <div className="w-full border-t border-slate-800" />
+          <span className="absolute bg-[#0a121d] px-3 text-[12px] text-slate-400 font-normal">
             o continúa con
           </span>
         </div>
@@ -1342,11 +1410,11 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           type="button"
           onClick={handleContinueWithGoogle}
           disabled={isLoadingNative}
-          className="w-full h-[48px] rounded-xl bg-transparent hover:bg-slate-100/70 dark:hover:bg-slate-800/60 border border-slate-300 dark:border-slate-700 transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-65"
+          className="w-full h-[50px] rounded-2xl bg-[#080e19]/80 hover:bg-[#121c2e] border border-slate-700/80 transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-65 text-slate-100 font-medium"
         >
           {isLoadingNative ? (
-            <div className="flex items-center gap-2 text-[14.5px] font-medium">
-              <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+            <div className="flex items-center gap-2 text-[14.5px] font-medium text-white">
+              <Loader2 className="w-5 h-5 animate-spin text-[#00e5ff]" />
               <span>Abriendo Google...</span>
             </div>
           ) : (
@@ -1369,7 +1437,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span className="font-medium text-[14.5px]">
+              <span className="font-semibold text-[14.5px] text-white">
                 Continuar con Google
               </span>
             </>

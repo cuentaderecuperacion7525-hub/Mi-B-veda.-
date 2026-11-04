@@ -85,15 +85,27 @@ export const SetupVaultView: React.FC<SetupVaultViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#090d16] flex flex-col justify-center items-center p-4">
+    <div
+      className="min-h-screen flex flex-col justify-center items-center p-4 select-none relative"
+      style={{
+        backgroundColor: 'var(--theme-bg-main, #060b14)',
+        color: 'var(--theme-text-main, #f8fafc)',
+      }}
+    >
       {/* Background ambient glow */}
       <div className="fixed inset-0 pointer-events-none flex justify-center items-center overflow-hidden">
-        <div className="w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px]" />
+        <div className="w-[500px] h-[500px] bg-[#00e5ff]/14 rounded-full blur-[140px]" />
       </div>
 
-      <div className="relative w-full max-w-md bg-[#131c2e]/90 border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl text-center">
+      <div
+        className="relative w-full max-w-md border rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl text-center"
+        style={{
+          backgroundColor: 'var(--theme-bg-card, #0a121d)',
+          borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+        }}
+      >
         {/* Header Icon */}
-        <div className="w-16 h-16 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl flex items-center justify-center mx-auto mb-5 text-indigo-400 shadow-inner shadow-indigo-500/20">
+        <div className="w-16 h-16 bg-[#00e5ff]/10 border border-[#00e5ff]/30 rounded-2xl flex items-center justify-center mx-auto mb-5 text-[#00e5ff] shadow-inner shadow-[#00e5ff]/20">
           {step === 'create' ? (
             <KeyRound className="w-8 h-8" />
           ) : (
@@ -216,7 +228,7 @@ export const SetupVaultView: React.FC<SetupVaultViewProps> = ({
 
         {/* Security Info Footnote */}
         <div className="mt-6 pt-5 border-t border-slate-800/80 text-left flex items-start gap-2.5 text-xs text-slate-400">
-          <Sparkles className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+          <Sparkles className="w-4 h-4 text-[#00e5ff] shrink-0 mt-0.5" />
           <p>
             Cifrado de conocimiento cero: tu PIN nunca sale de este dispositivo. Si alguna vez lo olvidas, podrás recuperarlo verificando tu correo registrado sin perder tus archivos.
           </p>

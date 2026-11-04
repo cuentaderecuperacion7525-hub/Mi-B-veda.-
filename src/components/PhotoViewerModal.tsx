@@ -1041,7 +1041,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         {isAudio && (
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md bg-[#131c2e] border border-amber-500/30 rounded-3xl p-6 sm:p-8 text-center shadow-2xl"
+            className="w-full max-w-md bg-[#0a121d] border border-slate-800/90 rounded-3xl p-6 sm:p-8 text-center shadow-2xl"
           >
             <div className="w-20 h-20 bg-amber-500/10 border border-amber-500/30 rounded-3xl flex items-center justify-center mx-auto mb-4 text-amber-400 shadow-lg shadow-amber-500/10">
               <Music className="w-10 h-10" />
@@ -1091,7 +1091,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         {isApp && (
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md bg-[#131c2e] border border-slate-800 rounded-3xl p-6 sm:p-8 text-center shadow-2xl"
+            className="w-full max-w-md bg-[#0a121d] border border-slate-800/90 rounded-3xl p-6 sm:p-8 text-center shadow-2xl"
           >
             <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/30 rounded-3xl flex items-center justify-center mx-auto mb-4 text-emerald-400 shadow-lg shadow-emerald-500/10">
               {activeItem.record.name.endsWith('.apk') ? (
@@ -1271,7 +1271,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95"
+            className="w-full max-w-sm bg-[#0a121d] border border-slate-800/90 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -1345,7 +1345,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95"
+            className="w-full max-w-sm bg-[#0a121d] border border-slate-800/90 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -1476,7 +1476,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95"
+            className="w-full max-w-sm bg-[#0a121d] border border-slate-800/90 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
