@@ -1,92 +1,70 @@
-# Pantalla de Bienvenida e Inicio de Sesión Personalizada (Estilo Banca Móvil)
+# Ajustes a la Pantalla de Inicio: Eliminación de Botón 'X' y Manejo Preciso de Cancelación Biométrica
 
-Implementación de una pantalla de bienvenida moderna inspirada en el flujo de banca móvil para usuarios registrados en la **Bóveda de Seguridad**, con saludo personalizado, insignia de usuario con iniciales, activación automática del sensor de huella en segundo plano, botón para reintentar biometría y botón para desplegar el teclado numérico del PIN maestro.
+Ajuste del flujo de inicio de sesión para pulir la experiencia del usuario de acuerdo a la retroalimentación:
+1. **Eliminación del botón "X" superior:** Dado que el gesto y botón físico de retroceso de Android ya gestionan la salida o minimizado de la aplicación de manera nativa.
+2. **Corrección de cancelación biométrica:** Evitar que cancelar o cerrar el diálogo del sensor de huella (o tocar fuera de él) se interprete como "Huella no reconocida" o incremente los intentos fallidos hacia el bloqueo de seguridad.
 
 ---
 
 ## Decisiones Críticas y Confirmaciones del Usuario
 
 > [!IMPORTANT]
-> **Políticas de Integridad y Código Protegido:**
-> 1. **Cero modificaciones en código protegido:** Los módulos criptográficos (`src/crypto/vaultCrypto.ts`, derivación PBKDF2, cifrado AES-GCM 256-bit y comprobación de claves) y de base de datos (`src/db/vaultDb.ts`) **permanecen 100% intactos**.
-> 2. **Identidad visual de la app:** La estética sigue la paleta oscura de la bóveda (`#060b14` / `#0a121d`), acentos cian neón (`#00e5ff`), superficies translúcidas (*glassmorphism*) y tipografía nítida de alta legibilidad, en lugar de tonos ajenos.
-> 3. **Sensor biométrico automático:** Al cargar la pantalla, si el usuario tiene huella configurada en su Android/dispositivo, el sensor se despliega de inmediato sin necesidad de pulsar nada.
+> **Políticas de Seguridad y Códigos Protegidos:**
+> - Los módulos criptográficos y de base de datos (`src/crypto/vaultCrypto.ts`, `src/db/vaultDb.ts`) **permanecen 100% protegidos e intactos**.
+> - La cancelación del sensor de huella en Android (códigos `BIOMETRIC_ERROR_USER_CANCELED` y `BIOMETRIC_ERROR_NEGATIVE_BUTTON`) se identificará expresamente como una acción voluntaria del usuario, distinguiéndola de un fallo de lectura biométrica.
 
 ---
 
-## 1. Visión General y Flujo de Usuario
+## 1. Visión General de los Cambios
 
-### Flujo de la Experiencia
+### Interacción y Comportamiento Esperado
 ```
-                ┌──────────────────────────────────────────────┐
-                │             Apertura de la App               │
-                └──────────────────────┬───────────────────────┘
-                                       │
-                      ¿Usuario Registrado y con PIN?
-                                       │
-                   ┌───────────────────┴───────────────────┐
-                   ▼                                       ▼
-        [ Pantalla de Bienvenida ]              [ Teclado de PIN ]
-        • "Iniciar sesión" (arriba)             (Si no está registrado
-        • "Hola, Jose Manuel" + Avatar (JM)     o si prefiere PIN)
-        • Sensor de huella auto-iniciado
-                   │
-         ┌─────────┴─────────┐
-         ▼                   ▼
-[ Entra con biometría ]  [ Entra con contraseña ]
-  (Relanza el sensor)     (Abre suavemente el PIN)
-         │                         │
-         ▼                         ▼
-   Acceso concedido       Acceso concedido (o volver)
+      [ Apertura de la App o Clic en "Entra con biometría" ]
+                                │
+                                ▼
+                 [ Sensor de Huella en Pantalla ]
+                                │
+        ┌───────────────────────┴───────────────────────┐
+        ▼                                               ▼
+[ Huella Incorrecta ]                         [ Usuario Cancela / Cierra ]
+• Cuenta como intento fallido                 • NO cuenta como intento fallido
+• Mensaje: "Huella no reconocida"             • NO incrementa contador de bloqueo
+• Registro en historial de fallos             • Pantalla queda limpia y lista
 ```
 
-1. **Estado Inicial (Usuario Registrado):**
-   - Al abrir la app, se detecta el perfil local mediante `userProfileService.getUserProfile()`.
-   - Se muestra el encabezado superior con *"Iniciar sesión"*.
-   - En la sección central izquierda se presenta el saludo personalizado en texto destacado: **"Hola, [Nombre]"** (ej. *Hola, Jose Manuel*).
-   - A la derecha se muestra la insignia circular con las iniciales del usuario (ej. **"JM"**) con un degradado en sintonía con la paleta de la aplicación.
-   - En la parte inferior se colocan dos botones ergonómicos de fácil alcance con el pulgar:
-     - **"Entra con biometría"**: Botón primario de alto contraste que lanza o reintenta la autenticación biométrica nativa de Android.
-     - **"Entra con contraseña"**: Botón secundario estilizado que conmuta de forma instantánea y suave a la vista del teclado numérico PIN.
+1. **Retiro del Botón 'X':**
+   - Se elimina el botón circular con la cruz en la cabecera de la pantalla de bienvenida.
+   - El título *"Iniciar sesión"* queda perfectamente centrado en la parte superior.
+   - El botón/gesto nativo de retroceder de Android continuará funcionando normalmente para minimizar o salir de la app.
 
-2. **Apertura Automática del Sensor de Huella:**
-   - Tan pronto como la pantalla se monta en el dispositivo, el plugin biométrico (`authenticateWithBiometrics(true)`) es invocado automáticamente si la biometría está registrada.
-   - Si el usuario pone su dedo, la bóveda se desbloquea al instante.
-   - Si cancela el diálogo de huella nativo de Android, la pantalla de bienvenida permanece visible para que el usuario pueda pulsar *"Entra con biometría"* para reintentarlo o *"Entra con contraseña"* para escribir su PIN.
-
-3. **Vista de Teclado Numérico ("Entra con contraseña"):**
-   - Muestra el teclado táctil de 4 dígitos ya pulido y auditado.
-   - Incluye un botón discreto en la parte superior izquierda (o enlace) para regresar a la pantalla de bienvenida con saludo.
-   - Conserva intacto el flujo de recuperación de PIN por correo ("¿Olvidaste tu PIN?").
+2. **Diferenciación Estricta entre "Huella Errónea" y "Cancelación":**
+   - En `src/services/biometricService.ts`: Al recibir la respuesta del plugin nativo `VaultBiometrics`, si `errorCode` es `10` (*USER_CANCELED*), `13` (*NEGATIVE_BUTTON*) o el mensaje contiene *"cancel"*, se clasifica como `AbortError` / cancelación del usuario.
+   - En `src/components/LockVaultView.tsx`: En `handleBiometricClick` y `triggerAutoBiometrics`, cualquier error de cancelación o descarte del sensor se procesa silenciosamente sin registrar intentos fallidos, sin sumar al streak de fallos y sin mostrar la alerta roja de "Huella no reconocida".
+   - Si se detecta un intento fallido previo acumulado por la cancelación anterior, se limpia el mensaje para dejar la pantalla impecable.
 
 ---
 
-## 2. Diseño Visual y Ergonomía Táctil
+## 2. Plan Técnico de Modificaciones
 
-- **Paleta de Colores:**
-  - Fondo general: `--theme-bg-main` (`#060b14` en modo oscuro / adaptable por tema).
-  - Tarjeta y superficies: Fondo profundo con borde fino `rgba(51, 65, 85, 0.5)`.
-  - Botón "Entra con biometría": Superficie prominente blanca / cian de alto contraste con texto oscuro nítido y radio `rounded-2xl` (altura táctil de 52px).
-  - Botón "Entra con contraseña": Superficie oscura translúcida con borde fino de acento y texto claro, manteniendo la misma altura ergonómica.
-  - Avatar circular: Círculo de 56px de diámetro con iniciales en mayúsculas negrita, con fondo degradado cian/azul neón.
-
----
-
-## 3. Plan Técnico de Modificaciones
-
-### Archivo a Modificar: `src/components/LockVaultView.tsx`
-- **Sin tocar funciones criptográficas:** Únicamente se incorporará el estado de conmutación de vista:
+### 1. `src/components/LockVaultView.tsx`:
+- Remover el elemento `<button ... onClick={handleCloseWelcome}><X ... /></button>`.
+- Dejar el título *"Iniciar sesión"* centrado y despejado.
+- En `handleBiometricClick`:
   ```ts
-  const [authViewMode, setAuthViewMode] = useState<'welcome' | 'pin'>('welcome');
+  const isCancel =
+    err?.name === 'AbortError' ||
+    err?.name === 'NotAllowedError' ||
+    err?.isUserCanceled ||
+    /cancel/i.test(err?.message || '') ||
+    err?.message?.includes('cancelad');
   ```
-- **Integración con perfil:**
-  - Se importa `userProfileService` para extraer `firstName`, `lastName` y las iniciales calculadas.
-  - Si el usuario no tiene perfil o no está registrado, se muestra por defecto la vista de PIN habitual.
-- **Acción "Entra con biometría":** Invoca la función existente `handleBiometricClick()`.
-- **Acción "Entra con contraseña":** Cambia `authViewMode` a `'pin'`.
-- **Retorno al saludo:** En el modo PIN, un botón en la barra superior o cabecera permite volver a `'welcome'`.
+  Si `isCancel` es verdadero, no se incrementa `failed_streak`, no se genera bloqueo y no se despliega alerta de error.
 
-### Verificación
-- Ejecutar `tsc --noEmit` para asegurar cero errores de tipos TypeScript.
-- Ejecutar `npm run build` para confirmar empaquetado exitoso.
-- Ejecutar `npx cap sync android` para actualizar la carpeta nativa de Android.
+### 2. `src/services/biometricService.ts`:
+- En `authenticateWithBiometrics`: Al evaluar `auth.success === false`, comprobar si `auth.errorCode === 10 || auth.errorCode === 13 || auth.errorCode === 5` o mensaje con *"cancel"*, lanzando un error con `name: 'AbortError'` e `isUserCanceled: true`.
+
+---
+
+## 3. Verificación
+- Ejecutar `tsc --noEmit` y `compile_applet`.
+- Ejecutar `npm run build && npx cap sync android` para sincronizar los cambios en la app nativa de Android.

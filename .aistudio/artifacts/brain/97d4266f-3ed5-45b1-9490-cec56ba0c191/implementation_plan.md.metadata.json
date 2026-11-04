@@ -1,6 +1,6 @@
 {
-  "summary": "Plan de implementación para la nueva pantalla de bienvenida e inicio de sesión estilo app bancaria (BBVA/Bancomer), adaptada a la identidad visual oscura de la Bóveda de Seguridad, con inicio biométrico automático, botón 'Entra con biometría', botón 'Entra con contraseña' para desplegar el teclado numérico de PIN, y protección estricta de todos los códigos criptográficos existentes.",
-  "updatedAt": "2026-11-04T03:12:54.896679197Z",
+  "summary": "Plan para remover el botón X de la pantalla de bienvenida y corregir la gestión de cancelación del lector de huellas para que no cuente como intento fallido ni incremente el contador de bloqueo.",
+  "updatedAt": "2026-11-04T03:33:50.899491293Z",
   "requestFeedback": true,
   "userFacing": true
 }

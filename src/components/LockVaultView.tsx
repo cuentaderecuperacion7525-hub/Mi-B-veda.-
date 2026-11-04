@@ -109,18 +109,6 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
   const userInitials = userProfileService.getInitials(userProfile) || 'JM';
 
-  const handleCloseWelcome = async () => {
-    try {
-      if (Capacitor.isNativePlatform()) {
-        await CapacitorApp.minimizeApp();
-      } else {
-        showToast('Bóveda protegida y bloqueada', 'info');
-      }
-    } catch {
-      showToast('Bóveda protegida y bloqueada', 'info');
-    }
-  };
-
   // Open Forgot PIN flow
   const handleOpenForgotPin = () => {
     setForgotError(null);
@@ -662,7 +650,15 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         console.warn('Biometric unlock canceled or failed:', err);
         setIsBioEnrolled(hasBiometricCredentials());
 
-        const isAbort = err?.name === 'AbortError' || err?.message?.includes('cancelada para iniciar');
+        const isAbort =
+          err?.name === 'AbortError' ||
+          err?.name === 'NotAllowedError' ||
+          (err as any)?.isUserCanceled ||
+          /cancel/i.test(err?.message || '') ||
+          err?.message?.includes('cancelad') ||
+          err?.message?.includes('descartad') ||
+          err?.message?.includes('cancelada para iniciar');
+
         if (!isAbort) {
           const currentStreak = Number(localStorage.getItem('nullvault_failed_streak') || '0');
           const nextStreak = currentStreak + 1;
@@ -910,25 +906,11 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       ) : authViewMode === 'welcome' && isRegisteredUser ? (
         /* ==================== PANTALLA DE BIENVENIDA (ESTILO BANCOMER / BBVA) ==================== */
         <div className="relative w-full max-w-sm sm:max-w-md mx-auto flex flex-col justify-between min-h-[85vh] py-6 px-4 select-none animate-in fade-in duration-300">
-          {/* 1. Header con Iniciar sesión centrado y botón X a la derecha */}
-          <div className="w-full flex items-center justify-between relative pt-2 pb-4">
-            <div className="w-10" />
+          {/* 1. Header con Iniciar sesión centrado */}
+          <div className="w-full flex items-center justify-center relative pt-2 pb-4">
             <h1 className="text-base sm:text-lg font-medium text-slate-200 tracking-wide text-center">
               Iniciar sesión
             </h1>
-            <button
-              type="button"
-              onClick={handleCloseWelcome}
-              title="Minimizar o salir"
-              className="w-11 h-11 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-md"
-              style={{
-                backgroundColor: 'rgba(10, 25, 47, 0.85)',
-                border: '1px solid rgba(30, 58, 138, 0.45)',
-                color: '#60a5fa',
-              }}
-            >
-              <X className="w-5 h-5 stroke-[2.2]" />
-            </button>
           </div>
 
           {/* 2. Zona central: Saludo "Hola, [Nombre]" y Avatar con iniciales */}

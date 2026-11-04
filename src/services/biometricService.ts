@@ -359,12 +359,26 @@ export async function authenticateWithBiometrics(forceFresh = false): Promise<st
             negativeButton: 'Usar PIN',
           });
           verified = !!auth.success;
+          if (!verified) {
+            const isCanceled =
+              auth?.errorCode === 10 || // BIOMETRIC_ERROR_USER_CANCELED
+              auth?.errorCode === 13 || // BIOMETRIC_ERROR_NEGATIVE_BUTTON
+              auth?.errorCode === 5 ||  // BIOMETRIC_ERROR_CANCELED
+              /cancel/i.test(auth?.message || '') ||
+              /usar pin/i.test(auth?.message || '');
+            if (isCanceled) {
+              const cancelErr = new Error('Autenticación biométrica cancelada por el usuario.');
+              cancelErr.name = 'AbortError';
+              (cancelErr as any).isUserCanceled = true;
+              throw cancelErr;
+            }
+          }
         } else if ((window as any).AndroidBiometrics?.authenticate) {
           verified = !!(window as any).AndroidBiometrics.authenticate('Desbloquear Bóveda');
         }
 
         if (!verified) {
-          throw new Error('Huella no reconocida o autenticación cancelada.');
+          throw new Error('Huella no reconocida.');
         }
       } else {
         // 2. WebAuthn Authentication Dialog
