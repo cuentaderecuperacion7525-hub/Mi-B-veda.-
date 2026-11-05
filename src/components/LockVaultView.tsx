@@ -335,6 +335,10 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   const [enrollError, setEnrollError] = useState<string | null>(null);
   const [isEnrollingBio, setIsEnrollingBio] = useState(false);
 
+  useEffect(() => {
+    setIsBioEnrolled(hasBiometricCredentials());
+  }, [authViewMode]);
+
   const expectedLength = parseInt(localStorage.getItem('vault_pin_length') || '4', 10);
   const isUnlockingRef = useRef<boolean>(false);
   const isAuthenticatingBiometricsRef = useRef<boolean>(false);
@@ -919,7 +923,10 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         <div className="relative w-full max-w-sm sm:max-w-md mx-auto flex flex-col justify-between min-h-[85vh] py-6 px-4 select-none animate-in fade-in duration-300">
           {/* 1. Header con Iniciar sesión centrado */}
           <div className="w-full flex items-center justify-center relative pt-2 pb-4">
-            <h1 className="text-base sm:text-lg font-medium text-slate-200 tracking-wide text-center">
+            <h1
+              className="text-base sm:text-lg font-medium tracking-wide text-center"
+              style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+            >
               Iniciar sesión
             </h1>
           </div>
@@ -927,7 +934,10 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
           {/* 2. Zona central: Saludo según la hora y Avatar con iniciales */}
           <div className="w-full my-auto py-8 px-2">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight leading-tight">
+              <h2
+                className="text-3xl sm:text-4xl font-serif font-bold tracking-tight leading-tight"
+                style={{ color: 'var(--theme-text-main, #ffffff)' }}
+              >
                 {getTimeGreeting()}, {userDisplayName}
               </h2>
 
@@ -958,23 +968,25 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
             )}
           </div>
 
-          {/* 3. Zona inferior: Dos botones grandes de acción estilo Bancomer */}
+          {/* 3. Zona inferior: Botones de acción (huella solo si está vinculada) */}
           <div className="w-full flex flex-col gap-3.5 pb-4 px-1">
-            <button
-              type="button"
-              onClick={handleBiometricClick}
-              disabled={isBioLoading}
-              className="w-full py-4 px-6 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.98] text-[#0b2149] font-bold text-base shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-75"
-            >
-              {isBioLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin text-[#0b2149]" />
-                  <span>Verificando huella...</span>
-                </>
-              ) : (
-                <span>Entra con biometria</span>
-              )}
-            </button>
+            {isBioEnrolled && (
+              <button
+                type="button"
+                onClick={handleBiometricClick}
+                disabled={isBioLoading}
+                className="w-full py-4 px-6 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.98] text-[#0b2149] font-bold text-base shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-75 border border-slate-200/80 dark:border-transparent"
+              >
+                {isBioLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin text-[#0b2149]" />
+                    <span>Verificando huella...</span>
+                  </>
+                ) : (
+                  <span>Entra con biometria</span>
+                )}
+              </button>
+            )}
 
             <button
               type="button"
@@ -982,7 +994,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                 setErrorMessage(null);
                 setAuthViewMode('keypad');
               }}
-              className="w-full py-4 px-6 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.98] text-[#0b2149] font-bold text-base shadow-xl transition-all flex items-center justify-center cursor-pointer"
+              className="w-full py-4 px-6 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.98] text-[#0b2149] font-bold text-base shadow-xl transition-all flex items-center justify-center cursor-pointer border border-slate-200/80 dark:border-transparent"
             >
               <span>Entra con contraseña</span>
             </button>

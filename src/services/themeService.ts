@@ -70,7 +70,7 @@ export const VAULT_THEMES: Record<VaultTheme, ThemeDefinition> = {
 const THEME_STORAGE_KEY = 'vault_theme_mode_v2';
 
 class ThemeService {
-  private currentTheme: VaultTheme = 'cyan';
+  private currentTheme: VaultTheme = 'light';
   private listeners: Set<(theme: VaultTheme) => void> = new Set();
 
   constructor() {
@@ -83,12 +83,12 @@ class ThemeService {
       if (saved && (saved === 'cyan' || saved === 'light')) {
         this.currentTheme = saved;
       } else {
-        // Por defecto la aplicación inicia siempre en el tema azul noche con cian neón
-        this.currentTheme = 'cyan';
-        localStorage.setItem(THEME_STORAGE_KEY, 'cyan');
+        // Por defecto la aplicación inicia siempre en el tema claro
+        this.currentTheme = 'light';
+        localStorage.setItem(THEME_STORAGE_KEY, 'light');
       }
     } catch {
-      this.currentTheme = 'cyan';
+      this.currentTheme = 'light';
     }
     this.applyToDom(this.currentTheme);
   }

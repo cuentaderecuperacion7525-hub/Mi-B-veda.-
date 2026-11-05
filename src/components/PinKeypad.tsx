@@ -125,6 +125,9 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({
           }
 
           if (keyItem.type === 'biometric') {
+            if (!isBiometricsEnrolled) {
+              return <div key="key-biometric-placeholder" className="h-15 sm:h-16" aria-hidden="true" />;
+            }
             return (
               <button
                 key="key-biometric"
@@ -132,11 +135,7 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({
                 onClick={onBiometricRequest}
                 disabled={disabled || isBiometricsLoading}
                 aria-label={keyItem.ariaLabel}
-                title={
-                  isBiometricsEnrolled
-                    ? 'Toca para escanear huella digital'
-                    : 'Toca para activar sensor de huella'
-                }
+                title="Toca para escanear huella digital"
                 className="group h-15 sm:h-16 rounded-2xl bg-slate-800/50 hover:bg-slate-800/85 active:scale-95 active:bg-[#00e5ff]/20 active:border-[#00e5ff]/50 border border-slate-700/60 hover:border-slate-600 transition-all flex flex-col items-center justify-center shadow-sm cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
               >
                 {isBiometricsLoading ? (
