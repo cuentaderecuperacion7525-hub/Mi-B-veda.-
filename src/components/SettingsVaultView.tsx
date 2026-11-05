@@ -766,7 +766,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         size: file.size,
         status: 'reading',
         statusText: 'Analizando archivo de respaldo...',
-        percent: 15,
+        percent: 0,
       });
 
       const header = await readBackupHeaderFromBlob(file);
@@ -780,14 +780,14 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         if (isValid) {
           setIsImporting(true);
           setSelectedBackupInfo((prev) =>
-            prev ? { ...prev, status: 'restoring', statusText: 'Restaurando elementos...', percent: 45 } : null
+            prev ? { ...prev, status: 'restoring', statusText: 'Restaurando elementos...', percent: 5 } : null
           );
           const oldMasterKey = masterKey;
           const result = await importEncryptedBackupBlobStream(
             file,
             (curr, tot) => {
-              const p = tot > 0 ? Math.round((curr / tot) * 50) + 45 : 50;
-              setSelectedBackupInfo((prev) => (prev ? { ...prev, percent: p } : null));
+              const p = tot > 0 ? Math.round((curr / tot) * 94) + 5 : 50;
+              setSelectedBackupInfo((prev) => (prev ? { ...prev, percent: Math.min(99, p), statusText: `Restaurando elementos (${Math.min(99, p)}%)...` } : null));
             },
             true
           );
@@ -828,7 +828,16 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
 
       // Legacy direct import
       setIsImporting(true);
-      const result = await importEncryptedBackupBlobStream(file, undefined, true);
+      const result = await importEncryptedBackupBlobStream(
+        file,
+        (curr, tot) => {
+          const p = tot > 0 ? Math.round((curr / tot) * 94) + 5 : 50;
+          setSelectedBackupInfo((prev) =>
+            prev ? { ...prev, percent: Math.min(99, p), statusText: `Restaurando elementos (${Math.min(99, p)}%)...` } : null
+          );
+        },
+        true
+      );
       await onPhotosUpdated();
       setSelectedBackupInfo((prev) =>
         prev ? { ...prev, status: 'success', statusText: `¡Se restauraron ${result.importedCount} archivos!`, percent: 100 } : null
@@ -939,7 +948,19 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       (window as any).__isProcessingBackup = true;
 
       const oldMasterKey = masterKey;
-      const result = await importEncryptedBackupBlobStream(pendingBackupBlob, undefined, true);
+      setSelectedBackupInfo((prev) =>
+        prev ? { ...prev, status: 'restoring', statusText: 'Restaurando elementos...', percent: 5 } : null
+      );
+      const result = await importEncryptedBackupBlobStream(
+        pendingBackupBlob,
+        (curr, tot) => {
+          const p = tot > 0 ? Math.round((curr / tot) * 94) + 5 : 50;
+          setSelectedBackupInfo((prev) =>
+            prev ? { ...prev, percent: Math.min(99, p), statusText: `Restaurando elementos (${Math.min(99, p)}%)...` } : null
+          );
+        },
+        true
+      );
       try {
         sessionStorage.setItem('vault_session_pin', backupPinInput);
         localStorage.setItem('vault_pin_length', backupPinInput.length.toString());
@@ -1409,7 +1430,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   disabled={isExporting}
                   className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-slate-100 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 border border-slate-700/80 active:scale-[0.98] cursor-pointer disabled:opacity-50"
                 >
-                  <Download className="w-4 h-4 text-[#00e5ff]" />
+                  <Download className={`w-4 h-4 text-[#00e5ff] shrink-0 transition-transform ${isExporting ? 'anim-arrow-down-fast' : 'anim-arrow-down'}`} />
                   <span>
                     {isExporting
                       ? (exportStatusText || 'Guardando en Descargas...')
@@ -1469,14 +1490,33 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     </span>
                   </div>
 
-                  <p className="text-xs text-slate-300 font-medium">
-                    {selectedBackupInfo.statusText}
-                  </p>
+                  {selectedBackupInfo.status !== 'error' && (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex justify-between text-[11px] text-emerald-400 font-semibold">
+                        <span>{selectedBackupInfo.statusText}</span>
+                        <span className="font-mono font-bold">
+                          {Math.min(100, Math.max(0, selectedBackupInfo.percent))}%
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-200"
+                          style={{ width: `${Math.min(100, Math.max(0, selectedBackupInfo.percent))}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedBackupInfo.status === 'error' && (
+                    <p className="text-xs text-rose-400 font-medium">
+                      {selectedBackupInfo.statusText}
+                    </p>
+                  )}
                 </div>
               )}
 
               <label className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/20 active:scale-98">
-                <Upload className="w-4 h-4" />
+                <Upload className={`w-4 h-4 text-white shrink-0 transition-transform ${isImporting ? 'anim-arrow-up-fast' : 'anim-arrow-up'}`} />
                 <span>{isImporting ? 'Restaurando archivo...' : 'Seleccionar Archivo de Respaldo (.json)'}</span>
                 <input
                   type="file"
