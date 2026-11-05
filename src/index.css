@@ -930,5 +930,47 @@ html.light button.vault-viewer-floating-btn:hover * {
   animation: icon-bounce-up 0.7s ease-in-out infinite;
 }
 
+/* 19. Botón "Continuar con Google" y botón principal de registro/inicio en Tema Claro */
+[data-theme="light"] button.vault-google-auth-btn,
+html.light button.vault-google-auth-btn {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.06) !important;
+}
 
+[data-theme="light"] button.vault-google-auth-btn:hover,
+html.light button.vault-google-auth-btn:hover {
+  background-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
 
+[data-theme="light"] button.vault-google-auth-btn:active,
+html.light button.vault-google-auth-btn:active {
+  background-color: #f1f5f9 !important;
+}
+
+[data-theme="light"] button.vault-google-auth-btn span,
+html.light button.vault-google-auth-btn span {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] button.vault-auth-submit-btn,
+html.light button.vault-auth-submit-btn {
+  background-color: #0284c7 !important;
+  border: 1px solid #0284c7 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -2px rgba(2, 132, 199, 0.3) !important;
+}
+
+[data-theme="light"] button.vault-auth-submit-btn:hover,
+html.light button.vault-auth-submit-btn:hover {
+  background-color: #0369a1 !important;
+  border-color: #0369a1 !important;
+}
+
+[data-theme="light"] button.vault-auth-submit-btn *,
+html.light button.vault-auth-submit-btn * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}

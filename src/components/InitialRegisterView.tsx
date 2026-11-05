@@ -773,7 +773,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             type="button"
             onClick={() => verifySixDigits(currentCode)}
             disabled={isVerifyingPin || isExpired || currentCode.length !== 6}
-            className="w-full h-[50px] rounded-2xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 font-bold text-[15px] shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            className="vault-auth-submit-btn w-full h-[50px] rounded-2xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 font-bold text-[15px] shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {isVerifyingPin ? (
               <>
@@ -889,7 +889,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || !emailInput.trim()}
-              className="w-full h-[50px] rounded-2xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 font-bold text-[15px] shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65"
+              className="vault-auth-submit-btn w-full h-[50px] rounded-2xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 font-bold text-[15px] shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65"
             >
               {isSubmitting ? (
                 <>
@@ -1078,7 +1078,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full h-[50px] rounded-2xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 font-bold text-[15px] shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65"
+              className="vault-auth-submit-btn w-full h-[50px] rounded-2xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 font-bold text-[15px] shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65"
             >
               {isSubmitting ? (
                 <>
@@ -1351,7 +1351,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full h-[50px] rounded-2xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 font-bold text-[15px] shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65 mt-2"
+            className="vault-auth-submit-btn w-full h-[50px] rounded-2xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 font-bold text-[15px] shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65 mt-2"
           >
             {isSubmitting ? (
               <>
@@ -1400,7 +1400,10 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
         {/* Separador "o continúa con" */}
         <div className="relative my-5 w-full flex items-center justify-center">
           <div className="w-full border-t border-slate-800" />
-          <span className="absolute bg-[#0a121d] px-3 text-[12px] text-slate-400 font-normal">
+          <span
+            className="absolute bg-[#0a121d] px-3 text-[12px] text-slate-400 font-normal"
+            style={{ backgroundColor: 'var(--theme-bg-card, #0a121d)' }}
+          >
             o continúa con
           </span>
         </div>
@@ -1410,7 +1413,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           type="button"
           onClick={handleContinueWithGoogle}
           disabled={isLoadingNative}
-          className="w-full h-[50px] rounded-2xl bg-[#080e19]/80 hover:bg-[#121c2e] border border-slate-700/80 transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-65 text-slate-100 font-medium"
+          className="vault-google-auth-btn w-full h-[50px] rounded-2xl bg-[#080e19]/80 hover:bg-[#121c2e] border border-slate-700/80 transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-65 text-slate-100 font-medium"
         >
           {isLoadingNative ? (
             <div className="flex items-center gap-2 text-[14.5px] font-medium text-white">
