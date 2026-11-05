@@ -1,6 +1,6 @@
 {
-  "summary": "Plan para remover el botón X de la pantalla de bienvenida y corregir la gestión de cancelación del lector de huellas para que no cuente como intento fallido ni incremente el contador de bloqueo.",
-  "updatedAt": "2026-11-04T03:33:50.899491293Z",
+  "summary": "Plan de implementación para cambiar el saludo estático 'Hola' por un saludo contextual horario ('Buenos días', 'Buenas tardes' o 'Buenas noches') en la pantalla de bienvenida de la bóveda sin alterar códigos protegidos.",
+  "updatedAt": "2026-11-05T01:41:39.168918228Z",
   "requestFeedback": true,
   "userFacing": true
 }

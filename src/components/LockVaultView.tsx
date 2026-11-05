@@ -106,6 +106,18 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   // Solo toma el nombre (sin los apellidos) exclusivamente para el saludo de esta ventana
   const userDisplayName = userProfile?.firstName?.trim() || 'Jose Manuel';
 
+  // Saludo dinámico según la hora local del dispositivo (Buenos días, Buenas tardes, Buenas noches)
+  const getTimeGreeting = (): string => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) {
+      return 'Buenos días';
+    }
+    if (hour >= 12 && hour < 20) {
+      return 'Buenas tardes';
+    }
+    return 'Buenas noches';
+  };
+
   const userInitials = userProfileService.getInitials(userProfile) || 'JM';
 
   // Open Forgot PIN flow
@@ -912,11 +924,11 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
             </h1>
           </div>
 
-          {/* 2. Zona central: Saludo "Hola, [Nombre]" y Avatar con iniciales */}
+          {/* 2. Zona central: Saludo según la hora y Avatar con iniciales */}
           <div className="w-full my-auto py-8 px-2">
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight leading-tight">
-                Hola, {userDisplayName}
+                {getTimeGreeting()}, {userDisplayName}
               </h2>
 
               <div

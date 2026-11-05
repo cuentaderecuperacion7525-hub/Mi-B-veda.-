@@ -1,70 +1,78 @@
-# Ajustes a la Pantalla de Inicio: Eliminación de Botón 'X' y Manejo Preciso de Cancelación Biométrica
+# Saludo Dinámico según la Hora del Día en la Pantalla de Inicio
 
-Ajuste del flujo de inicio de sesión para pulir la experiencia del usuario de acuerdo a la retroalimentación:
-1. **Eliminación del botón "X" superior:** Dado que el gesto y botón físico de retroceso de Android ya gestionan la salida o minimizado de la aplicación de manera nativa.
-2. **Corrección de cancelación biométrica:** Evitar que cancelar o cerrar el diálogo del sensor de huella (o tocar fuera de él) se interprete como "Huella no reconocida" o incremente los intentos fallidos hacia el bloqueo de seguridad.
+Actualizar el saludo de bienvenida de la pantalla de inicio de sesión (`LockVaultView.tsx`) para que, en lugar de mostrar siempre un texto fijo `"Hola, [Nombre]"`, salude dinámicamente con `"Buenos días"`, `"Buenas tardes"` o `"Buenas noches"` de acuerdo con la hora local del dispositivo.
 
----
+## Decisiones Críticas y Confirmación del Usuario
 
-## Decisiones Críticas y Confirmaciones del Usuario
-
-> [!IMPORTANT]
-> **Políticas de Seguridad y Códigos Protegidos:**
-> - Los módulos criptográficos y de base de datos (`src/crypto/vaultCrypto.ts`, `src/db/vaultDb.ts`) **permanecen 100% protegidos e intactos**.
-> - La cancelación del sensor de huella en Android (códigos `BIOMETRIC_ERROR_USER_CANCELED` y `BIOMETRIC_ERROR_NEGATIVE_BUTTON`) se identificará expresamente como una acción voluntaria del usuario, distinguiéndola de un fallo de lectura biométrica.
+> [!NOTE]
+> **Elección confirmada por el usuario:** Sustituir el saludo fijo por la fórmula horaria basada en el horario local del usuario.
+> **Regla de oro de códigos protegidos:** No se modificará ninguna lógica criptográfica (`vaultCrypto.ts`), base de datos (`vaultDb.ts`) ni flujos de sesión. El cambio es 100% cosmético en la vista de presentación.
 
 ---
 
-## 1. Visión General de los Cambios
+## 1. Visión General & Concepto Central
 
-### Interacción y Comportamiento Esperado
+- **Qué hace:** Detecta la hora del reloj del celular al cargar la pantalla de bienvenida y adapta el saludo inicial de forma natural y cálida:
+  - De **05:00 a 11:59**: `Buenos días, [Nombre]`
+  - De **12:00 a 19:59**: `Buenas tardes, [Nombre]`
+  - De **20:00 a 04:59**: `Buenas noches, [Nombre]`
+- **Público Objetivo:** Usuarios registrados de la aplicación que inician sesión en su bóveda privada.
+- **Beneficio:** Mayor sensación de personalización, familiaridad y calidad visual similar a aplicaciones bancarias premium (como BBVA / Bancomer).
+
+---
+
+## 2. Experiencia de Usuario & Diseño Visual
+
+- **Flujo Visual:**
+  1. Al abrir la app estando registrado, la pantalla de inicio presenta el título `"Iniciar sesión"`.
+  2. Inmediatamente debajo se lee el saludo dinámico:
+     - Ej. en la mañana: *"Buenos días, Luis Alberto"*
+     - Ej. en la tarde: *"Buenas tardes, Luis Alberto"*
+     - Ej. en la noche: *"Buenas noches, Luis Alberto"*
+  3. A la derecha, el avatar circular con las iniciales o fotografía del perfil.
+  4. Abajo se mantienen los dos botones de alto contraste: *"Entra con biometría"* y *"Entra con contraseña"*.
+- **Tipografía y Estilos:** Se conserva intacta la tipografía `font-serif font-bold text-white` con el fondo medianoche `#060B14`, resplandor cian y estética limpia.
+
+---
+
+## 3. Decisiones de Producto & Consideraciones Técnicas
+
+- **Cálculo local y en tiempo real:**
+  - Se utiliza una función pura y liviana `getGreeting()` que evalúa `new Date().getHours()`.
+  - No requiere llamadas de red, APIs externas ni almacenamiento adicional en disco.
+- **Mantenimiento del nombre limpio:**
+  - Continúa utilizando `userDisplayName` (que ya toma únicamente el primer nombre sin apellidos para esta ventana como se solicitó previamente).
+
+---
+
+## 4. Arquitectura del Componente
+
 ```
-      [ Apertura de la App o Clic en "Entra con biometría" ]
-                                │
-                                ▼
-                 [ Sensor de Huella en Pantalla ]
-                                │
-        ┌───────────────────────┴───────────────────────┐
-        ▼                                               ▼
-[ Huella Incorrecta ]                         [ Usuario Cancela / Cierra ]
-• Cuenta como intento fallido                 • NO cuenta como intento fallido
-• Mensaje: "Huella no reconocida"             • NO incrementa contador de bloqueo
-• Registro en historial de fallos             • Pantalla queda limpia y lista
+┌────────────────────────────────────────────────────────┐
+│ LockVaultView.tsx (Presentación de Bienvenida)         │
+│                                                        │
+│  [ Header: "Iniciar sesión" ]                          │
+│                                                        │
+│  [ new Date().getHours() ] ──> getGreeting()           │
+│                                      │                 │
+│                                      ▼                 │
+│                  "Buenos días / tardes / noches,"      │
+│                  + userDisplayName                     │
+│                                      │                 │
+│                               [ Avatar Circular ]      │
+│                                                        │
+│  [ Botón 1: "Entra con biometría" ]                   │
+│  [ Botón 2: "Entra con contraseña" ]                  │
+└────────────────────────────────────────────────────────┘
 ```
 
-1. **Retiro del Botón 'X':**
-   - Se elimina el botón circular con la cruz en la cabecera de la pantalla de bienvenida.
-   - El título *"Iniciar sesión"* queda perfectamente centrado en la parte superior.
-   - El botón/gesto nativo de retroceder de Android continuará funcionando normalmente para minimizar o salir de la app.
-
-2. **Diferenciación Estricta entre "Huella Errónea" y "Cancelación":**
-   - En `src/services/biometricService.ts`: Al recibir la respuesta del plugin nativo `VaultBiometrics`, si `errorCode` es `10` (*USER_CANCELED*), `13` (*NEGATIVE_BUTTON*) o el mensaje contiene *"cancel"*, se clasifica como `AbortError` / cancelación del usuario.
-   - En `src/components/LockVaultView.tsx`: En `handleBiometricClick` y `triggerAutoBiometrics`, cualquier error de cancelación o descarte del sensor se procesa silenciosamente sin registrar intentos fallidos, sin sumar al streak de fallos y sin mostrar la alerta roja de "Huella no reconocida".
-   - Si se detecta un intento fallido previo acumulado por la cancelación anterior, se limpia el mensaje para dejar la pantalla impecable.
-
 ---
 
-## 2. Plan Técnico de Modificaciones
+## 5. Plan de Verificación
 
-### 1. `src/components/LockVaultView.tsx`:
-- Remover el elemento `<button ... onClick={handleCloseWelcome}><X ... /></button>`.
-- Dejar el título *"Iniciar sesión"* centrado y despejado.
-- En `handleBiometricClick`:
-  ```ts
-  const isCancel =
-    err?.name === 'AbortError' ||
-    err?.name === 'NotAllowedError' ||
-    err?.isUserCanceled ||
-    /cancel/i.test(err?.message || '') ||
-    err?.message?.includes('cancelad');
-  ```
-  Si `isCancel` es verdadero, no se incrementa `failed_streak`, no se genera bloqueo y no se despliega alerta de error.
-
-### 2. `src/services/biometricService.ts`:
-- En `authenticateWithBiometrics`: Al evaluar `auth.success === false`, comprobar si `auth.errorCode === 10 || auth.errorCode === 13 || auth.errorCode === 5` o mensaje con *"cancel"*, lanzando un error con `name: 'AbortError'` e `isUserCanceled: true`.
-
----
-
-## 3. Verificación
-- Ejecutar `tsc --noEmit` y `compile_applet`.
-- Ejecutar `npm run build && npx cap sync android` para sincronizar los cambios en la app nativa de Android.
+1. **Prueba de renderizado:**
+   - Simular diferentes horas (mañana, tarde, noche) para verificar que la cadena de texto cambie de forma correcta y fluida.
+2. **Validación de compilación y tipos:**
+   - Ejecutar `compile_applet` y `lint_applet` (`tsc --noEmit`).
+3. **Sincronización:**
+   - Ejecutar `npm run build && npx cap sync android`.
