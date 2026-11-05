@@ -3848,24 +3848,24 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       {/* Batch Export / Sacar Confirmation & Progress Modal */}
       {showBatchExportModal && (
         <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-          <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
+          <div className="w-full max-w-sm bg-[#0a121d] border border-slate-800/90 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
             {isExportingBatch ? (
               <div className="space-y-4 py-1">
-                <div className="w-14 h-14 bg-zinc-800 border border-zinc-700 rounded-2xl flex items-center justify-center mx-auto text-zinc-100 relative">
+                <div className="w-14 h-14 bg-[#00e5ff]/10 border border-[#00e5ff]/30 rounded-2xl flex items-center justify-center mx-auto text-[#00e5ff] relative shadow-[0_0_20px_rgba(0,229,255,0.2)]">
                   {isExportComplete ? (
                     <CheckCircle2 className="w-7 h-7 text-emerald-400 animate-in zoom-in-75 duration-200" />
                   ) : (
-                    <Download className="w-7 h-7 animate-bounce text-zinc-100" />
+                    <Download className="w-7 h-7 animate-bounce text-[#00e5ff]" />
                   )}
                 </div>
 
                 <div>
-                  <h4 className="text-base font-bold text-zinc-100 mb-1">
+                  <h4 className="text-base font-bold text-white mb-1">
                     {isExportComplete
                       ? '¡Fotos sacadas con éxito!'
                       : `Sacando a tu galería (${exportCurrentIndex}/${exportTotalCount})`}
                   </h4>
-                  <p className="text-xs text-zinc-400 truncate max-w-[260px] mx-auto">
+                  <p className="text-xs text-slate-400 truncate max-w-[260px] mx-auto">
                     {isExportComplete
                       ? 'Los archivos se restauraron en tu celular'
                       : exportCurrentFileName || 'Procesando archivo...'}
@@ -3875,36 +3875,36 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 {/* Barra de progreso interactiva y dinámica */}
                 <div className="space-y-2 pt-1 text-left">
                   <div className="flex items-center justify-between text-xs font-semibold px-1">
-                    <span className="text-zinc-400 font-mono">
+                    <span className="text-slate-400 font-mono">
                       {exportCurrentIndex} de {exportTotalCount}
                     </span>
-                    <span className="text-zinc-100 font-mono font-bold">
+                    <span className="text-[#00e5ff] font-mono font-bold">
                       {Math.round(exportProgress)}%
                     </span>
                   </div>
 
-                  <div className="w-full bg-zinc-950 rounded-full h-3 overflow-hidden border border-zinc-800 p-0.5">
+                  <div className="w-full bg-slate-950 rounded-full h-3 overflow-hidden border border-slate-800 p-0.5">
                     <div
-                      className="h-full bg-gradient-to-r from-zinc-400 via-zinc-200 to-emerald-400 rounded-full transition-all duration-300 ease-out"
+                      className="h-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 rounded-full transition-all duration-300 ease-out shadow-[0_0_12px_rgba(0,229,255,0.5)]"
                       style={{ width: `${Math.min(100, Math.max(exportProgress, 5))}%` }}
                     />
                   </div>
 
-                  <p className="text-[11px] text-zinc-500 italic text-center">
+                  <p className="text-[11px] text-slate-500 italic text-center">
                     Guardando en la galería y retirando de la bóveda...
                   </p>
                 </div>
               </div>
             ) : (
               <>
-                <div className="w-12 h-12 bg-zinc-800 border border-zinc-700 rounded-2xl flex items-center justify-center mx-auto text-zinc-100">
-                  <Download className="w-6 h-6 stroke-[2]" />
+                <div className="w-14 h-14 bg-[#00e5ff]/10 border border-[#00e5ff]/30 rounded-2xl flex items-center justify-center mx-auto text-[#00e5ff] shadow-[0_0_20px_rgba(0,229,255,0.15)]">
+                  <Download className="w-7 h-7 stroke-[2]" />
                 </div>
                 <div>
-                  <h4 className="text-base font-bold text-zinc-100 mb-1">
+                  <h4 className="text-base font-bold text-white mb-1">
                     ¿Sacar {selectedIds.size} elemento{selectedIds.size > 1 ? 's' : ''} a tu galería?
                   </h4>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
+                  <p className="text-xs text-slate-400 leading-relaxed">
                     Los archivos se restaurarán a la galería y almacenamiento de tu teléfono, y se retirarán de la bóveda privada.
                   </p>
                 </div>
@@ -3912,14 +3912,14 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowBatchExportModal(false)}
-                    className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                    className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="button"
                     onClick={confirmBatchExport}
-                    className="flex-1 py-2.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-bold rounded-xl shadow-lg transition-colors flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+                    className="flex-1 py-2.5 bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-950 text-xs font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
                   >
                     <Download className="w-4 h-4 stroke-[2]" />
                     <span>Sacar ({selectedIds.size})</span>
@@ -3934,15 +3934,15 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
       {/* Batch Delete Confirmation Modal */}
       {showBatchDeleteModal && (
         <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-          <div className="w-full max-w-xs bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
+          <div className="w-full max-w-xs bg-[#0a121d] border border-slate-800/90 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
             <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto text-red-400">
               <Trash2 className="w-6 h-6" />
             </div>
             <div>
-              <h4 className="text-base font-bold text-zinc-100 mb-1">
+              <h4 className="text-base font-bold text-white mb-1">
                 ¿Eliminar {selectedIds.size} elemento{selectedIds.size > 1 ? 's' : ''}?
               </h4>
-              <p className="text-xs text-zinc-400 leading-relaxed">
+              <p className="text-xs text-slate-400 leading-relaxed">
                 Esta acción es irreversible y eliminará permanentemente los archivos seleccionados de tu bóveda cifrada.
               </p>
             </div>
@@ -3950,19 +3950,17 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowBatchDeleteModal(false)}
-                disabled={isDeletingBatch}
-                className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold rounded-xl transition-colors"
+                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={confirmBatchDelete}
-                disabled={isDeletingBatch}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-red-600/30 transition-colors flex items-center justify-center gap-1.5 active:scale-95"
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-950/50 transition-colors flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />
-                <span>{isDeletingBatch ? 'Eliminando...' : `Eliminar (${selectedIds.size})`}</span>
+                <span>Eliminar ({selectedIds.size})</span>
               </button>
             </div>
           </div>

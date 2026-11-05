@@ -1,78 +1,97 @@
-# Saludo Dinámico según la Hora del Día en la Pantalla de Inicio
+# Plan de Implementación: Características Finales y Preparación para Publicación
 
-Actualizar el saludo de bienvenida de la pantalla de inicio de sesión (`LockVaultView.tsx`) para que, en lugar de mostrar siempre un texto fijo `"Hola, [Nombre]"`, salude dinámicamente con `"Buenos días"`, `"Buenas tardes"` o `"Buenas noches"` de acuerdo con la hora local del dispositivo.
+Integrar las 3 funciones clave solicitadas antes de la publicación final de la aplicación, garantizando cero modificaciones a los códigos protegidos de cifrado y base de datos:
+1. **Exportación en Lote a la Galería:** Conectar y pulir la acción de sacar múltiples archivos seleccionados a la galería pública con modal de progreso adaptado a la estética medianoche.
+2. **Ícono Adaptativo y Splash Screen Nativo:** Generar recursos gráficos en alta definición para Android y configurar la pantalla de arranque en `#060B14` para eliminar cualquier parpadeo.
+3. **Respaldo Directo en Google Drive:** Añadir opción de compartir/guardar el archivo de respaldo cifrado directamente en Google Drive mediante la hoja de compartir nativa de Android.
+
+---
 
 ## Decisiones Críticas y Confirmación del Usuario
 
-> [!NOTE]
-> **Elección confirmada por el usuario:** Sustituir el saludo fijo por la fórmula horaria basada en el horario local del usuario.
-> **Regla de oro de códigos protegidos:** No se modificará ninguna lógica criptográfica (`vaultCrypto.ts`), base de datos (`vaultDb.ts`) ni flujos de sesión. El cambio es 100% cosmético en la vista de presentación.
+> [!IMPORTANT]
+> **Regla de Códigos Protegidos:** `src/crypto/vaultCrypto.ts` y `src/db/vaultDb.ts` permanecen 100% intactos. No se altera ningún algoritmo criptográfico (AES-GCM de 256 bits, PBKDF2) ni la estructura de datos interna.
+> **Confirmación de Alcance:** El usuario ha validado la ejecución de los tres elementos en conjunto para dejar la aplicación lista para su uso final y publicación.
 
 ---
 
 ## 1. Visión General & Concepto Central
 
-- **Qué hace:** Detecta la hora del reloj del celular al cargar la pantalla de bienvenida y adapta el saludo inicial de forma natural y cálida:
-  - De **05:00 a 11:59**: `Buenos días, [Nombre]`
-  - De **12:00 a 19:59**: `Buenas tardes, [Nombre]`
-  - De **20:00 a 04:59**: `Buenas noches, [Nombre]`
-- **Público Objetivo:** Usuarios registrados de la aplicación que inician sesión en su bóveda privada.
-- **Beneficio:** Mayor sensación de personalización, familiaridad y calidad visual similar a aplicaciones bancarias premium (como BBVA / Bancomer).
+- **Exportación en Lote:** Permite al usuario seleccionar múltiples fotos, videos o audios y extraerlos de una sola vez hacia la carpeta pública de su dispositivo (`Pictures/MiBoveda` o `Movies/MiBoveda`), retirándolos de forma segura de la bóveda.
+- **Identidad Nativa (Ícono y Splash):** Un ícono distintivo con el escudo/candado cian neón sobre azul medianoche y una pantalla de carga nativa sin destellos blancos, elevando la percepción de calidad desde el inicio.
+- **Guardado en la Nube (Google Drive):** Facilita resguardar el archivo `.json` de respaldo (totalmente cifrado con contraseña) directamente en Google Drive con un solo toque desde la app.
 
 ---
 
 ## 2. Experiencia de Usuario & Diseño Visual
 
-- **Flujo Visual:**
-  1. Al abrir la app estando registrado, la pantalla de inicio presenta el título `"Iniciar sesión"`.
-  2. Inmediatamente debajo se lee el saludo dinámico:
-     - Ej. en la mañana: *"Buenos días, Luis Alberto"*
-     - Ej. en la tarde: *"Buenas tardes, Luis Alberto"*
-     - Ej. en la noche: *"Buenas noches, Luis Alberto"*
-  3. A la derecha, el avatar circular con las iniciales o fotografía del perfil.
-  4. Abajo se mantienen los dos botones de alto contraste: *"Entra con biometría"* y *"Entra con contraseña"*.
-- **Tipografía y Estilos:** Se conserva intacta la tipografía `font-serif font-bold text-white` con el fondo medianoche `#060B14`, resplandor cian y estética limpia.
+### A. Exportación en Lote
+- **Flujo:**
+  1. El usuario activa selección múltiple (mantener pulsado o tocar el botón de seleccionar).
+  2. En la barra flotante inferior, toca el botón **"Sacar (N)"** con icono de descarga.
+  3. Se despliega el modal de confirmación con el estilo `#0A121D`, borde translúcido y acento cian.
+  4. Al confirmar, una barra de progreso cian animada muestra el avance ("Exportando 4 de 12...") y notifica el éxito.
+
+### B. Ícono y Splash Screen
+- **Fondo de Inicio:** Color `#060B14` en `styles.xml` y `colors.xml`.
+- **Ícono:** Logotipo adaptativo de alta resolución (`ic_launcher` e `ic_launcher_round`) integrado en todas las densidades de pantalla (`mdpi` a `xxxhdpi`).
+- **Arranque:** Cero parpadeo blanco/gris en Android 12, 13, 14 y 15.
+
+### C. Respaldo en Google Drive
+- **Flujo:**
+  1. En *Configuración > Copia de Seguridad*, junto a "Generar copia", se incluye el botón destacado: **"Guardar en Google Drive"**.
+  2. El sistema cifra la copia y despliega la hoja de compartir nativa de Android con la opción prioritaria de **Google Drive**.
+  3. El usuario elige la carpeta en su cuenta de Google y el archivo queda resguardado de inmediato.
 
 ---
 
 ## 3. Decisiones de Producto & Consideraciones Técnicas
 
-- **Cálculo local y en tiempo real:**
-  - Se utiliza una función pura y liviana `getGreeting()` que evalúa `new Date().getHours()`.
-  - No requiere llamadas de red, APIs externas ni almacenamiento adicional en disco.
-- **Mantenimiento del nombre limpio:**
-  - Continúa utilizando `userDisplayName` (que ya toma únicamente el primer nombre sin apellidos para esta ventana como se solicitó previamente).
+| Característica | Enfoque Seleccionado | Razón / Beneficio |
+| :--- | :--- | :--- |
+| **Exportación en Lote** | Reutilizar `exportVaultItemToDevice` con ráfaga asíncrona secuencial | Evita saturar el puente nativo de Android y actualiza la barra de progreso de forma fluida. |
+| **Google Drive** | Hoja nativa del sistema (`navigator.share` / `Intent.ACTION_SEND`) | Cero necesidad de permisos invasivos de Google ni claves OAuth de Drive; 100% nativo y privado. |
+| **Splash Nativo** | Configuración de `@color/colorPrimary` en `#060B14` y tema SplashScreen | Resuelve el parpadeo blanco nativo en arranques en frío sin librerías pesadas. |
 
 ---
 
-## 4. Arquitectura del Componente
+## 4. Arquitectura y Mapeo de Componentes
 
 ```
-┌────────────────────────────────────────────────────────┐
-│ LockVaultView.tsx (Presentación de Bienvenida)         │
-│                                                        │
-│  [ Header: "Iniciar sesión" ]                          │
-│                                                        │
-│  [ new Date().getHours() ] ──> getGreeting()           │
-│                                      │                 │
-│                                      ▼                 │
-│                  "Buenos días / tardes / noches,"      │
-│                  + userDisplayName                     │
-│                                      │                 │
-│                               [ Avatar Circular ]      │
-│                                                        │
-│  [ Botón 1: "Entra con biometría" ]                   │
-│  [ Botón 2: "Entra con contraseña" ]                  │
-└────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ Pantalla Principal (MainVaultView.tsx)                      │
+│   ├── Modo Selección ──> [ Botón "Sacar (N)" ]             │
+│   └── Modal Exportación (Estilo #0A121D + Cian Neón)        │
+│         └── exportVaultItemToDevice() en bucle controlado   │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ Configuración de Respaldo (SettingsVaultView.tsx)          │
+│   ├── Botón "Guardar en Google Drive"                       │
+│   └── shareOrUploadBackupToDrive()                          │
+│         └── navigator.share() / Intent Android nativo       │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ Android Nativo (res/values/colors.xml & styles.xml)         │
+│   ├── colorPrimary = #060B14                                │
+│   ├── windowLightStatusBar = false                          │
+│   └── Splash Screen en azul medianoche profundo             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 5. Plan de Verificación
 
-1. **Prueba de renderizado:**
-   - Simular diferentes horas (mañana, tarde, noche) para verificar que la cadena de texto cambie de forma correcta y fluida.
-2. **Validación de compilación y tipos:**
+1. **Prueba de Exportación en Lote:**
+   - Seleccionar 3 fotos de prueba y pulsar "Sacar a la galería".
+   - Comprobar que la barra de progreso avance y que los archivos aparezcan en la galería del celular.
+2. **Prueba de Guardado en Drive:**
+   - Generar un respaldo y pulsar "Guardar en Google Drive".
+   - Verificar que se abra el diálogo de compartir/guardar con Google Drive.
+3. **Prueba de Splash y Colores:**
+   - Verificar `colors.xml` y `styles.xml` para asegurar que el tema base de Android sea `#060B14`.
+4. **Validación de Compilación y Sincronización:**
    - Ejecutar `compile_applet` y `lint_applet` (`tsc --noEmit`).
-3. **Sincronización:**
    - Ejecutar `npm run build && npx cap sync android`.

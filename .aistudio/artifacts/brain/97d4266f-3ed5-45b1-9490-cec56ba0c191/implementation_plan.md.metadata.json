@@ -1,6 +1,6 @@
 {
-  "summary": "Plan de implementación para cambiar el saludo estático 'Hola' por un saludo contextual horario ('Buenos días', 'Buenas tardes' o 'Buenas noches') en la pantalla de bienvenida de la bóveda sin alterar códigos protegidos.",
-  "updatedAt": "2026-11-05T01:41:39.168918228Z",
+  "summary": "Plan de implementación integral para las 3 características finales de cara a la publicación: Exportación en lote a la galería, Ícono adaptativo y Splash Screen oscuro nativo, y Guardado directo de respaldo en Google Drive.",
+  "updatedAt": "2026-11-05T04:18:24.968140872Z",
   "requestFeedback": true,
   "userFacing": true
 }

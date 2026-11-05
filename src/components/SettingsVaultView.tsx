@@ -29,6 +29,8 @@ import {
   FolderDown,
   Copy,
   Loader2,
+  Cloud,
+  Share2,
 } from 'lucide-react';
 import { updateService, UpdateCheckResult } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
@@ -50,6 +52,7 @@ import {
 import {
   saveInternalBackup,
   downloadBackupToDevice,
+  shareBackupFile,
   getStoredLocalBackups,
   getStoredLocalBackupBlob,
   deleteStoredLocalBackup,
@@ -759,6 +762,70 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     }
   };
 
+  const handleSaveToDriveOrCloud = async (customBlob?: Blob, customFileName?: string) => {
+    if (!masterKey && !customBlob) return;
+    setIsExporting(true);
+    try {
+      let targetBlob = customBlob;
+      let targetFileName = customFileName;
+
+      if (!targetBlob) {
+        if (generatedBackup?.blob) {
+          targetBlob = generatedBackup.blob;
+          targetFileName = generatedBackup.fileName;
+        } else {
+          setExportProgress({ current: 0, total: 1 });
+          let finalCount = 0;
+          targetBlob = await exportEncryptedBackupBlob((current, total) => {
+            finalCount = total;
+            setExportProgress({ current, total });
+          });
+          const dateStr = new Date().toISOString().split('T')[0];
+          const timeStr = new Date().toTimeString().slice(0, 5).replace(':', '-');
+          targetFileName = `Boveda_Respaldo_${dateStr}_${timeStr}.json`;
+
+          await saveInternalBackup(targetBlob, targetFileName, finalCount);
+          await loadLocalBackups();
+
+          const now = Date.now();
+          localStorage.setItem('nullvault_last_backup_timestamp', now.toString());
+          localStorage.setItem('vault_last_backup_timestamp', now.toString());
+          localStorage.setItem('nullvault_last_backup_date', new Date().toISOString());
+          setLastBackupTimestamp(now);
+          window.dispatchEvent(new Event('nullvault_backup_updated'));
+          window.dispatchEvent(new Event('vault_backup_updated'));
+
+          setGeneratedBackup({
+            blob: targetBlob,
+            blobUrl: createBackupDownloadUrl(targetBlob),
+            fileName: targetFileName,
+            sizeBytes: targetBlob.size,
+            itemCount: finalCount,
+            savedPath: 'Nube / Compartir',
+          });
+        }
+      }
+
+      if (!targetBlob || !targetFileName) {
+        showToast('Error al preparar el archivo de respaldo', 'error');
+        return;
+      }
+
+      const res = await shareBackupFile(targetBlob, targetFileName);
+      if (res.success) {
+        showToast('Respaldo enviado a Google Drive / Almacenamiento en la Nube', 'success');
+      } else if (res.error && !res.error.toLowerCase().includes('cancel')) {
+        showToast(res.error, 'info');
+      }
+    } catch (err: any) {
+      console.error('Error sharing backup to drive:', err);
+      showToast('Error al compartir copia de seguridad', 'error');
+    } finally {
+      setIsExporting(false);
+      setExportProgress(null);
+    }
+  };
+
   const processBackupBlob = async (file: Blob, fileName?: string) => {
     (window as any).__isProcessingBackup = true;
     try {
@@ -1370,66 +1437,6 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         >
         {activeSubMenu === 'backup' && (
           <div className="space-y-4">
-            {/* Estado y Recordatorio de Copia de Seguridad */}
-            {lastBackupTimestamp ? (
-              (() => {
-                const daysAgo = Math.floor((Date.now() - lastBackupTimestamp) / (24 * 60 * 60 * 1000));
-                const isOverWeek = daysAgo >= 7;
-                return (
-                  <div
-                    className={`p-3.5 rounded-3xl border flex items-center justify-between gap-3 shadow-md ${
-                      isOverWeek
-                        ? 'bg-amber-500/10 border-amber-500/30'
-                        : 'bg-emerald-500/10 border-emerald-500/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${
-                          isOverWeek ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'
-                        }`}
-                      >
-                        {isOverWeek ? (
-                          <AlertTriangle className="w-5 h-5" />
-                        ) : (
-                          <CheckCircle2 className="w-5 h-5" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-white">
-                          {isOverWeek ? 'Recordatorio de Respaldo' : 'Copia de Seguridad al Día'}
-                        </p>
-                        <p className="text-[11px] text-slate-300">
-                          {isOverWeek
-                            ? `Llevas ${daysAgo} días sin realizar una copia de seguridad.`
-                            : `Último respaldo realizado hace ${daysAgo === 0 ? 'unas horas' : `${daysAgo} día(s)`}.`}
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
-                        isOverWeek ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
-                      }`}
-                    >
-                      {daysAgo}d
-                    </span>
-                  </div>
-                );
-              })()
-            ) : (
-              <div className="p-3.5 rounded-3xl border bg-amber-500/10 border-amber-500/30 flex items-center gap-3 shadow-md">
-                <div className="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-white">Sin Copia de Seguridad Registrada</p>
-                  <p className="text-[11px] text-slate-300">
-                    Aún no has descargado un respaldo. Realiza una copia para proteger tus archivos ante cualquier imprevisto.
-                  </p>
-                </div>
-              </div>
-            )}
-
             <div className="bg-[#0a121d] p-4 rounded-3xl border border-slate-800/90 shadow-xl space-y-3">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-[#00e5ff]/10 text-[#00e5ff] rounded-2xl border border-[#00e5ff]/20">
@@ -1460,15 +1467,29 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={handleExportBackup}
-                disabled={isExporting}
-                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-2 border border-slate-700 active:scale-98"
-              >
-                <Download className="w-4 h-4 text-[#00e5ff]" />
-                <span>{isExporting ? 'Generando copia...' : 'Descargar Copia de Seguridad (.json)'}</span>
-              </button>
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleExportBackup}
+                  disabled={isExporting}
+                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-slate-100 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 border border-slate-700/80 active:scale-[0.98] cursor-pointer disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4 text-[#00e5ff]" />
+                  <span>{isExporting ? 'Generando...' : 'Descargar Copia de Seguridad (.json)'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSaveToDriveOrCloud()}
+                  disabled={isExporting}
+                  className="w-full py-2.5 bg-gradient-to-r from-cyan-950/80 to-[#00e5ff]/20 hover:from-cyan-900/90 hover:to-[#00e5ff]/30 border border-[#00e5ff]/40 text-[#00e5ff] rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer shadow-lg shadow-cyan-950/30 disabled:opacity-50"
+                >
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z" />
+                  </svg>
+                  <span>{isExporting ? 'Preparando...' : 'Guardar en Google Drive'}</span>
+                </button>
+              </div>
             </div>
 
             <div className="bg-[#0a121d] p-4 rounded-3xl border border-slate-800/90 shadow-xl space-y-3">
