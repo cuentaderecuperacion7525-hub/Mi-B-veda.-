@@ -1002,22 +1002,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
 
-                {isExporting && exportProgress && (
-                  <div className="space-y-1.5 pt-1">
-                    <div className="flex justify-between text-[11px] text-indigo-400 font-semibold">
-                      <span>Procesando y cifrando elementos...</span>
-                      <span>{exportProgress.current} / {exportProgress.total}</span>
+                {isExporting && exportProgress && (() => {
+                  const percent = exportProgress.total > 0
+                    ? Math.min(100, Math.round((exportProgress.current / exportProgress.total) * 100))
+                    : 0;
+                  return (
+                    <div className="space-y-1.5 pt-1 animate-in fade-in">
+                      <div className="flex justify-between text-[11px] text-indigo-400 font-semibold">
+                        <span>Procesando y cifrando elementos...</span>
+                        <span className="font-mono font-bold">{percent}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-indigo-500 transition-all duration-200"
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-indigo-500 transition-all duration-200"
-                        style={{
-                          width: `${exportProgress.total > 0 ? Math.min(100, Math.round((exportProgress.current / exportProgress.total) * 100)) : 0}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
 
 
