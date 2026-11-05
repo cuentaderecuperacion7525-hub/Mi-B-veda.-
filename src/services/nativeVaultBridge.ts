@@ -58,6 +58,18 @@ export interface NativeVaultMediaPlugin {
     filename: string;
     mimeType?: string;
   }): Promise<{ success: boolean; path?: string; folder?: string; filename?: string; message?: string }>;
+
+  /**
+   * Escribe la copia de seguridad por bloques (chunks) para evitar cualquier riesgo de Out-Of-Memory (OOM)
+   */
+  appendBackupChunk(options: {
+    sessionKey: string;
+    chunk: string;
+    isFirst: boolean;
+    isLast: boolean;
+    filename: string;
+    mimeType?: string;
+  }): Promise<{ success: boolean; progress?: boolean; path?: string; folder?: string; filename?: string; message?: string }>;
 }
 
 export interface NativeVaultSecurityPlugin {

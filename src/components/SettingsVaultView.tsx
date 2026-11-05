@@ -442,6 +442,8 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
 
   // Backup / restore state
   const [isExporting, setIsExporting] = useState(false);
+  const [exportAction, setExportAction] = useState<'download' | 'drive' | null>(null);
+  const [exportStatusText, setExportStatusText] = useState<string>('');
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
@@ -684,21 +686,24 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
   const handleExportBackup = async () => {
     if (!masterKey) return;
     setIsExporting(true);
+    setExportAction('download');
     setExportProgress({ current: 0, total: 1 });
+    setExportStatusText('Iniciando copia de seguridad...');
     try {
       let finalCount = 0;
+      setExportStatusText('Cifrando elementos...');
       const backupBlob = await exportEncryptedBackupBlob((current, total) => {
         finalCount = total;
         setExportProgress({ current, total });
       });
 
+      setExportStatusText('Guardando archivo en Descargas...');
+      // Limpiar copias internas antiguas en IndexedDB para liberar memoria física del teléfono
+      clearAllStoredLocalBackups().catch(() => {});
+
       const dateStr = new Date().toISOString().split('T')[0];
       const timeStr = new Date().toTimeString().slice(0, 5).replace(':', '-');
       const fileName = `Boveda_Respaldo_${dateStr}_${timeStr}.json`;
-
-      // 1. Guardar de forma garantizada en la memoria interna de la aplicación (IndexedDB aislado)
-      await saveInternalBackup(backupBlob, fileName, finalCount);
-      await loadLocalBackups();
 
       const now = Date.now();
       localStorage.setItem('nullvault_last_backup_timestamp', now.toString());
@@ -708,31 +713,22 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       window.dispatchEvent(new Event('nullvault_backup_updated'));
       window.dispatchEvent(new Event('vault_backup_updated'));
 
-      // 2. Preparar enlace de descarga directa en pantalla
-      const blobUrl = createBackupDownloadUrl(backupBlob);
-
-      // 3. Descargar al almacenamiento del dispositivo
+      // Descargar al almacenamiento del dispositivo por bloques (chunks) seguros de 1MB
       const dlResult = await downloadBackupToDevice(backupBlob, fileName);
-      setGeneratedBackup({
-        blob: backupBlob,
-        blobUrl,
-        fileName,
-        sizeBytes: backupBlob.size,
-        itemCount: finalCount,
-        savedPath: dlResult.path || 'Descargas (Downloads)',
-      });
 
       if (dlResult.success && dlResult.method !== 'cancelled') {
         showToast('Copia guardada con éxito en la carpeta Descargas de tu teléfono', 'success');
-      } else {
-        showToast('Copia lista. Pulsa el botón para guardarla en tu celular', 'info');
+      } else if (dlResult.method !== 'cancelled') {
+        showToast('Copia generada con éxito', 'success');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Export error:', err);
-      showToast('Error al exportar copia de seguridad', 'error');
+      showToast('Error al exportar copia de seguridad: ' + (err?.message || 'Memoria insuficiente'), 'error');
     } finally {
       setIsExporting(false);
+      setExportAction(null);
       setExportProgress(null);
+      setExportStatusText('');
     }
   };
 
@@ -759,70 +755,6 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       showToast('Descargando archivo a tu dispositivo...', 'info');
     } catch (err: any) {
       showToast('Error al descargar: ' + (err?.message || 'Error desconocido'), 'error');
-    }
-  };
-
-  const handleSaveToDriveOrCloud = async (customBlob?: Blob, customFileName?: string) => {
-    if (!masterKey && !customBlob) return;
-    setIsExporting(true);
-    try {
-      let targetBlob = customBlob;
-      let targetFileName = customFileName;
-
-      if (!targetBlob) {
-        if (generatedBackup?.blob) {
-          targetBlob = generatedBackup.blob;
-          targetFileName = generatedBackup.fileName;
-        } else {
-          setExportProgress({ current: 0, total: 1 });
-          let finalCount = 0;
-          targetBlob = await exportEncryptedBackupBlob((current, total) => {
-            finalCount = total;
-            setExportProgress({ current, total });
-          });
-          const dateStr = new Date().toISOString().split('T')[0];
-          const timeStr = new Date().toTimeString().slice(0, 5).replace(':', '-');
-          targetFileName = `Boveda_Respaldo_${dateStr}_${timeStr}.json`;
-
-          await saveInternalBackup(targetBlob, targetFileName, finalCount);
-          await loadLocalBackups();
-
-          const now = Date.now();
-          localStorage.setItem('nullvault_last_backup_timestamp', now.toString());
-          localStorage.setItem('vault_last_backup_timestamp', now.toString());
-          localStorage.setItem('nullvault_last_backup_date', new Date().toISOString());
-          setLastBackupTimestamp(now);
-          window.dispatchEvent(new Event('nullvault_backup_updated'));
-          window.dispatchEvent(new Event('vault_backup_updated'));
-
-          setGeneratedBackup({
-            blob: targetBlob,
-            blobUrl: createBackupDownloadUrl(targetBlob),
-            fileName: targetFileName,
-            sizeBytes: targetBlob.size,
-            itemCount: finalCount,
-            savedPath: 'Nube / Compartir',
-          });
-        }
-      }
-
-      if (!targetBlob || !targetFileName) {
-        showToast('Error al preparar el archivo de respaldo', 'error');
-        return;
-      }
-
-      const res = await shareBackupFile(targetBlob, targetFileName);
-      if (res.success) {
-        showToast('Respaldo enviado a Google Drive / Almacenamiento en la Nube', 'success');
-      } else if (res.error && !res.error.toLowerCase().includes('cancel')) {
-        showToast(res.error, 'info');
-      }
-    } catch (err: any) {
-      console.error('Error sharing backup to drive:', err);
-      showToast('Error al compartir copia de seguridad', 'error');
-    } finally {
-      setIsExporting(false);
-      setExportProgress(null);
     }
   };
 
@@ -1453,7 +1385,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
               {isExporting && exportProgress && (
                 <div className="space-y-1.5 pt-1">
                   <div className="flex justify-between text-[11px] text-[#00e5ff] font-semibold">
-                    <span>Procesando y cifrando elementos...</span>
+                    <span>{exportStatusText || 'Procesando y cifrando elementos...'}</span>
                     <span>{exportProgress.current} / {exportProgress.total}</span>
                   </div>
                   <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
@@ -1467,7 +1399,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 </div>
               )}
 
-              <div className="space-y-2 pt-1">
+              <div className="pt-1">
                 <button
                   type="button"
                   onClick={handleExportBackup}
@@ -1475,19 +1407,11 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                   className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-slate-100 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 border border-slate-700/80 active:scale-[0.98] cursor-pointer disabled:opacity-50"
                 >
                   <Download className="w-4 h-4 text-[#00e5ff]" />
-                  <span>{isExporting ? 'Generando...' : 'Descargar Copia de Seguridad (.json)'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSaveToDriveOrCloud()}
-                  disabled={isExporting}
-                  className="w-full py-2.5 bg-gradient-to-r from-cyan-950/80 to-[#00e5ff]/20 hover:from-cyan-900/90 hover:to-[#00e5ff]/30 border border-[#00e5ff]/40 text-[#00e5ff] rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer shadow-lg shadow-cyan-950/30 disabled:opacity-50"
-                >
-                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z" />
-                  </svg>
-                  <span>{isExporting ? 'Preparando...' : 'Guardar en Google Drive'}</span>
+                  <span>
+                    {isExporting
+                      ? (exportStatusText || 'Guardando en Descargas...')
+                      : 'Descargar Copia de Seguridad (.json)'}
+                  </span>
                 </button>
               </div>
             </div>

@@ -18,14 +18,18 @@ import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.util.Base64;
+import android.util.Base64InputStream;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -436,11 +440,9 @@ public class VaultMediaPlugin extends Plugin {
         }
 
         try {
-            if (base64Data.contains(",")) {
-                base64Data = base64Data.substring(base64Data.indexOf(",") + 1);
-            }
+            int commaIdx = base64Data.indexOf(",");
+            String rawBase64 = commaIdx >= 0 ? base64Data.substring(commaIdx + 1) : base64Data;
 
-            byte[] bytes = Base64.decode(base64Data, Base64.DEFAULT);
             ContentResolver resolver = getContext().getContentResolver();
             Uri targetUri = null;
             String savedPath = null;
@@ -460,9 +462,15 @@ public class VaultMediaPlugin extends Plugin {
                 }
 
                 if (targetUri != null) {
-                    try (OutputStream os = resolver.openOutputStream(targetUri)) {
+                    try (OutputStream os = resolver.openOutputStream(targetUri);
+                         ByteArrayInputStream bais = new ByteArrayInputStream(rawBase64.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                         Base64InputStream b64is = new Base64InputStream(bais, Base64.DEFAULT)) {
                         if (os != null) {
-                            os.write(bytes);
+                            byte[] buffer = new byte[32768];
+                            int read;
+                            while ((read = b64is.read(buffer)) != -1) {
+                                os.write(buffer, 0, read);
+                            }
                             os.flush();
                         }
                     }
@@ -487,8 +495,14 @@ public class VaultMediaPlugin extends Plugin {
                     destFile = new File(downloadDir, nameOnly + "_" + counter + ext);
                     counter++;
                 }
-                try (FileOutputStream fos = new FileOutputStream(destFile)) {
-                    fos.write(bytes);
+                try (FileOutputStream fos = new FileOutputStream(destFile);
+                     ByteArrayInputStream bais = new ByteArrayInputStream(rawBase64.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                     Base64InputStream b64is = new Base64InputStream(bais, Base64.DEFAULT)) {
+                    byte[] buffer = new byte[32768];
+                    int read;
+                    while ((read = b64is.read(buffer)) != -1) {
+                        fos.write(buffer, 0, read);
+                    }
                     fos.flush();
                 }
                 savedPath = destFile.getAbsolutePath();
@@ -519,6 +533,137 @@ public class VaultMediaPlugin extends Plugin {
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("Error al guardar en Descargas: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Escribe la copia de seguridad por bloques (chunks) para evitar cualquier riesgo de Out-Of-Memory (OOM)
+     * en respaldos pesados con decenas o cientos de fotos/videos.
+     */
+    @PluginMethod
+    public void appendBackupChunk(PluginCall call) {
+        String sessionKey = call.getString("sessionKey", "default");
+        String chunk = call.getString("chunk", "");
+        boolean isFirst = call.getBoolean("isFirst", false);
+        boolean isLast = call.getBoolean("isLast", false);
+        String filename = call.getString("filename", "Boveda_Respaldo.json");
+        String mimeType = call.getString("mimeType", "application/json");
+
+        try {
+            File cacheDir = getContext().getCacheDir();
+            File tempFile = new File(cacheDir, "temp_backup_" + sessionKey + ".tmp");
+
+            if (isFirst && tempFile.exists()) {
+                tempFile.delete();
+            }
+
+            if (chunk != null && !chunk.isEmpty()) {
+                int commaIdx = chunk.indexOf(",");
+                String rawChunk = commaIdx >= 0 ? chunk.substring(commaIdx + 1) : chunk;
+                byte[] chunkBytes = Base64.decode(rawChunk, Base64.DEFAULT);
+                try (FileOutputStream fos = new FileOutputStream(tempFile, true)) {
+                    fos.write(chunkBytes);
+                    fos.flush();
+                }
+            }
+
+            if (isLast) {
+                ContentResolver resolver = getContext().getContentResolver();
+                Uri targetUri = null;
+                String savedPath = null;
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.MediaColumns.DISPLAY_NAME, filename);
+                    values.put(MediaStore.MediaColumns.MIME_TYPE, mimeType);
+                    values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                    values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+
+                    try {
+                        targetUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                    } catch (Exception e) {
+                        values.remove(MediaStore.Downloads.RELATIVE_PATH);
+                        targetUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                    }
+
+                    if (targetUri != null) {
+                        try (InputStream in = new FileInputStream(tempFile);
+                             OutputStream os = resolver.openOutputStream(targetUri)) {
+                            if (os != null) {
+                                byte[] buffer = new byte[32768];
+                                int read;
+                                while ((read = in.read(buffer)) != -1) {
+                                    os.write(buffer, 0, read);
+                                }
+                                os.flush();
+                            }
+                        }
+                        values.clear();
+                        values.put(MediaStore.MediaColumns.IS_PENDING, 0);
+                        resolver.update(targetUri, values, null, null);
+                        savedPath = Environment.DIRECTORY_DOWNLOADS + "/" + filename;
+                    }
+                }
+
+                if (savedPath == null) {
+                    File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                    if (downloadDir != null && !downloadDir.exists()) {
+                        downloadDir.mkdirs();
+                    }
+                    File destFile = new File(downloadDir, filename);
+                    int counter = 1;
+                    while (destFile.exists()) {
+                        String nameOnly = filename.contains(".") ? filename.substring(0, filename.lastIndexOf('.')) : filename;
+                        String ext = filename.contains(".") ? filename.substring(filename.lastIndexOf('.')) : "";
+                        destFile = new File(downloadDir, nameOnly + "_" + counter + ext);
+                        counter++;
+                    }
+                    try (InputStream in = new FileInputStream(tempFile);
+                         FileOutputStream fos = new FileOutputStream(destFile)) {
+                        byte[] buffer = new byte[32768];
+                        int read;
+                        while ((read = in.read(buffer)) != -1) {
+                            fos.write(buffer, 0, read);
+                        }
+                        fos.flush();
+                    }
+                    savedPath = destFile.getAbsolutePath();
+                    try {
+                        MediaScannerConnection.scanFile(
+                            getContext(),
+                            new String[]{destFile.getAbsolutePath()},
+                            new String[]{mimeType},
+                            null
+                        );
+                    } catch (Exception ignored) {}
+                }
+
+                try {
+                    tempFile.delete();
+                } catch (Exception ignored) {}
+
+                try {
+                    File directFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), filename);
+                    if (directFile.exists()) {
+                        MediaScannerConnection.scanFile(getContext(), new String[]{directFile.getAbsolutePath()}, new String[]{mimeType}, null);
+                    }
+                } catch (Exception ignored) {}
+
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                ret.put("path", savedPath != null ? savedPath : "Descargas/" + filename);
+                ret.put("folder", "Descargas");
+                ret.put("filename", filename);
+                call.resolve(ret);
+                return;
+            }
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("progress", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Error al escribir bloque de copia en Descargas: " + e.getMessage());
         }
     }
 

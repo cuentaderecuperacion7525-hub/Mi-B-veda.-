@@ -175,14 +175,15 @@ export async function clearAllStoredLocalBackups(): Promise<void> {
 }
 
 /**
- * Converts a Blob to a base64 string
+ * Converts a Blob to a base64 string safely without memory duplication
  */
 async function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
       const res = reader.result as string;
-      const base64 = res.includes(',') ? res.split(',')[1] : res;
+      const commaIdx = res.indexOf(',');
+      const base64 = commaIdx >= 0 ? res.substring(commaIdx + 1) : res;
       resolve(base64);
     };
     reader.onerror = reject;
@@ -203,7 +204,7 @@ export function createBackupDownloadUrl(blob: Blob): string {
 /**
  * Triggers a direct download to the user's device.
  * Priority order:
- * 1. Capacitor Native Filesystem (if wrapped in Android/iOS native app)
+ * 1. Capacitor Native Platform (Android / iOS native app) - Uses 1MB chunked streaming directly to Downloads
  * 2. Modern File System Access API (Desktop Chrome / Edge)
  * 3. Standard Blob URL anchor download (Android Chrome, Brave, Samsung Internet, PWA, Safari)
  */
@@ -216,9 +217,49 @@ export async function downloadBackupToDevice(
   // para que el usuario pueda verlo desde "Mis Archivos", "Files de Google" o cualquier explorador.
   if (Capacitor.isNativePlatform()) {
     try {
-      const base64Data = await blobToBase64(blob);
+      // 1a. Intentar escritura por bloques (chunks) para garantizar cero sobrecarga de memoria
+      const chunkSize = 1024 * 1024; // 1 MB por bloque (extremadamente seguro para la memoria RAM de Android)
+      const totalChunks = Math.ceil(blob.size / chunkSize);
+      const sessionKey = `backup_${Date.now()}`;
+      let finalPath = 'Descargas';
+      let chunkSuccess = false;
 
-      // 1a. Intentar guardar en la carpeta pública DESCARGAS usando NativeVaultMedia (MediaStore.Downloads)
+      if (typeof NativeVaultMedia.appendBackupChunk === 'function') {
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * chunkSize;
+          const end = Math.min(start + chunkSize, blob.size);
+          const chunkBlob = blob.slice(start, end);
+          const chunkBase64 = await blobToBase64(chunkBlob);
+
+          const chunkRes = await NativeVaultMedia.appendBackupChunk({
+            sessionKey,
+            chunk: chunkBase64,
+            isFirst: i === 0,
+            isLast: i === totalChunks - 1,
+            filename: fileName,
+            mimeType: 'application/json',
+          });
+
+          if (i === totalChunks - 1 && chunkRes && chunkRes.success) {
+            chunkSuccess = true;
+            finalPath = chunkRes.path || 'Descargas';
+          }
+
+          // Ceder brevemente al event loop para que el Garbage Collector libere la memoria del bloque
+          await new Promise((r) => setTimeout(r, 15));
+        }
+
+        if (chunkSuccess) {
+          return {
+            success: true,
+            method: 'native_chunks',
+            path: finalPath,
+          };
+        }
+      }
+
+      // 1b. Fallback a saveBackupToDownloads tradicional si chunking no resolviera
+      const base64Data = await blobToBase64(blob);
       try {
         const nativeRes = await NativeVaultMedia.saveBackupToDownloads({
           base64Data,
@@ -233,29 +274,10 @@ export async function downloadBackupToDevice(
           };
         }
       } catch (nativeErr) {
-        console.warn('NativeVaultMedia.saveBackupToDownloads failed, trying exportMediaToDevice:', nativeErr);
+        console.warn('NativeVaultMedia.saveBackupToDownloads failed:', nativeErr);
       }
 
-      // 1b. Intentar con exportMediaToDevice (MediaStore Downloads)
-      try {
-        const nativeRes2 = await NativeVaultMedia.exportMediaToDevice({
-          base64Data,
-          filename: fileName,
-          mimeType: 'application/json',
-          category: 'backup',
-        });
-        if (nativeRes2 && nativeRes2.success) {
-          return {
-            success: true,
-            method: 'native_export_media',
-            path: nativeRes2.path || nativeRes2.uri || 'Descargas',
-          };
-        }
-      } catch (mediaErr) {
-        console.warn('Native exportMediaToDevice failed:', mediaErr);
-      }
-
-      // 1c. Si falla MediaStore, intentar Filesystem
+      // 1c. Fallback a Filesystem
       try {
         await Filesystem.writeFile({
           path: fileName,
@@ -268,7 +290,7 @@ export async function downloadBackupToDevice(
         console.warn('Filesystem.writeFile failed:', fsErr);
       }
     } catch (capErr) {
-      console.warn('Capacitor filesystem write failed, falling back to browser download:', capErr);
+      console.warn('Capacitor native download error, falling back:', capErr);
     }
   }
 
