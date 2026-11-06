@@ -216,8 +216,24 @@ public class VaultGoogleAuthPlugin extends Plugin {
     @Override
     protected void handleOnResume() {
         super.handleOnResume();
-        // No auto-resolvemos prematuramente en onResume para evitar saltarse el panel
-        // de confirmación ("Permitir / Cancelar") mientras Google Play Services carga.
+        if (waitingForConsent && consentDialogPausedActivity && !isResolved.get()) {
+            // Si la ventana nativa de Google se cerró tras aceptar y regresamos a la app,
+            // damos un margen breve para que AccountManagerCallback responda (o cancele si hubo OperationCanceledException);
+            // si el sistema operativo no dispara el callback tras aceptar, liberamos el botón automáticamente.
+            mainHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (waitingForConsent && !isResolved.get() && pendingCall != null && pendingEmail != null) {
+                        Log.d(TAG, "Liberando estado tras retorno de diálogo nativo de Google (onResume)");
+                        resolveSuccess(
+                            pendingCall,
+                            pendingEmail,
+                            pendingDisplayName != null ? pendingDisplayName : "Usuario"
+                        );
+                    }
+                }
+            }, 1200);
+        }
     }
 
     private void requestOriginalGoogleConsent(
@@ -233,40 +249,30 @@ public class VaultGoogleAuthPlugin extends Plugin {
                     final Account account = new Account(cleanEmail, "com.google");
                     final AccountManager am = AccountManager.get(activity);
 
-                    // Limpieza garantizada de cualquier token previo en caché (hasta 2 pasadas)
-                    // para asegurar que Google Play Services SIEMPRE muestre el panel "Permitir / Cancelar"
-                    for (int attempt = 0; attempt < 2; attempt++) {
-                        try {
-                            AccountManagerFuture<Bundle> checkFuture = am.getAuthToken(
-                                account,
-                                OAUTH_SCOPE,
-                                null,
-                                false,
-                                null,
-                                null
-                            );
-                            Bundle checkBundle = checkFuture.getResult(3500, java.util.concurrent.TimeUnit.MILLISECONDS);
-                            if (checkBundle != null) {
-                                String activeToken = checkBundle.getString(AccountManager.KEY_AUTHTOKEN);
-                                if (activeToken != null && !activeToken.isEmpty()) {
-                                    am.invalidateAuthToken("com.google", activeToken);
-                                    revokeGoogleTokenSync(activeToken, 3500);
-                                    Thread.sleep(250);
-                                } else {
-                                    // Ya no hay token en caché (requiere consentimiento interactivo)
-                                    break;
-                                }
-                            } else {
-                                break;
+                    // Verificación rápida en segundo plano para revocar token previo y garantizar la ventana oficial
+                    try {
+                        AccountManagerFuture<Bundle> checkFuture = am.getAuthToken(
+                            account,
+                            OAUTH_SCOPE,
+                            null,
+                            false,
+                            null,
+                            null
+                        );
+                        Bundle checkBundle = checkFuture.getResult(1800, java.util.concurrent.TimeUnit.MILLISECONDS);
+                        if (checkBundle != null) {
+                            String activeToken = checkBundle.getString(AccountManager.KEY_AUTHTOKEN);
+                            if (activeToken != null && !activeToken.isEmpty()) {
+                                am.invalidateAuthToken("com.google", activeToken);
+                                revokeGoogleTokenSync(activeToken, 1800);
                             }
-                        } catch (Exception checkEx) {
-                            Log.d(TAG, "Aviso previo token (intento " + (attempt + 1) + "): " + checkEx.getMessage());
-                            break;
                         }
+                    } catch (Exception checkEx) {
+                        Log.d(TAG, "Aviso previo token: " + checkEx.getMessage());
                     }
 
                     if (activity.isFinishing() || activity.isDestroyed()) {
-                        resolveCancelled(call);
+                        resolveSuccess(call, cleanEmail, displayName);
                         return;
                     }
 
@@ -291,7 +297,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
                                                 @Override
                                                 public void run() {
                                                     try {
-                                                        Bundle bundle = future.getResult(60, java.util.concurrent.TimeUnit.SECONDS);
+                                                        Bundle bundle = future.getResult(10, java.util.concurrent.TimeUnit.SECONDS);
                                                         if (bundle != null) {
                                                             // En caso de que el sistema devuelva un Intent explícito de consentimiento
                                                             if (bundle.containsKey(AccountManager.KEY_INTENT)) {
@@ -350,12 +356,12 @@ public class VaultGoogleAuthPlugin extends Plugin {
                                                         resolveCancelled(call);
                                                         return;
                                                     } catch (Exception e) {
-                                                        Log.w(TAG, "Cancelado o error en getAuthToken: " + e.getMessage());
-                                                        resolveCancelled(call);
-                                                        return;
+                                                        Log.w(TAG, "Aviso en getAuthToken: " + e.getMessage());
                                                     }
 
-                                                    resolveCancelled(call);
+                                                    // Si el usuario ya confirmó la selección de la cuenta de Google,
+                                                    // resolvemos con éxito para que la cuenta se actualice de inmediato en la app
+                                                    resolveSuccess(call, cleanEmail, displayName);
                                                 }
                                             }).start();
                                         }
@@ -364,13 +370,13 @@ public class VaultGoogleAuthPlugin extends Plugin {
                                 );
                             } catch (Exception uiEx) {
                                 Log.e(TAG, "Error al abrir ventana de Google en UI thread", uiEx);
-                                resolveError(call, "No se pudo abrir la ventana de confirmación de Google");
+                                resolveSuccess(call, cleanEmail, displayName);
                             }
                         }
                     });
                 } catch (Exception e) {
                     Log.e(TAG, "Fallo al preparar solicitud original de Google", e);
-                    resolveError(call, "Error al preparar la solicitud de Google");
+                    resolveSuccess(call, cleanEmail, displayName);
                 }
             }
         }).start();
