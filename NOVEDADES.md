@@ -1,0 +1,2 @@
+- Perfil de usuario: Nuevo diseño oscuro en Editar Perfil.
+- Recuperación de PIN segura: Validación inmediata del correo.

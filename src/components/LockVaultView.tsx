@@ -1002,86 +1002,97 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         </div>
       ) : (
         /* ==================== FIN BLOQUE DE HISTORIAL: PANTALLA COMPLETA DE BLOQUEO ==================== */
-        /* ==================== PANTALLA HABITUAL DE DESBLOQUEO CON PIN ==================== */
+        /* ==================== PANTALLA HABITUAL DE DESBLOQUEO CON PIN (MISMOS COLORES QUE INICIAR SESIÓN) ==================== */
         <div
-          className={`relative w-full max-w-sm rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl text-center border transition-all animate-in fade-in duration-300 ${
+          className={`relative w-full max-w-sm sm:max-w-md mx-auto flex flex-col justify-between min-h-[85vh] py-6 px-4 text-center select-none transition-all animate-in fade-in duration-300 ${
             isShaking ? 'animate-shake' : ''
           }`}
-          style={{
-            backgroundColor: 'var(--theme-bg-card, #0a121d)',
-            borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
-          }}
         >
-          {/* Botón para volver a la pantalla de bienvenida si está registrado */}
-          {isRegisteredUser && (
-            <div className="w-full flex items-center justify-start mb-2 -mt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setErrorMessage(null);
-                  setPin('');
-                  setAuthViewMode('welcome');
-                }}
-                className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-[#00e5ff] transition-colors cursor-pointer py-1.5 px-2.5 -ml-2 rounded-xl hover:bg-slate-800/50"
-              >
-                <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
-                <span>Volver</span>
-              </button>
-            </div>
-          )}
-          <h1 className="text-2xl font-black tracking-tight mb-0.5 mt-2" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
-            Bóveda de <span style={{ color: 'var(--theme-primary, #00e5ff)' }}>Seguridad</span>
-          </h1>
-          <p className="text-[10px] font-semibold tracking-[0.18em] uppercase mb-1" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
-            TUS ARCHIVOS, SIEMPRE PROTEGIDOS
-          </p>
-          <p className="text-xs text-slate-400 mb-6">
-            {isBioLoading
-              ? 'Esperando sensor de huella en tu celular...'
-              : isBioEnrolled
-              ? 'Introduce tu PIN o toca el sensor de huella para acceder'
-              : 'Introduce tu PIN para acceder'}
-          </p>
-
-          {/* Tactile Keypad */}
-          <PinKeypad
-            pin={pin}
-            onPinChange={handleKeypadChange}
-            maxDigits={expectedLength}
-            disabled={isVerifying}
-            onBiometricRequest={handleBiometricClick}
-            isBiometricsEnrolled={isBioEnrolled}
-            isBiometricsLoading={isBioLoading}
-          />
-
-          {/* Error Feedback cuando aún no hay bloqueo pero hubo un fallo */}
-          {errorMessage && (
-            <div className="mt-4 flex flex-col items-center justify-center gap-1.5 text-center animate-in fade-in duration-150">
-              <div
-                className="flex items-center justify-center gap-2 text-xs font-semibold text-slate-900 dark:text-white"
-                style={{ color: 'var(--theme-text-main, #ffffff)' }}
-              >
-                <ShieldAlert className="w-4 h-4 shrink-0 text-rose-500 dark:text-rose-400" />
-                <span>{errorMessage}</span>
-              </div>
-              {errorMessage?.includes('no está inicializada') && (
+          {/* Parte superior: Botón Volver y encabezado con los mismos tonos de Iniciar sesión */}
+          <div className="w-full flex flex-col items-center pt-2">
+            {isRegisteredUser && (
+              <div className="w-full flex items-center justify-start mb-2">
                 <button
                   type="button"
-                  onClick={onResetVaultRequest}
-                  className="mt-1 text-[11px] font-bold text-[#00e5ff] hover:underline cursor-pointer"
+                  onClick={() => {
+                    setErrorMessage(null);
+                    setPin('');
+                    setAuthViewMode('welcome');
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-semibold transition-colors cursor-pointer py-1.5 px-2.5 -ml-2 rounded-xl hover:bg-white/10"
+                  style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
                 >
-                  Volver a la pantalla de inicio o registro
+                  <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+                  <span>Volver</span>
                 </button>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+
+            <h1
+              className="text-2xl font-black tracking-tight mb-0.5 mt-1"
+              style={{ color: 'var(--theme-text-main, #ffffff)' }}
+            >
+              Bóveda de <span style={{ color: 'var(--theme-primary, #00e5ff)' }}>Seguridad</span>
+            </h1>
+            <p
+              className="text-[10px] font-semibold tracking-[0.18em] uppercase mb-1"
+              style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+            >
+              TUS ARCHIVOS, SIEMPRE PROTEGIDOS
+            </p>
+            <p
+              className="text-xs mb-4"
+              style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+            >
+              {isBioLoading
+                ? 'Esperando sensor de huella en tu celular...'
+                : isBioEnrolled
+                ? 'Introduce tu PIN o toca el sensor de huella para acceder'
+                : 'Introduce tu PIN para acceder'}
+            </p>
+          </div>
+
+          {/* Zona central: Teclado numérico sobre el mismo fondo de Iniciar sesión */}
+          <div className="w-full my-auto py-2">
+            <PinKeypad
+              pin={pin}
+              onPinChange={handleKeypadChange}
+              maxDigits={expectedLength}
+              disabled={isVerifying}
+              onBiometricRequest={handleBiometricClick}
+              isBiometricsEnrolled={isBioEnrolled}
+              isBiometricsLoading={isBioLoading}
+            />
+
+            {/* Error Feedback cuando aún no hay bloqueo pero hubo un fallo */}
+            {errorMessage && (
+              <div className="mt-4 flex flex-col items-center justify-center gap-1.5 text-center animate-in fade-in duration-150">
+                <div
+                  className="flex items-center justify-center gap-2 text-xs font-semibold text-slate-900 dark:text-white"
+                  style={{ color: 'var(--theme-text-main, #ffffff)' }}
+                >
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-rose-500 dark:text-rose-400" />
+                  <span>{errorMessage}</span>
+                </div>
+                {errorMessage?.includes('no está inicializada') && (
+                  <button
+                    type="button"
+                    onClick={onResetVaultRequest}
+                    className="mt-1 text-[11px] font-bold text-[#00e5ff] hover:underline cursor-pointer"
+                  >
+                    Volver a la pantalla de inicio o registro
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Quick Action Footer */}
-          <div className="mt-7 pt-4 border-t border-slate-800/80 flex items-center justify-center text-xs text-slate-400">
+          <div className="w-full pt-4 pb-2 flex items-center justify-center text-xs" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
             <button
               type="button"
               onClick={handleOpenForgotPin}
-              className="hover:text-[#00e5ff] transition-colors font-medium cursor-pointer"
+              className="hover:text-[#00e5ff] transition-colors font-semibold cursor-pointer"
             >
               ¿Olvidaste tu PIN?
             </button>

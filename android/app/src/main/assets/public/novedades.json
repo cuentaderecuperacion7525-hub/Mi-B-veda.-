@@ -1,0 +1,13 @@
+{
+  "fecha": "7 de noviembre de 2026",
+  "cambios": [
+    {
+      "titulo": "Perfil de usuario",
+      "texto": "Nuevo diseño oscuro en Editar Perfil."
+    },
+    {
+      "titulo": "Recuperación de PIN segura",
+      "texto": "Validación inmediata del correo."
+    }
+  ]
+}

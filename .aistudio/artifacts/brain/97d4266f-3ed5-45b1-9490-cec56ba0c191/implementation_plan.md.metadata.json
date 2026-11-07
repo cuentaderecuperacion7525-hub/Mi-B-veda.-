@@ -1,6 +1,6 @@
 {
-  "summary": "Plan de implementación integral para las 3 características finales de cara a la publicación: Exportación en lote a la galería, Ícono adaptativo y Splash Screen oscuro nativo, y Guardado directo de respaldo en Google Drive.",
-  "updatedAt": "2026-11-05T04:18:24.968140872Z",
-  "requestFeedback": true,
-  "userFacing": true
+  "summary":  "Plan de implementación para cargar dinámicamente las novedades desde public/novedades.json y generarlas automáticamente desde NOVEDADES.md mediante scripts/generar-novedades.cjs, eliminando textos fijos del código.",
+  "updatedAt":  "2026-11-07T22:23:40.584707404Z",
+  "requestFeedback":  true,
+  "userFacing":  true
 }

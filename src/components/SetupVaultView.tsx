@@ -86,79 +86,93 @@ export const SetupVaultView: React.FC<SetupVaultViewProps> = ({
 
   return (
     <div
-      className="min-h-screen flex flex-col justify-center items-center p-4 select-none relative"
+      className="min-h-screen flex flex-col justify-center items-center p-4 transition-colors duration-250 select-none relative"
       style={{
         backgroundColor: 'var(--theme-bg-main, #060b14)',
         color: 'var(--theme-text-main, #f8fafc)',
       }}
     >
-      {/* Background ambient glow */}
+      {/* Background ambient glow matching Iniciar sesión */}
       <div className="fixed inset-0 pointer-events-none flex justify-center items-center overflow-hidden">
-        <div className="w-[500px] h-[500px] bg-[#00e5ff]/14 rounded-full blur-[140px]" />
+        <div
+          className="w-[500px] h-[500px] rounded-full blur-[140px] transition-all duration-500"
+          style={{
+            backgroundColor: 'var(--theme-primary, #00e5ff)',
+            opacity: 0.2,
+          }}
+        />
       </div>
 
-      <div
-        className="relative w-full max-w-md border rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl text-center"
-        style={{
-          backgroundColor: 'var(--theme-bg-card, #0a121d)',
-          borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
-        }}
-      >
-        {/* Header Icon */}
-        <div className="w-16 h-16 bg-[#00e5ff]/10 border border-[#00e5ff]/30 rounded-2xl flex items-center justify-center mx-auto mb-5 text-[#00e5ff] shadow-inner shadow-[#00e5ff]/20">
-          {step === 'create' ? (
-            <KeyRound className="w-8 h-8" />
-          ) : (
-            <ShieldCheck className="w-8 h-8 text-emerald-400" />
+      <div className="relative w-full max-w-sm sm:max-w-md mx-auto flex flex-col justify-between min-h-[85vh] py-6 px-4 text-center select-none animate-in fade-in duration-300">
+        <div className="w-full flex flex-col items-center pt-2">
+          {/* Header Icon */}
+          <div className="w-16 h-16 bg-[#00e5ff]/10 border border-[#00e5ff]/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-[#00e5ff] shadow-inner shadow-[#00e5ff]/20">
+            {step === 'create' ? (
+              <KeyRound className="w-8 h-8" />
+            ) : (
+              <ShieldCheck className="w-8 h-8 text-emerald-400" />
+            )}
+          </div>
+
+          {/* Titles and Descriptions according to step */}
+          {step === 'create' && (
+            <>
+              <h1
+                className="text-2xl font-bold tracking-tight mb-2"
+                style={{ color: 'var(--theme-text-main, #ffffff)' }}
+              >
+                Configura tu Bóveda
+              </h1>
+              <p
+                className="text-sm mb-5 leading-relaxed"
+                style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+              >
+                Crea un PIN numérico de 4 dígitos. Tus fotos, videos y documentos se cifrarán localmente mediante AES-GCM de 256 bits.
+              </p>
+            </>
           )}
-        </div>
 
-        {/* Titles and Descriptions according to step */}
-        {step === 'create' && (
-          <>
-            <h1 className="text-2xl font-bold tracking-tight text-white mb-2">
-              Configura tu Bóveda
-            </h1>
-            <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-              Crea un PIN numérico de 4 dígitos. Tus fotos, videos y documentos se cifrarán localmente mediante AES-GCM de 256 bits.
-            </p>
-          </>
-        )}
+          {step === 'confirm' && (
+            <>
+              <h1
+                className="text-2xl font-bold tracking-tight mb-2"
+                style={{ color: 'var(--theme-text-main, #ffffff)' }}
+              >
+                Confirma tu PIN
+              </h1>
+              <p
+                className="text-sm mb-5 leading-relaxed"
+                style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+              >
+                Ingresa de nuevo el mismo PIN maestro para confirmar la clave de cifrado.
+              </p>
+            </>
+          )}
 
-        {step === 'confirm' && (
-          <>
-            <h1 className="text-2xl font-bold tracking-tight text-white mb-2">
-              Confirma tu PIN
-            </h1>
-            <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-              Ingresa de nuevo el mismo PIN maestro para confirmar la clave de cifrado.
-            </p>
-          </>
-        )}
-
-        {/* Step indicator (2 steps) */}
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <span
-            className={`h-1.5 rounded-full transition-all duration-300 ${
-              step === 'create' ? 'w-8' : 'w-2'
-            }`}
-            style={{
-              backgroundColor: step === 'create' ? 'var(--theme-primary)' : 'var(--theme-border)',
-            }}
-          />
-          <span
-            className={`h-1.5 rounded-full transition-all duration-300 ${
-              step === 'confirm' ? 'w-8' : 'w-2'
-            }`}
-            style={{
-              backgroundColor: step === 'confirm' ? 'var(--theme-primary)' : 'var(--theme-border)',
-            }}
-          />
+          {/* Step indicator (2 steps) */}
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <span
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                step === 'create' ? 'w-8' : 'w-2'
+              }`}
+              style={{
+                backgroundColor: step === 'create' ? 'var(--theme-primary)' : 'var(--theme-border)',
+              }}
+            />
+            <span
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                step === 'confirm' ? 'w-8' : 'w-2'
+              }`}
+              style={{
+                backgroundColor: step === 'confirm' ? 'var(--theme-primary)' : 'var(--theme-border)',
+              }}
+            />
+          </div>
         </div>
 
         {/* STEP 1: CREATE PIN */}
         {step === 'create' && (
-          <div>
+          <div className="w-full my-auto py-2">
             <PinKeypad
               pin={pin}
               onPinChange={(val) => {
@@ -185,7 +199,7 @@ export const SetupVaultView: React.FC<SetupVaultViewProps> = ({
 
         {/* STEP 2: CONFIRM PIN */}
         {step === 'confirm' && (
-          <div>
+          <div className="w-full my-auto py-2">
             <PinKeypad
               pin={confirmPin}
               onPinChange={(val) => {
@@ -227,7 +241,13 @@ export const SetupVaultView: React.FC<SetupVaultViewProps> = ({
         )}
 
         {/* Security Info Footnote */}
-        <div className="mt-6 pt-5 border-t border-slate-800/80 text-left flex items-start gap-2.5 text-xs text-slate-400">
+        <div
+          className="mt-6 pt-4 border-t text-left flex items-start gap-2.5 text-xs"
+          style={{
+            borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.75))',
+            color: 'var(--theme-text-muted, #94a3b8)',
+          }}
+        >
           <Sparkles className="w-4 h-4 text-[#00e5ff] shrink-0 mt-0.5" />
           <p>
             Cifrado de conocimiento cero: tu PIN nunca sale de este dispositivo. Si alguna vez lo olvidas, podrás recuperarlo verificando tu correo registrado sin perder tus archivos.

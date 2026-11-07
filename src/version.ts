@@ -13,13 +13,10 @@ export interface VersionInfo {
 export const APP_VERSION = '1.2.46';
 export const CURRENT_APP_VERSION = APP_VERSION;
 export const CURRENT_BUILD_NUMBER = 1046;
-export const CURRENT_RELEASE_DATE = '1 de noviembre de 2026';
+export const CURRENT_RELEASE_DATE = '';
 
 export const CURRENT_CHANGELOG: string[] = [
-  'Perfil de usuario: Nuevo diseño oscuro en Editar Perfil con campos simplificados de nombre, apellidos y correo vinculado.',
-  'Cambio de cuenta con Google: Reconocimiento y actualización automática de tu nombre y foto de perfil al cambiar de correo con Gmail.',
-  'Recuperación de PIN segura: Validación inmediata para verificar que el correo ingresado pertenezca a la cuenta registrada.',
-  'Registro de novedades dinámico: Ahora cada actualización muestra únicamente los cambios reales incluidos en la versión.'
+  'Mejoras de estabilidad y rendimiento'
 ];
 
 export const APP_VERSION_METADATA: VersionInfo = {

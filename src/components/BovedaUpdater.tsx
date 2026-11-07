@@ -8,8 +8,13 @@ import {
 } from 'lucide-react';
 import { getSafeAppVersionCode, downloadAndInstallApk, onDownloadProgress } from '../services/nativeUpdaterBridge';
 import { updateService } from '../services/updateService';
-import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER, CURRENT_RELEASE_DATE, CURRENT_CHANGELOG } from '../version';
+import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER } from '../version';
 const APP_VERSION = CURRENT_APP_VERSION;
+
+interface CambioNovedad {
+  titulo?: string;
+  texto: string;
+}
 
 interface BovedaUpdaterProps {
   onOpenChangelog?: () => void;
@@ -31,8 +36,8 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
   const [downloadSize, setDownloadSize] = useState<string>('');
   const [status, setStatus] = useState<string>('');
   const [isNative, setIsNative] = useState<boolean>(false);
-  const [activeChangelog, setActiveChangelog] = useState<string[]>(() => cachedCheck?.changelog || CURRENT_CHANGELOG);
-  const [activeReleaseDate, setActiveReleaseDate] = useState<string>(() => cachedCheck?.releaseDate || CURRENT_RELEASE_DATE);
+  const [cambiosNovedades, setCambiosNovedades] = useState<CambioNovedad[]>([]);
+  const [activeReleaseDate, setActiveReleaseDate] = useState<string>('');
   const [installCompleted, setInstallCompleted] = useState<boolean>(false);
 
   // Formatear hora de última comprobación estilo "03:08 p. m."
@@ -45,6 +50,27 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
 
   useEffect(() => {
     setIsNative(Capacitor.isNativePlatform());
+  }, []);
+
+  useEffect(() => {
+    fetch("novedades.json", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) throw new Error("No se pudo cargar novedades.json");
+        return res.json();
+      })
+      .then((data) => {
+        if (data && typeof data.fecha === "string") {
+          setActiveReleaseDate(data.fecha);
+        }
+        if (data && Array.isArray(data.cambios) && data.cambios.length > 0) {
+          setCambiosNovedades(data.cambios);
+        } else {
+          setCambiosNovedades([]);
+        }
+      })
+      .catch(() => {
+        setCambiosNovedades([]);
+      });
   }, []);
 
   // Lógica unificada de verificación de versiones
@@ -78,17 +104,6 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       setServerVersionName(res.latestVersion);
       if (res.buildNumber) {
         setServerVersionCode(res.buildNumber);
-      }
-      if (res.releaseDate) {
-        setActiveReleaseDate(res.releaseDate);
-      }
-      if (res.changelog && res.changelog.length > 0) {
-        const hasGenericAutoText = res.changelog.some((line) =>
-          /compilaci[oó]n autom[aá]tica|generada en github|nueva interfaz minimalista de registro e inicio de sesi[oó]n con verificaci[oó]n de correo mediante c[oó]digo de 6 d[ií]gitos/i.test(line)
-        );
-        setActiveChangelog(hasGenericAutoText ? CURRENT_CHANGELOG : res.changelog);
-      } else {
-        setActiveChangelog(CURRENT_CHANGELOG);
       }
       setLastCheckTime(getFormattedTime());
 
@@ -316,23 +331,27 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
         </div>
 
         <div className="space-y-3 pt-1">
-          {activeChangelog.map((item, idx) => {
-            const parts = item.split(': ');
-            return (
+          {cambiosNovedades.length > 0 ? (
+            cambiosNovedades.map((item, idx) => (
               <div key={idx} className="flex items-start gap-3 text-sm text-slate-300 leading-relaxed">
                 <span className="w-2 h-2 rounded-full bg-[#00d2ff] shrink-0 mt-2 shadow-[0_0_8px_rgba(0,210,255,0.7)]" />
                 <p className="flex-1">
-                  {parts.length > 1 ? (
+                  {item.titulo ? (
                     <>
-                      <strong className="text-white font-semibold">{parts[0]}</strong>: {parts.slice(1).join(': ')}
+                      <strong className="text-white font-semibold">{item.titulo}</strong>: {item.texto}
                     </>
                   ) : (
-                    item
+                    item.texto
                   )}
                 </p>
               </div>
-            );
-          })}
+            ))
+          ) : (
+            <div className="flex items-start gap-3 text-sm text-slate-300 leading-relaxed">
+              <span className="w-2 h-2 rounded-full bg-[#00d2ff] shrink-0 mt-2 shadow-[0_0_8px_rgba(0,210,255,0.7)]" />
+              <p className="flex-1">Mejoras de estabilidad y rendimiento</p>
+            </div>
+          )}
         </div>
       </section>
     </div>
