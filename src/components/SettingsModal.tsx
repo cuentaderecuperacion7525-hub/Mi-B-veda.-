@@ -868,8 +868,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <div className="flex items-center gap-2.5">
                       <EyeOff className="w-4 h-4 text-indigo-400" />
                       <div>
-                        <p className="text-xs font-semibold text-slate-200">Bloquear al cambiar de pestaña</p>
-                        <p className="text-[11px] text-slate-400">Protege tu pantalla si sales del navegador</p>
+                        <p className="text-xs font-semibold text-slate-200">Bloquear al salir de la app</p>
+                        <p className="text-[11px] text-slate-400">Protege tu pantalla si sales o minimizas</p>
                       </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">

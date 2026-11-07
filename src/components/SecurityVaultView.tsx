@@ -1026,21 +1026,21 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
             </select>
           </div>
 
-          {/* Bloquear al cambiar de pestaña */}
+          {/* Bloquear al salir de la app */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0 pr-2">
               <div className="w-10 h-10 rounded-xl bg-[#00e5ff]/10 border border-[#00e5ff]/20 flex items-center justify-center text-[#00e5ff] shrink-0">
                 <EyeOff className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <h4 className="text-sm font-bold text-white">Bloquear al cambiar de pestaña</h4>
+                <h4 className="text-sm font-bold text-white">Bloquear al salir de la app</h4>
                 <p className="text-xs text-slate-400">Protege tu pantalla si sales o minimizas</p>
               </div>
             </div>
             <NeonSwitch
               checked={lockOnTabSwitch}
               onChange={(enabled) => onLockOnTabSwitchChange && onLockOnTabSwitchChange(enabled)}
-              ariaLabel="Bloquear al cambiar de pestaña"
+              ariaLabel="Bloquear al salir de la app"
             />
           </div>
 
