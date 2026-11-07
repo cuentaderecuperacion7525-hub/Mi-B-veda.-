@@ -328,7 +328,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   };
 
   // Biometric fingerprint states
-  const [isBioEnrolled, setIsBioEnrolled] = useState(() => hasBiometricCredentials());
+  const [isBioEnrolled, setIsBioEnrolled] = useState(() => isBiometricsAutoPromptEnabled());
   const [isBioLoading, setIsBioLoading] = useState(false);
   const [showEnrollBioModal, setShowEnrollBioModal] = useState(false);
   const [enrollPin, setEnrollPin] = useState('');
@@ -336,7 +336,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   const [isEnrollingBio, setIsEnrollingBio] = useState(false);
 
   useEffect(() => {
-    setIsBioEnrolled(hasBiometricCredentials());
+    setIsBioEnrolled(isBiometricsAutoPromptEnabled());
   }, [authViewMode]);
 
   const expectedLength = parseInt(localStorage.getItem('vault_pin_length') || '4', 10);
@@ -663,7 +663,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         await attemptUnlockRef.current(decryptedPin, 'biometric');
       } catch (err: any) {
         console.warn('Biometric unlock canceled or failed:', err);
-        setIsBioEnrolled(hasBiometricCredentials());
+        setIsBioEnrolled(isBiometricsAutoPromptEnabled());
 
         const isAbort =
           err?.name === 'AbortError' ||
@@ -1038,7 +1038,9 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
           <p className="text-xs text-slate-400 mb-6">
             {isBioLoading
               ? 'Esperando sensor de huella en tu celular...'
-              : 'Introduce tu PIN o toca el sensor de huella para acceder'}
+              : isBioEnrolled
+              ? 'Introduce tu PIN o toca el sensor de huella para acceder'
+              : 'Introduce tu PIN para acceder'}
           </p>
 
           {/* Tactile Keypad */}

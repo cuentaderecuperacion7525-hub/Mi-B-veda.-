@@ -696,24 +696,20 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
 
   const handleToggleBiometrics = async () => {
     if (biometricsActive) {
+      disableBiometrics();
       setBiometricsAutoPromptEnabled(false);
       setBiometricsActive(false);
-      showToast('Inicio automático desactivado. El sensor sigue listo en el teclado para cuando lo toques.', 'info');
+      setIsBioPairConfigured(false);
+      showToast('Huella desvinculada', 'info');
     } else {
-      if (hasBiometricCredentials()) {
-        setBiometricsAutoPromptEnabled(true);
-        setBiometricsActive(true);
-        showToast('Huella activada para inicio automático', 'success');
+      const activePin = sessionPin || sessionStorage.getItem('vault_session_pin');
+      if (activePin) {
+        showToast('Toca el sensor de huella de tu celular...', 'info');
+        await triggerBiometricEnrollment(activePin);
       } else {
-        const activePin = sessionPin || sessionStorage.getItem('vault_session_pin');
-        if (activePin) {
-          showToast('Toca el sensor de huella de tu celular...', 'info');
-          await triggerBiometricEnrollment(activePin);
-        } else {
-          setBioPinInput('');
-          setBioPinError(null);
-          setShowBioPinModal(true);
-        }
+        setBioPinInput('');
+        setBioPinError(null);
+        setShowBioPinModal(true);
       }
     }
   };
@@ -974,24 +970,8 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                   Inicio con Huella Digital
                 </h4>
                 <p className="text-xs text-slate-400">
-                  {biometricsActive
-                    ? 'Inicio automático activo'
-                    : isBioPairConfigured
-                    ? 'Inactivo (el sensor responde al tocarlo en el teclado)'
-                    : 'Toca para vincular el sensor de tu celular'}
+                  {biometricsActive ? 'Desvincular Huella' : 'Vincular Huella'}
                 </p>
-                {isBioPairConfigured && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleUnlinkBiometrics();
-                    }}
-                    className="text-[11px] text-rose-400/80 hover:text-rose-300 underline mt-0.5 inline-block cursor-pointer"
-                  >
-                    Desvincular huella de este celular
-                  </button>
-                )}
               </div>
             </div>
 
