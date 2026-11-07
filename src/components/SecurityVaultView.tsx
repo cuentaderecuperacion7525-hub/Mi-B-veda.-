@@ -967,10 +967,10 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
               </div>
               <div>
                 <h4 className="text-sm font-bold text-white group-hover:text-[#00e5ff] transition-colors">
-                  Inicio con Huella Digital
+                  Acceso biométrico
                 </h4>
                 <p className="text-xs text-slate-400">
-                  {biometricsActive ? 'Toca para desactivar' : 'Toca para activar'}
+                  {biometricsActive ? 'Activo' : 'Sin configurar'}
                 </p>
               </div>
             </div>

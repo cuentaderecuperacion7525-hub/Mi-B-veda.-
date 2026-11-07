@@ -87,8 +87,9 @@ export default function App() {
 
   const inactivityTimerRef = useRef<number | null>(null);
 
-  // Toast Helper
+  // Toast Helper (mostrar únicamente errores importantes)
   const showToast = useCallback((message: string, type: 'info' | 'success' | 'alert' | 'error' = 'info') => {
+    if (type !== 'error') return;
     const id = `${Date.now()}_${Math.random()}`;
     setToasts((prev) => [...prev, { id, message, type }]);
 
