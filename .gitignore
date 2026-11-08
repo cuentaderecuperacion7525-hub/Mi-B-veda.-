@@ -7,3 +7,8 @@ coverage/
 .env*
 !.env.example
 public/assets/aistudio/
+.aistudio/
+*.boveda
+*.backup
+*.tmp
+
