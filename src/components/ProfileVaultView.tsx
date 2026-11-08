@@ -30,6 +30,7 @@ import {
   Trash2,
   Pencil,
   Plus,
+  Database,
 } from 'lucide-react';
 import {
   userProfileService,
@@ -450,99 +451,163 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
         </div>
       </div>
 
-      {/* 2. TARJETA DE RESUMEN DE ALMACENAMIENTO */}
+      {/* 2. TARJETA DE RESUMEN DE ALMACENAMIENTO (ESTILO EXACTO A LA CAPTURA) */}
       <div
-        className="rounded-3xl p-5 shadow-xl border transition-colors space-y-4"
+        className="rounded-[26px] p-5 shadow-xl border transition-colors space-y-4"
         style={{
-          backgroundColor: 'var(--theme-bg-card)',
-          borderColor: 'var(--theme-border)',
+          backgroundColor: 'var(--theme-bg-card, #0d1624)',
+          borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.6))',
         }}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-2.5 min-w-0">
-            <div
-              className="w-10 h-10 rounded-2xl flex items-center justify-center border shrink-0 mt-0.5"
-              style={{
-                backgroundColor: 'color-mix(in srgb, var(--theme-primary) 12%, transparent)',
-                borderColor: 'color-mix(in srgb, var(--theme-primary) 30%, transparent)',
-                color: 'var(--theme-primary)',
-              }}
+        {/* Encabezado: Icono Database en contenedor azul redondeado + Título y conteo de archivos */}
+        <div className="flex items-center gap-3.5">
+          <div
+            className="w-12 h-12 rounded-2xl flex items-center justify-center border shrink-0"
+            style={{
+              backgroundColor: currentTheme === 'light' ? 'rgba(2, 132, 199, 0.12)' : 'rgba(0, 150, 255, 0.15)',
+              borderColor: currentTheme === 'light' ? 'rgba(2, 132, 199, 0.3)' : 'rgba(0, 150, 255, 0.35)',
+              color: 'var(--theme-primary, #38bdf8)',
+            }}
+          >
+            <Database className="w-6 h-6 stroke-[2]" />
+          </div>
+          <div className="min-w-0">
+            <h3
+              className="font-bold text-base sm:text-lg tracking-tight leading-tight truncate"
+              style={{ color: 'var(--theme-text-main, #ffffff)' }}
             >
-              <HardDrive className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="font-bold text-sm tracking-tight" style={{ color: 'var(--theme-text-main)' }}>
-                Almacenamiento Protegido
-              </h3>
-              {/* Cifra grande ubicada debajo del título para que este no se parta */}
-              <div className="mt-1 flex items-baseline gap-2 flex-wrap">
-                <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight" style={{ color: 'var(--theme-primary)' }}>
-                  {formatStorageUnits(counts.totalBytes)}
-                </span>
-                <span className="text-xs font-medium" style={{ color: 'var(--theme-text-subtle)' }}>
-                  {totalItems === 0
-                    ? '0 archivos'
-                    : totalItems === 1
-                    ? '1 archivo'
-                    : `${totalItems} archivos`}
-                </span>
-              </div>
-              <p className="text-[11px] mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
-                Espacio utilizado en este dispositivo
-              </p>
-            </div>
+              Almacenamiento protegido
+            </h3>
+            <p
+              className="text-xs mt-0.5 truncate font-normal"
+              style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+            >
+              {totalItems} archivos en este dispositivo
+            </p>
           </div>
         </div>
 
-        {/* Barra Visual de Almacenamiento con franja mínima visible si hay contenido */}
+        {/* Cifra grande del almacenamiento total */}
+        <div className="pt-0.5">
+          <span
+            className="text-4xl sm:text-5xl font-black font-mono tracking-tight"
+            style={{ color: 'var(--theme-primary, #60a5fa)' }}
+          >
+            {formatStorageUnits(counts.totalBytes)}
+          </span>
+        </div>
+
+        {/* Barra Visual de Almacenamiento Segmentada con franja mínima si hay archivos */}
         <div>
           <div
             className="w-full h-3 rounded-full overflow-hidden flex border p-0.5"
             style={{
-              backgroundColor: 'var(--theme-bg-secondary)',
-              borderColor: 'var(--theme-border)',
+              backgroundColor: 'var(--theme-bg-secondary, #141b27)',
+              borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.7))',
             }}
           >
-            <div
-              className="h-full transition-all duration-500 rounded-full"
-              style={{
-                width: `${vaultBarWidthPct}%`,
-                background: 'linear-gradient(90deg, var(--theme-primary), #2563eb)',
-                boxShadow: totalItems > 0 ? '0 0 10px var(--theme-glow)' : 'none',
-              }}
-            />
+            {totalItems > 0 ? (
+              <div
+                className="h-full flex overflow-hidden rounded-full transition-all duration-500"
+                style={{
+                  width: `${vaultBarWidthPct}%`,
+                  minWidth: totalItems > 0 ? '16px' : '0px',
+                }}
+              >
+                {/* Segmento Fotos (Azul) */}
+                <div
+                  className="h-full bg-blue-500 transition-all duration-300"
+                  style={{
+                    width: `${Math.max(counts.totalBytes > 0 ? ((counts.photoBytes || 0) / counts.totalBytes) * 100 : 0, (counts.photoBytes || 0) > 0 ? 15 : 0)}%`,
+                  }}
+                />
+                {/* Segmento Videos (Púrpura) */}
+                <div
+                  className="h-full bg-purple-500 transition-all duration-300"
+                  style={{
+                    width: `${Math.max(counts.totalBytes > 0 ? ((counts.videoBytes || 0) / counts.totalBytes) * 100 : 0, (counts.videoBytes || 0) > 0 ? 15 : 0)}%`,
+                  }}
+                />
+                {/* Segmento Documentos (Ámbar / Naranja) */}
+                <div
+                  className="h-full bg-amber-500 transition-all duration-300"
+                  style={{
+                    width: `${Math.max(counts.totalBytes > 0 ? ((counts.documentBytes || 0) / counts.totalBytes) * 100 : 0, (counts.documentBytes || 0) > 0 ? 15 : 0)}%`,
+                  }}
+                />
+                {/* Segmento Audios (Verde esmeralda si existen) */}
+                {(counts.audioBytes || 0) > 0 && (
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-300"
+                    style={{
+                      width: `${(counts.totalBytes > 0 ? ((counts.audioBytes || 0) / counts.totalBytes) * 100 : 0)}%`,
+                    }}
+                  />
+                )}
+                {/* Segmento Apps (Cyan si existen) */}
+                {(counts.appBytes || 0) > 0 && (
+                  <div
+                    className="h-full bg-cyan-400 transition-all duration-300"
+                    style={{
+                      width: `${(counts.totalBytes > 0 ? ((counts.appBytes || 0) / counts.totalBytes) * 100 : 0)}%`,
+                    }}
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="h-full w-0" />
+            )}
           </div>
 
-          {/* Leyenda con valores explícitos */}
-          <div className="flex flex-wrap items-center justify-between gap-2 mt-2.5 pt-0.5 text-[11px]">
-            <div className="flex items-center gap-1.5">
-              <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{
-                  backgroundColor: 'var(--theme-primary, #00e5ff)',
-                  boxShadow: '0 0 6px var(--theme-glow)',
-                }}
-              />
-              <span className="font-semibold" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
-                Bóveda cifrada: {formatStorageUnits(counts.totalBytes)}
+          {/* Lista de categorías con puntos de color y tamaños alineados a la derecha (idéntico a la captura) */}
+          <div className="space-y-3 pt-3.5 text-sm sm:text-base font-normal">
+            {/* Fotos */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="w-3 h-3 rounded-full bg-blue-500 shrink-0" />
+                <span style={{ color: 'var(--theme-text-main, #ffffff)' }}>Fotos</span>
+              </div>
+              <span className="font-mono text-sm" style={{ color: 'var(--theme-text-muted, #cbd5e1)' }}>
+                {formatStorageUnits(counts.photoBytes || 0)}
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span
-                className="w-2.5 h-2.5 rounded-full shrink-0 border"
-                style={{
-                  backgroundColor: 'var(--theme-bg-secondary, #1e293b)',
-                  borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.8))',
-                }}
-              />
-              <span style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
-                Libre en el dispositivo: {formatStorageUnits(freeDeviceBytes)}
+
+            {/* Videos */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="w-3 h-3 rounded-full bg-purple-500 shrink-0" />
+                <span style={{ color: 'var(--theme-text-main, #ffffff)' }}>Videos</span>
+              </div>
+              <span className="font-mono text-sm" style={{ color: 'var(--theme-text-muted, #cbd5e1)' }}>
+                {formatStorageUnits(counts.videoBytes || 0)}
+              </span>
+            </div>
+
+            {/* Documentos */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0" />
+                <span style={{ color: 'var(--theme-text-main, #ffffff)' }}>Documentos</span>
+              </div>
+              <span className="font-mono text-sm" style={{ color: 'var(--theme-text-muted, #cbd5e1)' }}>
+                {formatStorageUnits(counts.documentBytes || 0)}
+              </span>
+            </div>
+
+            {/* Libre en el dispositivo (círculo gris con borde, sin relleno) */}
+            <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center gap-3">
+                <span className="w-3 h-3 rounded-full border-2 border-slate-500 bg-transparent shrink-0" />
+                <span style={{ color: 'var(--theme-text-main, #ffffff)' }}>Libre en el dispositivo</span>
+              </div>
+              <span className="font-mono text-sm font-semibold" style={{ color: 'var(--theme-text-muted, #cbd5e1)' }}>
+                {formatStorageUnits(freeDeviceBytes)}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Estado si la bóveda está vacía (0 archivos): mensaje y botón para agregar archivos */}
+        {/* Estado cuando hay 0 archivos: mensaje y botón para agregar archivos */}
         {totalItems === 0 && (
           <div
             className="p-3.5 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left transition-all mt-2"
