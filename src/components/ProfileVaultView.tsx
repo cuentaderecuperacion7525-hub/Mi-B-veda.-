@@ -29,6 +29,7 @@ import {
   Image as ImageIcon,
   Trash2,
   Pencil,
+  Plus,
 } from 'lucide-react';
 import {
   userProfileService,
@@ -58,15 +59,19 @@ interface ProfileVaultViewProps {
   };
   showToast: (message: string, type?: 'info' | 'success' | 'alert' | 'error') => void;
   onOpenSettings?: () => void;
+  onNavigateToVault?: () => void;
 }
 
 export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   counts,
   showToast,
   onOpenSettings,
+  onNavigateToVault,
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(() => userProfileService.getUserProfile());
   const [currentTheme, setCurrentTheme] = useState<VaultTheme>(() => themeService.getTheme());
+  const [showFullEmail, setShowFullEmail] = useState(false);
+  const [deviceStorage, setDeviceStorage] = useState<{ freeBytes: number; totalQuotaBytes: number } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -115,6 +120,25 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       window.removeEventListener('vault_theme_changed', handleThemeEvent);
     };
   }, []);
+
+  // Consultar espacio de almacenamiento real del dispositivo mediante StorageManager API
+  useEffect(() => {
+    let isMounted = true;
+    if (navigator?.storage?.estimate) {
+      navigator.storage.estimate().then((est) => {
+        if (!isMounted) return;
+        const quota = est.quota || 0;
+        const usage = est.usage || 0;
+        const free = Math.max(0, quota - usage);
+        if (quota > 0) {
+          setDeviceStorage({ freeBytes: free, totalQuotaBytes: quota });
+        }
+      }).catch(() => {});
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [counts.totalBytes]);
 
   const openEditModal = () => {
     if (profile) {
@@ -284,6 +308,41 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   const totalItems = counts.photos + counts.videos + counts.audios + counts.apps + (counts.documents || 0);
   const initials = userProfileService.getInitials(profile);
 
+  // Formato automático de unidades (KB, MB, GB)
+  const formatStorageUnits = (bytes?: number): string => {
+    if (!bytes || bytes <= 0) return '0 KB';
+    const kb = bytes / 1024;
+    if (kb < 1) return '< 1 KB';
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    const mb = bytes / (1024 * 1024);
+    if (mb < 1024) return `${mb.toFixed(1)} MB`;
+    const gb = bytes / (1024 * 1024 * 1024);
+    return `${gb.toFixed(2)} GB`;
+  };
+
+  // Enmascarar el correo: primeras 3 letras, puntos y el dominio
+  const maskEmail = (emailStr?: string): string => {
+    if (!emailStr) return 'Sin correo vinculado';
+    const atIndex = emailStr.indexOf('@');
+    if (atIndex === -1) return emailStr;
+    const namePart = emailStr.slice(0, atIndex);
+    const domainPart = emailStr.slice(atIndex); // incluye el @
+    if (namePart.length <= 3) {
+      return `${namePart}...${domainPart}`;
+    }
+    const visiblePrefix = namePart.slice(0, 3);
+    return `${visiblePrefix}...${domainPart}`;
+  };
+
+  // Calcular espacio libre estimado en el dispositivo
+  const freeDeviceBytes = deviceStorage ? deviceStorage.freeBytes : 64 * 1024 * 1024 * 1024;
+  const totalDeviceQuota = deviceStorage ? deviceStorage.totalQuotaBytes : 128 * 1024 * 1024 * 1024;
+  const calculatedVaultPct = totalDeviceQuota > 0
+    ? (counts.totalBytes / totalDeviceQuota) * 100
+    : 0;
+  // Franja mínima visible si la bóveda tiene contenido
+  const vaultBarWidthPct = totalItems > 0 ? Math.max(3.5, Math.min(100, calculatedVaultPct)) : 0;
+
   return (
     <div className="w-full max-w-md mx-auto px-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+4.75rem),5rem)] animate-in fade-in duration-200 select-none box-border space-y-4">
       {/* Fixed Pinned Header */}
@@ -310,7 +369,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       {/* Spacer */}
       <div className="safe-top-header-spacer shrink-0 w-full mb-3" />
 
-      {/* 1. ENCABEZADO DE PERFIL CON AVATAR DE GOOGLE (IMAGEN 1) */}
+      {/* 1. ENCABEZADO DE PERFIL CON AVATAR DE GOOGLE */}
       <div
         className="rounded-[26px] p-5 shadow-xl border transition-colors relative overflow-hidden"
         style={{
@@ -318,8 +377,8 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
           borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.6))',
         }}
       >
-        <div className="flex items-center gap-4 relative z-10">
-          {/* Avatar / Foto de Google o Iniciales (tamaño compacto) */}
+        <div className="flex items-start gap-4 relative z-10">
+          {/* Avatar / Foto de Google o Iniciales (sin escudo sobre el avatar) */}
           <div className="relative shrink-0">
             {profile?.photoURL ? (
               <img
@@ -338,58 +397,57 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                 {initials}
               </div>
             )}
-            {/* Insignia de Escudo Verificado en esquina inferior derecha */}
-            <div
-              className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border border-emerald-500/60 flex items-center justify-center shadow-md"
-              style={{ backgroundColor: 'var(--theme-bg-card, #0a111e)' }}
-            >
-              <ShieldCheck className="w-3 h-3 text-emerald-400" />
-            </div>
           </div>
 
           {/* Información del Perfil */}
           <div className="flex-1 min-w-0">
-            <h2
-              className="text-xl sm:text-2xl font-black tracking-tight truncate"
-              style={{ color: 'var(--theme-text-main, #ffffff)' }}
+            <div className="flex items-center gap-2">
+              <h2
+                className="text-xl sm:text-2xl font-black tracking-tight truncate"
+                style={{ color: 'var(--theme-text-main, #ffffff)' }}
+              >
+                {profile ? `${profile.firstName} ${profile.lastName || ''}`.trim() : 'Usuario'}
+              </h2>
+              {/* Icono de lápiz junto al nombre para editar perfil */}
+              <button
+                type="button"
+                onClick={openEditModal}
+                className="p-1.5 rounded-xl transition-all cursor-pointer select-none active:scale-90 border shrink-0 flex items-center justify-center"
+                style={{
+                  backgroundColor: currentTheme === 'light' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(0, 229, 255, 0.1)',
+                  borderColor: currentTheme === 'light' ? 'rgba(2, 132, 199, 0.35)' : 'rgba(0, 229, 255, 0.35)',
+                  color: 'var(--theme-primary, #00e5ff)',
+                }}
+                title="Editar perfil"
+                aria-label="Editar perfil"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Correo enmascarado con toggle al tocar y salto a dos líneas si es largo */}
+            <div
+              onClick={() => setShowFullEmail((prev) => !prev)}
+              role="button"
+              tabIndex={0}
+              title="Toca para mostrar u ocultar el correo completo"
+              className="mt-1 cursor-pointer select-none group inline-block max-w-full"
             >
-              {profile ? `${profile.firstName} ${profile.lastName || ''}`.trim() : 'Usuario'}
-            </h2>
-            <p
-              className="text-xs font-mono tracking-tight mt-0.5 truncate"
-              style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
-            >
-              {profile?.email || 'Sin correo vinculado'}
-            </p>
-            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 text-xs font-semibold text-emerald-400">
+              <p
+                className="text-xs font-mono tracking-tight break-words leading-snug group-hover:opacity-90 transition-opacity"
+                style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+              >
+                {showFullEmail ? (profile?.email || 'Sin correo vinculado') : maskEmail(profile?.email)}
+              </p>
+            </div>
+
+            {/* Insignia: Correo de recuperación verificado */}
+            <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 text-xs font-semibold text-emerald-400">
               <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-              <span>Cuenta verificada</span>
+              <span>Correo de recuperación verificado</span>
             </div>
           </div>
         </div>
-
-        {/* Botón "Editar perfil" con estilo tonal adaptativo de alta legibilidad */}
-        <button
-          type="button"
-          onClick={openEditModal}
-          className="vault-btn-edit-profile w-full mt-4 py-2.5 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors duration-150 shadow-none cursor-pointer select-none active:scale-[0.99] border"
-          style={{
-            backgroundColor: currentTheme === 'light' ? 'rgba(2, 132, 199, 0.08)' : 'rgba(0, 229, 255, 0.08)',
-            borderColor: currentTheme === 'light' ? 'rgba(2, 132, 199, 0.35)' : 'rgba(0, 229, 255, 0.35)',
-            color: currentTheme === 'light' ? '#0369a1' : '#00e5ff',
-          }}
-        >
-          <Pencil
-            className="w-4 h-4 shrink-0"
-            style={{ color: currentTheme === 'light' ? '#0369a1' : '#00e5ff' }}
-          />
-          <span
-            className="font-semibold"
-            style={{ color: currentTheme === 'light' ? '#0369a1' : '#00e5ff' }}
-          >
-            Editar perfil
-          </span>
-        </button>
       </div>
 
       {/* 2. TARJETA DE RESUMEN DE ALMACENAMIENTO */}
@@ -400,10 +458,10 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
           borderColor: 'var(--theme-border)',
         }}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5 min-w-0">
             <div
-              className="w-10 h-10 rounded-2xl flex items-center justify-center border"
+              className="w-10 h-10 rounded-2xl flex items-center justify-center border shrink-0 mt-0.5"
               style={{
                 backgroundColor: 'color-mix(in srgb, var(--theme-primary) 12%, transparent)',
                 borderColor: 'color-mix(in srgb, var(--theme-primary) 30%, transparent)',
@@ -412,30 +470,34 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
             >
               <HardDrive className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="font-bold text-sm" style={{ color: 'var(--theme-text-main)' }}>
+            <div className="min-w-0">
+              <h3 className="font-bold text-sm tracking-tight" style={{ color: 'var(--theme-text-main)' }}>
                 Almacenamiento Protegido
               </h3>
-              <p className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
+              {/* Cifra grande ubicada debajo del título para que este no se parta */}
+              <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+                <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight" style={{ color: 'var(--theme-primary)' }}>
+                  {formatStorageUnits(counts.totalBytes)}
+                </span>
+                <span className="text-xs font-medium" style={{ color: 'var(--theme-text-subtle)' }}>
+                  {totalItems === 0
+                    ? '0 archivos'
+                    : totalItems === 1
+                    ? '1 archivo'
+                    : `${totalItems} archivos`}
+                </span>
+              </div>
+              <p className="text-[11px] mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
                 Espacio utilizado en este dispositivo
               </p>
             </div>
           </div>
-
-          <div className="text-right">
-            <span className="text-base font-black font-mono" style={{ color: 'var(--theme-primary)' }}>
-              {formatSize(counts.totalBytes)}
-            </span>
-            <p className="text-[10px]" style={{ color: 'var(--theme-text-subtle)' }}>
-              {totalItems} archivos en total
-            </p>
-          </div>
         </div>
 
-        {/* Barra Visual de Almacenamiento */}
+        {/* Barra Visual de Almacenamiento con franja mínima visible si hay contenido */}
         <div>
           <div
-            className="w-full h-2.5 rounded-full overflow-hidden flex border"
+            className="w-full h-3 rounded-full overflow-hidden flex border p-0.5"
             style={{
               backgroundColor: 'var(--theme-bg-secondary)',
               borderColor: 'var(--theme-border)',
@@ -444,39 +506,76 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
             <div
               className="h-full transition-all duration-500 rounded-full"
               style={{
-                width: totalItems > 0 ? '100%' : '0%',
+                width: `${vaultBarWidthPct}%`,
                 background: 'linear-gradient(90deg, var(--theme-primary), #2563eb)',
-                boxShadow: '0 0 10px var(--theme-glow)',
+                boxShadow: totalItems > 0 ? '0 0 10px var(--theme-glow)' : 'none',
               }}
             />
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-0.5 text-[10px]">
+
+          {/* Leyenda con valores explícitos */}
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-2.5 pt-0.5 text-[11px]">
             <div className="flex items-center gap-1.5">
               <span
-                className="w-2 h-2 rounded-full shrink-0"
+                className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{
                   backgroundColor: 'var(--theme-primary, #00e5ff)',
                   boxShadow: '0 0 6px var(--theme-glow)',
                 }}
               />
               <span className="font-semibold" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
-                Bóveda Local Cifrada
+                Bóveda cifrada: {formatStorageUnits(counts.totalBytes)}
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span
-                className="w-2 h-2 rounded-full shrink-0 border"
+                className="w-2.5 h-2.5 rounded-full shrink-0 border"
                 style={{
                   backgroundColor: 'var(--theme-bg-secondary, #1e293b)',
                   borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.8))',
                 }}
               />
               <span style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
-                Espacio de Almacenamiento Dinámico
+                Libre en el dispositivo: {formatStorageUnits(freeDeviceBytes)}
               </span>
             </div>
           </div>
         </div>
+
+        {/* Estado si la bóveda está vacía (0 archivos): mensaje y botón para agregar archivos */}
+        {totalItems === 0 && (
+          <div
+            className="p-3.5 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left transition-all mt-2"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--theme-bg-secondary, #0f172a) 85%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 25%, var(--theme-border, #334155))',
+            }}
+          >
+            <div>
+              <p className="text-xs font-bold" style={{ color: 'var(--theme-text-main, #ffffff)' }}>
+                Tu bóveda está vacía
+              </p>
+              <p className="text-[11px] mt-0.5" style={{ color: 'var(--theme-text-muted, #94a3b8)' }}>
+                Protege tus fotos, videos, audios, aplicaciones y documentos con cifrado militar.
+              </p>
+            </div>
+            {onNavigateToVault && (
+              <button
+                type="button"
+                onClick={onNavigateToVault}
+                className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95 border shadow-sm"
+                style={{
+                  backgroundColor: 'var(--theme-primary, #00e5ff)',
+                  borderColor: 'var(--theme-primary, #00e5ff)',
+                  color: currentTheme === 'light' ? '#ffffff' : '#000000',
+                }}
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Agregar archivos</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 3. SECCIÓN DE SOPORTE, TÉRMINOS Y LICENCIA */}

@@ -1747,6 +1747,10 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           counts={counts}
           showToast={showToast}
           onOpenSettings={() => navigateToTab('settings')}
+          onNavigateToVault={() => {
+            setActiveCategory(null);
+            navigateToTab('vault');
+          }}
         />
       ) : activeCategory === null ? (
         <div className="max-w-md mx-auto w-full px-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+4.5rem),4.75rem)] flex flex-col">
