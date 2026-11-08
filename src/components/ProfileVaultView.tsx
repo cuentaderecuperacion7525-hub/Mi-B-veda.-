@@ -43,6 +43,7 @@ import { signInWithNativeGoogle } from '../services/nativeGoogleAuthService';
 import { themeService, VaultTheme } from '../services/themeService';
 import { CURRENT_APP_VERSION as APP_VERSION } from '../version';
 import { formatSize } from '../utils/formatUtils';
+import { getNativeDeviceStorage } from '../services/nativeVaultBridge';
 
 interface ProfileVaultViewProps {
   counts: {
@@ -72,11 +73,20 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   const [profile, setProfile] = useState<UserProfile | null>(() => userProfileService.getUserProfile());
   const [currentTheme, setCurrentTheme] = useState<VaultTheme>(() => themeService.getTheme());
   const [showFullEmail, setShowFullEmail] = useState(false);
+  const emailRevealTimerRef = useRef<any>(null);
   const [deviceStorage, setDeviceStorage] = useState<{ freeBytes: number; totalQuotaBytes: number } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (emailRevealTimerRef.current) {
+        clearTimeout(emailRevealTimerRef.current);
+      }
+    };
+  }, []);
 
   const [editFirst, setEditFirst] = useState('');
   const [editLast, setEditLast] = useState('');
@@ -122,20 +132,15 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     };
   }, []);
 
-  // Consultar espacio de almacenamiento real del dispositivo mediante StorageManager API
+  // Consultar espacio de almacenamiento real del dispositivo (Android nativo StatFs con fallback a Web)
   useEffect(() => {
     let isMounted = true;
-    if (navigator?.storage?.estimate) {
-      navigator.storage.estimate().then((est) => {
-        if (!isMounted) return;
-        const quota = est.quota || 0;
-        const usage = est.usage || 0;
-        const free = Math.max(0, quota - usage);
-        if (quota > 0) {
-          setDeviceStorage({ freeBytes: free, totalQuotaBytes: quota });
-        }
-      }).catch(() => {});
-    }
+    getNativeDeviceStorage().then((storage) => {
+      if (!isMounted) return;
+      if (storage && storage.quota > 0) {
+        setDeviceStorage({ freeBytes: storage.free, totalQuotaBytes: storage.quota });
+      }
+    }).catch(() => {});
     return () => {
       isMounted = false;
     };
@@ -309,35 +314,56 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   const totalItems = counts.photos + counts.videos + counts.audios + counts.apps + (counts.documents || 0);
   const initials = userProfileService.getInitials(profile);
 
-  // Formato automático de unidades (KB, MB, GB)
-  const formatStorageUnits = (bytes?: number): string => {
-    if (!bytes || bytes <= 0) return '0 KB';
-    const kb = bytes / 1024;
-    if (kb < 1) return '< 1 KB';
-    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  // Formato estricto en "MB" para todas las categorías de la bóveda
+  const formatStorageMB = (bytes?: number): string => {
+    if (!bytes || bytes <= 0) return '0 MB';
     const mb = bytes / (1024 * 1024);
-    if (mb < 1024) return `${mb.toFixed(1)} MB`;
-    const gb = bytes / (1024 * 1024 * 1024);
-    return `${gb.toFixed(2)} GB`;
+    if (mb < 0.01) return '< 0.01 MB';
+    if (mb < 1) return `${mb.toFixed(2)} MB`;
+    return `${mb.toFixed(1)} MB`;
   };
 
-  // Enmascarar el correo: primeras 3 letras, puntos y el dominio
+  // Formato para el almacenamiento libre del dispositivo (GB si >= 1 GB, o MB)
+  const formatFreeDeviceStorage = (bytes?: number): string => {
+    if (!bytes || bytes <= 0) return 'Calculando...';
+    const gb = bytes / (1024 * 1024 * 1024);
+    if (gb >= 1) return `${gb.toFixed(2)} GB`;
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(1)} MB`;
+  };
+
+  // Enmascarar el correo: primeras 3 letras, puntos "••••••" y el dominio (ej. "cue••••••@gmail.com")
   const maskEmail = (emailStr?: string): string => {
     if (!emailStr) return 'Sin correo vinculado';
     const atIndex = emailStr.indexOf('@');
     if (atIndex === -1) return emailStr;
     const namePart = emailStr.slice(0, atIndex);
     const domainPart = emailStr.slice(atIndex); // incluye el @
-    if (namePart.length <= 3) {
-      return `${namePart}...${domainPart}`;
-    }
-    const visiblePrefix = namePart.slice(0, 3);
-    return `${visiblePrefix}...${domainPart}`;
+    const visiblePrefix = namePart.slice(0, Math.min(3, namePart.length));
+    const hiddenCount = Math.max(4, Math.min(8, namePart.length - visiblePrefix.length));
+    const bulletDots = '•'.repeat(hiddenCount);
+    return `${visiblePrefix}${bulletDots}${domainPart}`;
   };
 
-  // Calcular espacio libre estimado en el dispositivo
-  const freeDeviceBytes = deviceStorage ? deviceStorage.freeBytes : 64 * 1024 * 1024 * 1024;
-  const totalDeviceQuota = deviceStorage ? deviceStorage.totalQuotaBytes : 128 * 1024 * 1024 * 1024;
+  const handleToggleEmailReveal = () => {
+    if (emailRevealTimerRef.current) {
+      clearTimeout(emailRevealTimerRef.current);
+      emailRevealTimerRef.current = null;
+    }
+    if (showFullEmail) {
+      setShowFullEmail(false);
+    } else {
+      setShowFullEmail(true);
+      emailRevealTimerRef.current = setTimeout(() => {
+        setShowFullEmail(false);
+        emailRevealTimerRef.current = null;
+      }, 5000);
+    }
+  };
+
+  // Espacio libre real del dispositivo (obtenido de Android StatFs nativo o Web Storage)
+  const freeDeviceBytes = deviceStorage?.freeBytes || 0;
+  const totalDeviceQuota = deviceStorage?.totalQuotaBytes || 0;
   const calculatedVaultPct = totalDeviceQuota > 0
     ? (counts.totalBytes / totalDeviceQuota) * 100
     : 0;
@@ -370,85 +396,108 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       {/* Spacer */}
       <div className="safe-top-header-spacer shrink-0 w-full mb-3" />
 
-      {/* 1. ENCABEZADO DE PERFIL CON AVATAR DE GOOGLE */}
+      {/* 1. ENCABEZADO DE PERFIL CON DISEÑO CENTRADO */}
       <div
-        className="rounded-[26px] p-5 shadow-xl border transition-colors relative overflow-hidden"
+        className="rounded-[26px] p-6 shadow-xl border transition-colors flex flex-col items-center text-center"
         style={{
           backgroundColor: 'var(--theme-bg-card, #0d1624)',
           borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.6))',
         }}
       >
-        <div className="flex items-start gap-4 relative z-10">
-          {/* Avatar / Foto de Google o Iniciales (sin escudo sobre el avatar) */}
-          <div className="relative shrink-0">
-            {profile?.photoURL ? (
-              <img
-                src={profile.photoURL}
-                alt={profile.firstName}
-                className="w-14 h-14 sm:w-15 sm:h-15 rounded-2xl object-cover shadow-lg border border-cyan-500/30"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div
-                className="w-14 h-14 sm:w-15 sm:h-15 rounded-2xl flex items-center justify-center text-white text-xl font-extrabold shadow-lg tracking-wider select-none"
-                style={{
-                  background: 'linear-gradient(135deg, #00f0b5, #00b4d8)',
-                }}
-              >
-                {initials}
-              </div>
-            )}
-          </div>
-
-          {/* Información del Perfil */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h2
-                className="text-xl sm:text-2xl font-black tracking-tight truncate"
-                style={{ color: 'var(--theme-text-main, #ffffff)' }}
-              >
-                {profile ? `${profile.firstName} ${profile.lastName || ''}`.trim() : 'Usuario'}
-              </h2>
-              {/* Icono de lápiz junto al nombre para editar perfil */}
-              <button
-                type="button"
-                onClick={openEditModal}
-                className="p-1.5 rounded-xl transition-all cursor-pointer select-none active:scale-90 border shrink-0 flex items-center justify-center"
-                style={{
-                  backgroundColor: currentTheme === 'light' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(0, 229, 255, 0.1)',
-                  borderColor: currentTheme === 'light' ? 'rgba(2, 132, 199, 0.35)' : 'rgba(0, 229, 255, 0.35)',
-                  color: 'var(--theme-primary, #00e5ff)',
-                }}
-                title="Editar perfil"
-                aria-label="Editar perfil"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Correo enmascarado con toggle al tocar y salto a dos líneas si es largo */}
+        {/* 1. Avatar circular de 76 px con inicial de 32 px peso medio y degradado verde-turquesa */}
+        <div className="relative shrink-0 flex items-center justify-center">
+          {profile?.photoURL ? (
+            <img
+              src={profile.photoURL}
+              alt={profile.firstName}
+              className="w-[76px] h-[76px] rounded-full object-cover shadow-lg border border-cyan-500/30"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
             <div
-              onClick={() => setShowFullEmail((prev) => !prev)}
-              role="button"
-              tabIndex={0}
-              title="Toca para mostrar u ocultar el correo completo"
-              className="mt-1 cursor-pointer select-none group inline-block max-w-full"
+              className="w-[76px] h-[76px] rounded-full flex items-center justify-center text-white text-[32px] font-medium shadow-lg select-none"
+              style={{
+                background: 'linear-gradient(135deg, #00f0b5, #00b4d8)',
+              }}
             >
-              <p
-                className="text-xs font-mono tracking-tight break-words leading-snug group-hover:opacity-90 transition-opacity"
-                style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
-              >
-                {showFullEmail ? (profile?.email || 'Sin correo vinculado') : maskEmail(profile?.email)}
-              </p>
+              {profile?.firstName ? profile.firstName.trim().charAt(0).toUpperCase() : 'U'}
             </div>
-
-            {/* Insignia: Correo de recuperación verificado */}
-            <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 text-xs font-semibold text-emerald-400">
-              <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-              <span>Correo de recuperación verificado</span>
-            </div>
-          </div>
+          )}
         </div>
+
+        {/* 2. Nombre en 22 px, peso medio, a 10 px debajo del avatar */}
+        <h2
+          className="mt-[10px] text-[22px] font-medium tracking-tight truncate max-w-full leading-tight"
+          style={{ color: 'var(--theme-text-main, #ffffff)' }}
+        >
+          {profile ? `${profile.firstName} ${profile.lastName || ''}`.trim() : 'Usuario'}
+        </h2>
+
+        {/* 3. Correo enmascarado en 13 px (cue••••••@gmail.com) con revelado de 5s o al re-tocar */}
+        <div
+          onClick={handleToggleEmailReveal}
+          role="button"
+          tabIndex={0}
+          title="Toca para mostrar el correo completo durante 5 segundos"
+          className="mt-1.5 cursor-pointer select-none group inline-block max-w-full px-2"
+        >
+          <p
+            className="text-[13px] font-mono tracking-tight break-words leading-relaxed group-hover:opacity-90 transition-opacity"
+            style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+          >
+            {showFullEmail ? (profile?.email || 'Sin correo vinculado') : maskEmail(profile?.email)}
+          </p>
+        </div>
+
+        {/* 4. Etiqueta en forma de píldora en una sola línea (nowrap) */}
+        <div className="mt-3">
+          {profile?.emailVerified !== false ? (
+            <div
+              className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full border border-emerald-500/30 text-xs font-medium text-emerald-400 whitespace-nowrap select-none"
+              style={{
+                backgroundColor: currentTheme === 'light' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(6, 78, 59, 0.45)',
+              }}
+            >
+              <Check className="w-3.5 h-3.5 shrink-0 stroke-[2.5] text-emerald-400" />
+              <span className="whitespace-nowrap">Correo verificado</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={openEditModal}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full border border-amber-500/40 text-xs font-medium text-amber-400 whitespace-nowrap select-none cursor-pointer active:scale-95 transition-all"
+              style={{
+                backgroundColor: currentTheme === 'light' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(120, 53, 15, 0.45)',
+              }}
+              title="Toca para verificar correo"
+            >
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 stroke-[2.5] text-amber-400" />
+              <span className="whitespace-nowrap">Verificar correo</span>
+            </button>
+          )}
+        </div>
+
+        {/* 5. Botón ancho "Editar perfil" al final: texto azul, borde fino azul, sin relleno, min-h 44px */}
+        <button
+          type="button"
+          onClick={openEditModal}
+          className="w-full mt-5 min-h-[44px] py-2.5 px-4 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 transition-all duration-150 cursor-pointer select-none active:scale-[0.99] border bg-transparent"
+          style={{
+            borderColor: currentTheme === 'light' ? '#0284c7' : '#00e5ff',
+            color: currentTheme === 'light' ? '#0284c7' : '#00e5ff',
+          }}
+        >
+          <Pencil
+            className="w-4 h-4 shrink-0"
+            style={{ color: currentTheme === 'light' ? '#0284c7' : '#00e5ff' }}
+          />
+          <span
+            className="font-semibold"
+            style={{ color: currentTheme === 'light' ? '#0284c7' : '#00e5ff' }}
+          >
+            Editar perfil
+          </span>
+        </button>
       </div>
 
       {/* 2. TARJETA DE RESUMEN DE ALMACENAMIENTO (ESTILO EXACTO A LA CAPTURA) */}
@@ -487,13 +536,13 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
           </div>
         </div>
 
-        {/* Cifra grande del almacenamiento total */}
+        {/* Cifra grande del almacenamiento total en MB */}
         <div className="pt-0.5">
           <span
             className="text-4xl sm:text-5xl font-black font-mono tracking-tight"
             style={{ color: 'var(--theme-primary, #60a5fa)' }}
           >
-            {formatStorageUnits(counts.totalBytes)}
+            {formatStorageMB(counts.totalBytes)}
           </span>
         </div>
 
@@ -559,7 +608,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
             )}
           </div>
 
-          {/* Lista de categorías con puntos de color y tamaños alineados a la derecha (idéntico a la captura) */}
+          {/* Lista de categorías con puntos de color y tamaños en MB (idéntico a la captura) */}
           <div className="space-y-3 pt-3.5 text-sm sm:text-base font-normal">
             {/* Fotos */}
             <div className="flex items-center justify-between">
@@ -568,7 +617,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                 <span style={{ color: 'var(--theme-text-main, #ffffff)' }}>Fotos</span>
               </div>
               <span className="font-mono text-sm" style={{ color: 'var(--theme-text-muted, #cbd5e1)' }}>
-                {formatStorageUnits(counts.photoBytes || 0)}
+                {formatStorageMB(counts.photoBytes || 0)}
               </span>
             </div>
 
@@ -579,7 +628,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                 <span style={{ color: 'var(--theme-text-main, #ffffff)' }}>Videos</span>
               </div>
               <span className="font-mono text-sm" style={{ color: 'var(--theme-text-muted, #cbd5e1)' }}>
-                {formatStorageUnits(counts.videoBytes || 0)}
+                {formatStorageMB(counts.videoBytes || 0)}
               </span>
             </div>
 
@@ -590,7 +639,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                 <span style={{ color: 'var(--theme-text-main, #ffffff)' }}>Documentos</span>
               </div>
               <span className="font-mono text-sm" style={{ color: 'var(--theme-text-muted, #cbd5e1)' }}>
-                {formatStorageUnits(counts.documentBytes || 0)}
+                {formatStorageMB(counts.documentBytes || 0)}
               </span>
             </div>
 
@@ -601,7 +650,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                 <span style={{ color: 'var(--theme-text-main, #ffffff)' }}>Libre en el dispositivo</span>
               </div>
               <span className="font-mono text-sm font-semibold" style={{ color: 'var(--theme-text-muted, #cbd5e1)' }}>
-                {formatStorageUnits(freeDeviceBytes)}
+                {formatFreeDeviceStorage(freeDeviceBytes)}
               </span>
             </div>
           </div>
