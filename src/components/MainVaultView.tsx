@@ -83,6 +83,12 @@ import { updateService, UpdateCheckResult } from '../services/updateService';
 import { UpdateNotificationBanner } from './UpdateNotificationModal';
 import { themeService, VaultTheme } from '../services/themeService';
 import { formatSize } from '../utils/formatUtils';
+import {
+  EXTRA_PIN_FOLDER_NAME,
+  isExtraPinAlbum,
+  isExtraPinConfigured,
+} from '../services/extraPinFolderService';
+import { ExtraPinModal } from './ExtraPinModal';
 
 export interface Carpeta {
   id: string;
@@ -301,6 +307,17 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   const [folderToRename, setFolderToRename] = useState<string | null>(null);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState<boolean>(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState<boolean>(false);
+  const [isExtraPinUnlocked, setIsExtraPinUnlocked] = useState<boolean>(false);
+  const [showExtraPinModal, setShowExtraPinModal] = useState<boolean>(false);
+  const [extraPinConfiguredState, setExtraPinConfiguredState] = useState<boolean>(() =>
+    isExtraPinConfigured()
+  );
+
+  useEffect(() => {
+    const syncExtraPin = () => setExtraPinConfiguredState(isExtraPinConfigured());
+    window.addEventListener('vault_extra_pin_updated', syncExtraPin);
+    return () => window.removeEventListener('vault_extra_pin_updated', syncExtraPin);
+  }, []);
 
   // Modals
   const [activeViewerItem, setActiveViewerItem] = useState<DecryptedVaultItem | null>(null);
@@ -595,14 +612,21 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     wasSubfolderOpenRef.current = activeSubfolder !== null;
   }, [activeSubfolder]);
 
-  // Dynamic list of all folders for active category
+  // Auto-bloquear la Carpeta con PIN inmediatamente al salir de ella o cambiar de pestaña/categoría
+  useEffect(() => {
+    if (carpetaActiva !== EXTRA_PIN_FOLDER_NAME) {
+      setIsExtraPinUnlocked(false);
+    }
+  }, [carpetaActiva, activeCategory, activeTab, activeNavTab]);
+
+  // Dynamic list of all folders for active category (incluye siempre 'General' y 'Carpeta con PIN' en todas las categorías)
   const activeCategoryFolders = useMemo(() => {
     const targetCat =
       activeTab === 'favorites' || activeTab === 'all'
         ? activeCategory || 'photo'
         : activeTab;
     const list = customFolders[targetCat] || ['General'];
-    const set = new Set<string>(list);
+    const set = new Set<string>(['General', EXTRA_PIN_FOLDER_NAME, ...list]);
     items.forEach((it) => {
       if (
         (activeTab === 'favorites' ? it.record.isFavorite : it.record.category === targetCat) &&
@@ -776,7 +800,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
   const handleRenameFolder = async (oldName: string, newName: string) => {
     if (activeTab === 'all' || activeTab === 'favorites') return;
-    if (oldName === 'General') return;
+    if (oldName === 'General' || isExtraPinAlbum(oldName)) return;
     const cat = activeTab;
 
     await batchRenameAlbum(cat, oldName, newName);
@@ -808,7 +832,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   };
 
   const handleDeleteFolder = async (folderNameToDelete: string) => {
-    if (folderNameToDelete === 'General' || activeTab === 'all' || activeTab === 'favorites') return;
+    if (
+      folderNameToDelete === 'General' ||
+      isExtraPinAlbum(folderNameToDelete) ||
+      activeTab === 'all' ||
+      activeTab === 'favorites'
+    )
+      return;
     const cat = activeTab;
 
     // Move any items in this folder back to 'General' in DB and memory
@@ -940,24 +970,27 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     return Math.min(100, Math.max(1, Math.round((totalStorageBytes / baseQuota) * 100)));
   }, [deviceStorage, items.length, totalStorageBytes]);
 
-  // Recent files list matching real user saved files - exactly last 5 records
+  // Recent files list matching real user saved files - exactly last 5 records (excluyendo archivos de Carpeta con PIN)
   const recentList = useMemo(() => {
-    return items.slice(0, 5).map((it) => {
-      const d = new Date(it.record.timestamp);
-      const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      const nameWithoutExt = it.record.name.replace(/\.[^/.]+$/, '');
-      const encName = it.record.name.endsWith('.enc') ? it.record.name : `${nameWithoutExt}.enc`;
-      const sizeMb = formatSize(it.record.size);
-      return {
-        id: it.id,
-        name: encName,
-        size: sizeMb,
-        time: `Hoy ${timeStr}`,
-        previewUrl: it.record.category === 'photo' || it.record.category === 'video' ? it.blobUrl : null,
-        category: it.record.category,
-        realItem: it,
-      };
-    });
+    return items
+      .filter((it) => !isExtraPinAlbum(it.record.album))
+      .slice(0, 5)
+      .map((it) => {
+        const d = new Date(it.record.timestamp);
+        const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        const nameWithoutExt = it.record.name.replace(/\.[^/.]+$/, '');
+        const encName = it.record.name.endsWith('.enc') ? it.record.name : `${nameWithoutExt}.enc`;
+        const sizeMb = formatSize(it.record.size);
+        return {
+          id: it.id,
+          name: encName,
+          size: sizeMb,
+          time: `Hoy ${timeStr}`,
+          previewUrl: it.record.category === 'photo' || it.record.category === 'video' ? it.blobUrl : null,
+          category: it.record.category,
+          realItem: it,
+        };
+      });
   }, [items]);
 
   // Track last back press timestamp for Double-Back-To-Exit on root
@@ -1530,18 +1563,31 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     };
   }, [items]);
 
-  // Filtered items
+  // Filtered items (aísla los elementos de Carpeta con PIN hasta que se desbloquee con su PIN de 4 dígitos)
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      if (activeTab === 'favorites') {
-        if (!item.record.isFavorite) return false;
-      } else if (activeTab !== 'all') {
-        if (item.record.category !== activeTab) return false;
+      const inExtraPinFolder = isExtraPinAlbum(item.record.album);
 
-        // Subfolder filter
-        if (activeSubfolder !== null) {
-          const itemAlbum = item.record.album || 'General';
-          if (itemAlbum !== activeSubfolder) return false;
+      if (activeSubfolder === EXTRA_PIN_FOLDER_NAME) {
+        if (!isExtraPinUnlocked) return false;
+        if (!inExtraPinFolder) return false;
+        if (activeTab !== 'all' && activeTab !== 'favorites' && item.record.category !== activeTab) {
+          return false;
+        }
+      } else {
+        // Fuera de la Carpeta con PIN, nunca exponer sus archivos en búsquedas, favoritos ni vistas generales
+        if (inExtraPinFolder) return false;
+
+        if (activeTab === 'favorites') {
+          if (!item.record.isFavorite) return false;
+        } else if (activeTab !== 'all') {
+          if (item.record.category !== activeTab) return false;
+
+          // Subfolder filter
+          if (activeSubfolder !== null) {
+            const itemAlbum = item.record.album || 'General';
+            if (itemAlbum !== activeSubfolder) return false;
+          }
         }
       }
 
@@ -1555,7 +1601,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
       return true;
     });
-  }, [items, activeTab, activeSubfolder, searchQuery]);
+  }, [items, activeTab, activeSubfolder, searchQuery, isExtraPinUnlocked]);
 
   // PRUEBA DE FECHA: Formateo de fecha para agrupación cronológica
   const formatDateGroupLabel = (timestamp: number): string => {
@@ -2887,6 +2933,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 {/* Lista Vertical de Subcarpetas */}
                 <div className="flex flex-col gap-2.5">
                   {listaCarpetas.map((carpeta) => {
+                    const isExtraPin = carpeta.id === EXTRA_PIN_FOLDER_NAME || isExtraPinAlbum(carpeta.id);
                     const cantidadArchivos = items.filter((it) => {
                       const coincideCategoria =
                         activeTab === 'favorites'
@@ -2901,27 +2948,56 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                     return (
                       <div
                         key={carpeta.id}
-                        onClick={() => setCarpetaActiva(carpeta.id)}
+                        onClick={() => {
+                          if (isExtraPin) {
+                            setShowExtraPinModal(true);
+                          } else {
+                            setCarpetaActiva(carpeta.id);
+                          }
+                        }}
                         className="group relative bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-800 hover:border-zinc-700/80 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between text-left transition-all duration-200 active:scale-[0.99] cursor-pointer shadow-md backdrop-blur-sm"
                       >
                         <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                          {/* Icono de carpeta estilizado en ámbar suave */}
-                          <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                            <Folder size={22} strokeWidth={1.5} className="text-amber-400/90" />
-                          </div>
+                          {isExtraPin ? (
+                            <div
+                              className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl border flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform"
+                              style={{
+                                backgroundColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 12%, transparent)',
+                                borderColor: 'color-mix(in srgb, var(--theme-primary, #00e5ff) 30%, transparent)',
+                                color: 'var(--theme-primary, #00e5ff)',
+                              }}
+                            >
+                              <Lock size={21} strokeWidth={1.8} />
+                            </div>
+                          ) : (
+                            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                              <Folder size={22} strokeWidth={1.5} className="text-amber-400/90" />
+                            </div>
+                          )}
 
                           <div className="min-w-0 flex-1">
                             <h3 className="text-sm sm:text-base font-semibold text-zinc-100 group-hover:text-white truncate transition-colors">
                               {carpeta.nombre}
                             </h3>
-                            <p className="text-xs text-zinc-500 mt-0.5 font-mono">
-                              {cantidadArchivos} {cantidadArchivos === 1 ? 'archivo' : 'archivos'}
-                            </p>
+                            {isExtraPin ? (
+                              <p
+                                className="text-xs mt-0.5 font-medium truncate"
+                                style={{ color: 'var(--theme-primary, #00e5ff)' }}
+                              >
+                                {extraPinConfiguredState
+                                  ? 'Protegida con PIN de 4 dígitos · Toca para abrir'
+                                  : 'Toca para configurar tu PIN extra de 4 dígitos'}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-zinc-500 mt-0.5 font-mono">
+                                {cantidadArchivos} {cantidadArchivos === 1 ? 'archivo' : 'archivos'}
+                              </p>
+                            )}
                           </div>
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0 ml-3">
-                          {carpeta.id !== 'General' && (
+                          {carpeta.id !== 'General' && !isExtraPin && (
                             <div
                               className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity"
                               onClick={(e) => e.stopPropagation()}
@@ -3998,6 +4074,31 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           onRename={handleRenameFolder}
         />
       )}
+
+      {/* Modal de PIN Extra de 4 dígitos para abrir o crear la Carpeta con PIN */}
+      <ExtraPinModal
+        isOpen={showExtraPinModal}
+        mode={extraPinConfiguredState ? 'unlock' : 'setup'}
+        categoryLabel={
+          activeCategory === 'photo'
+            ? 'Fotos'
+            : activeCategory === 'video'
+            ? 'Videos'
+            : activeCategory === 'audio'
+            ? 'Audios'
+            : activeCategory === 'document'
+            ? 'Documentos'
+            : 'Aplicaciones'
+        }
+        mainVaultPin={sessionPin}
+        onClose={() => setShowExtraPinModal(false)}
+        onSuccess={() => {
+          setExtraPinConfiguredState(true);
+          setIsExtraPinUnlocked(true);
+          setShowExtraPinModal(false);
+          setCarpetaActiva(EXTRA_PIN_FOLDER_NAME);
+        }}
+      />
     </div>
   );
 };

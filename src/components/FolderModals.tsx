@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Folder, FolderPlus, X, Check, ArrowRight, Trash2, Edit2 } from 'lucide-react';
+import { Folder, FolderPlus, X, Check, ArrowRight, Trash2, Edit2, Lock } from 'lucide-react';
 
 import { VaultItemCategory } from '../db/vaultDb';
+import { EXTRA_PIN_FOLDER_NAME, isExtraPinAlbum } from '../services/extraPinFolderService';
 
 interface CreateFolderModalProps {
   isOpen: boolean;
@@ -41,7 +42,10 @@ export function CreateFolderModal({
       setError('El nombre de la carpeta no puede estar vacío');
       return;
     }
-    if (existingFolders.some((f) => f.toLowerCase() === trimmed.toLowerCase())) {
+    if (
+      isExtraPinAlbum(trimmed) ||
+      existingFolders.some((f) => f.toLowerCase() === trimmed.toLowerCase())
+    ) {
       setError('Ya existe una carpeta con este nombre');
       return;
     }
@@ -163,8 +167,9 @@ export function RenameFolderModal({
       return;
     }
     if (
-      trimmed.toLowerCase() !== currentFolderName.toLowerCase() &&
-      existingFolders.some((f) => f.toLowerCase() === trimmed.toLowerCase())
+      isExtraPinAlbum(trimmed) ||
+      (trimmed.toLowerCase() !== currentFolderName.toLowerCase() &&
+        existingFolders.some((f) => f.toLowerCase() === trimmed.toLowerCase()))
     ) {
       setError('Ya existe otra carpeta con este nombre');
       return;
@@ -300,6 +305,7 @@ export function MoveToFolderModal({
         <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1 no-scrollbar">
           {folders.map((folder) => {
             const isCurrent = currentFolder === folder;
+            const isExtraPin = folder === EXTRA_PIN_FOLDER_NAME || isExtraPinAlbum(folder);
             return (
               <button
                 key={folder}
@@ -315,12 +321,20 @@ export function MoveToFolderModal({
                 }`}
               >
                 <div className="flex items-center gap-2.5 truncate">
-                  <Folder className={`w-4 h-4 shrink-0 ${isCurrent ? 'text-amber-400' : 'text-zinc-500'}`} />
+                  {isExtraPin ? (
+                    <Lock className="w-4 h-4 shrink-0 text-[#00e5ff]" />
+                  ) : (
+                    <Folder className={`w-4 h-4 shrink-0 ${isCurrent ? 'text-amber-400' : 'text-zinc-500'}`} />
+                  )}
                   <span className="text-xs truncate">{folder}</span>
                 </div>
                 {isCurrent ? (
                   <span className="text-[10px] text-amber-400 font-mono bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 shrink-0">
                     Actual
+                  </span>
+                ) : isExtraPin ? (
+                  <span className="text-[10px] text-[#00e5ff] font-semibold shrink-0">
+                    PIN extra
                   </span>
                 ) : (
                   <ArrowRight className="w-3.5 h-3.5 text-zinc-600 shrink-0" />

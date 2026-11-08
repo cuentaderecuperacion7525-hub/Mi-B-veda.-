@@ -31,6 +31,7 @@ import {
   Loader2,
   Cloud,
   Share2,
+  QrCode,
 } from 'lucide-react';
 import { updateService, UpdateCheckResult } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
@@ -99,6 +100,7 @@ import {
 } from '../services/biometricService';
 import { registerBackHandler, triggerBackAction } from '../services/backButtonService';
 import { formatFileSize } from '../utils/formatUtils';
+import { DeviceMigrationWizardModal } from './DeviceMigrationWizardModal';
 
 interface SettingsVaultViewProps {
   masterKey: CryptoKey | null;
@@ -141,6 +143,8 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     }
     return null;
   });
+
+  const [showMigrationWizard, setShowMigrationWizard] = useState(false);
 
   // Theme state
   const [currentTheme, setCurrentTheme] = useState<VaultTheme>(() => themeService.getTheme());
@@ -1282,6 +1286,29 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             </div>
           </div>
 
+          {/* Tarjeta 2: Migrar a otro celular con Asistente o Código QR */}
+          <div
+            onClick={() => setShowMigrationWizard(true)}
+            className="bg-[#0a121d] border border-slate-800/90 hover:border-cyan-500/40 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer group active:scale-[0.99] transition-all"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-[#00e5ff]/10 border border-[#00e5ff]/25 flex items-center justify-center text-[#00e5ff] shrink-0 group-hover:scale-105 transition-transform">
+                <QrCode className="w-4.5 h-4.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-white group-hover:text-[#00e5ff] transition-colors truncate">
+                  Migrar a otro celular
+                </h3>
+                <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                  Asistente paso a paso con Código QR y respaldo cifrado
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-slate-900 border border-slate-800 text-slate-500 group-hover:text-[#00e5ff] group-hover:border-[#00e5ff]/40 transition-colors">
+              <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </div>
+
           {/* Tarjeta 3: Papelera de Reciclaje Cifrada (30 días) */}
           <div
             onClick={() => setActiveSubMenu('trash')}
@@ -1390,6 +1417,31 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         >
         {activeSubMenu === 'backup' && (
           <div className="space-y-4">
+            {/* Tarjeta de Asistente de Migración a otro celular con Código QR */}
+            <div className="bg-[#0a121d] p-4 rounded-3xl border border-slate-800/90 shadow-xl space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-[#00e5ff]/10 text-[#00e5ff] rounded-2xl border border-[#00e5ff]/20">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div>
+                  <h5 className="text-xs font-semibold text-slate-200">Migrar a otro celular (Asistente + QR)</h5>
+                  <p className="text-[11px] text-slate-400">
+                    Transfiere toda tu bóveda y tu Carpeta con PIN hacia un teléfono nuevo con guía paso a paso y código QR.
+                  </p>
+                </div>
+              </div>
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowMigrationWizard(true)}
+                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-slate-100 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 border border-slate-700/80 active:scale-[0.98] cursor-pointer"
+                >
+                  <QrCode className="w-4 h-4 text-[#00e5ff] shrink-0" />
+                  <span>Abrir asistente de migración con QR</span>
+                </button>
+              </div>
+            </div>
+
             <div className="bg-[#0a121d] p-4 rounded-3xl border border-slate-800/90 shadow-xl space-y-3">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-[#00e5ff]/10 text-[#00e5ff] rounded-2xl border border-[#00e5ff]/20">
@@ -2163,6 +2215,17 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         onClose={() => setShowChangelogModal(false)}
         updateInfo={updateCheckResult}
         viewNotesOnly={!updateCheckResult?.hasUpdate}
+      />
+
+      {/* Modal del Asistente de Migración a otro celular con Código QR */}
+      <DeviceMigrationWizardModal
+        isOpen={showMigrationWizard}
+        onClose={() => setShowMigrationWizard(false)}
+        masterKey={masterKey}
+        sessionPin={sessionPin}
+        onMasterKeyUpdated={onMasterKeyUpdated}
+        onPhotosUpdated={onPhotosUpdated}
+        showToast={showToast}
       />
     </div>
   );

@@ -53,6 +53,8 @@ import { themeService, VaultTheme } from '../services/themeService';
 import { PinKeypad } from './PinKeypad';
 import { NeonSwitch } from './NeonSwitch';
 import { getAllEncryptedItems, saveEncryptedItems, EncryptedVaultItem } from '../db/vaultDb';
+import { isExtraPinConfigured } from '../services/extraPinFolderService';
+import { ExtraPinModal } from './ExtraPinModal';
 
 interface SecurityVaultViewProps {
   onOpenSettings: () => void;
@@ -185,6 +187,8 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
 
   // Change PIN states
   const [showChangePinScreen, setShowChangePinScreen] = useState(false);
+  const [showExtraPinChangeModal, setShowExtraPinChangeModal] = useState(false);
+  const [extraPinConfigured, setExtraPinConfigured] = useState<boolean>(() => isExtraPinConfigured());
   const [focusedPinField, setFocusedPinField] = useState<'current' | 'new' | 'confirm' | null>('new');
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -1079,6 +1083,33 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                 </h4>
                 <p className="text-xs text-slate-400">
                   Actualiza el código con el que desbloqueas tu bóveda
+                </p>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-slate-800/60 border border-slate-700/70 flex items-center justify-center text-slate-400 group-hover:text-[#00e5ff] group-hover:border-[#00e5ff]/40 transition-all shrink-0">
+              <ChevronRight className="w-4 h-4 stroke-[2.2] group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </button>
+
+          {/* Configurar / Cambiar PIN de Carpeta con PIN (4 dígitos) */}
+          <button
+            type="button"
+            onClick={() => setShowExtraPinChangeModal(true)}
+            aria-label="PIN de Carpeta con PIN"
+            className="w-full flex items-center justify-between pt-3 border-t border-slate-800/80 text-left cursor-pointer group active:scale-[0.99] transition-transform"
+          >
+            <div className="flex items-center gap-3 min-w-0 pr-2 flex-1">
+              <div className="w-10 h-10 rounded-xl bg-[#00e5ff]/10 border border-[#00e5ff]/20 flex items-center justify-center text-[#00e5ff] shrink-0">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-white group-hover:text-[#00e5ff] transition-colors">
+                  PIN de Carpeta con PIN
+                </h4>
+                <p className="text-xs text-slate-400">
+                  {extraPinConfigured
+                    ? 'PIN extra de 4 dígitos activo en tus carpetas · Toca para cambiarlo'
+                    : 'Configura un PIN extra de 4 dígitos para tus carpetas más delicadas'}
                 </p>
               </div>
             </div>
@@ -2350,6 +2381,20 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal para configurar o cambiar el PIN de 4 dígitos de Carpeta con PIN */}
+      <ExtraPinModal
+        isOpen={showExtraPinChangeModal}
+        mode="change"
+        categoryLabel="Seguridad"
+        mainVaultPin={sessionPin}
+        onClose={() => setShowExtraPinChangeModal(false)}
+        onSuccess={() => {
+          setExtraPinConfigured(true);
+          setShowExtraPinChangeModal(false);
+          showToast('PIN de Carpeta con PIN guardado correctamente', 'success');
+        }}
+      />
     </div>
   );
 };
