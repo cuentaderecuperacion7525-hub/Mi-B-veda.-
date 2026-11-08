@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, 
   RefreshCw, 
@@ -36,6 +36,31 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
   const [downloadSize, setDownloadSize] = useState<string>('');
   const [isComplete, setIsComplete] = useState<boolean>(false);
   const [showFullChangelog, setShowFullChangelog] = useState(!viewNotesOnly);
+  const [dynamicNotes, setDynamicNotes] = useState<{ fecha: string; cambios: string[] }>({
+    fecha: CURRENT_RELEASE_DATE,
+    cambios: CURRENT_CHANGELOG,
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch('novedades.json', { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error('No se pudo cargar novedades.json');
+        return res.json();
+      })
+      .then((data) => {
+        if (data && Array.isArray(data.cambios)) {
+          const list = data.cambios.map((c: any) =>
+            c.titulo ? `${c.titulo}: ${c.texto}` : c.texto || ''
+          ).filter(Boolean);
+          setDynamicNotes({
+            fecha: typeof data.fecha === 'string' ? data.fecha : CURRENT_RELEASE_DATE,
+            cambios: list.length > 0 ? list : ['Mejoras de estabilidad y rendimiento'],
+          });
+        }
+      })
+      .catch(() => {});
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -44,10 +69,12 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
     : (updateInfo?.latestVersion || CURRENT_APP_VERSION);
 
   const releaseDate = viewNotesOnly 
-    ? CURRENT_RELEASE_DATE 
-    : (updateInfo?.releaseDate || CURRENT_RELEASE_DATE);
+    ? (dynamicNotes.fecha || CURRENT_RELEASE_DATE)
+    : (updateInfo?.releaseDate || dynamicNotes.fecha || CURRENT_RELEASE_DATE);
 
-  const changelog = (viewNotesOnly ? CURRENT_CHANGELOG : updateInfo?.changelog) || CURRENT_CHANGELOG;
+  const changelog = viewNotesOnly
+    ? (dynamicNotes.cambios.length > 0 ? dynamicNotes.cambios : CURRENT_CHANGELOG)
+    : (updateInfo?.changelog && updateInfo.changelog.length > 0 ? updateInfo.changelog : dynamicNotes.cambios);
 
   const handleApplyUpdate = async () => {
     setIsApplying(true);

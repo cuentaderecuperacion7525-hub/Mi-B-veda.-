@@ -2,12 +2,20 @@
   "fecha": "7 de noviembre de 2026",
   "cambios": [
     {
-      "titulo": "Perfil de usuario",
-      "texto": "Nuevo diseño oscuro en Editar Perfil."
+      "titulo": "Carpeta con PIN extra",
+      "texto": "Nueva carpeta segura protegida por un PIN independiente de 4 dígitos disponible en Fotos, Videos, Audios, Aplicaciones y Documentos."
     },
     {
-      "titulo": "Recuperación de PIN segura",
-      "texto": "Validación inmediata del correo."
+      "titulo": "Migración con Código QR",
+      "texto": "Asistente paso a paso para transferir toda tu bóveda y configuraciones a un celular nuevo de forma inalámbrica."
+    },
+    {
+      "titulo": "Bloqueo inteligente",
+      "texto": "Actualizado a bloqueo inmediato al salir de la app para mayor privacidad."
+    },
+    {
+      "titulo": "Diseño visual inmersivo",
+      "texto": "Fondo degradado oscuro con destellos ambientales integrado en la pantalla de PIN y desbloqueo."
     }
   ]
 }

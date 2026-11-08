@@ -1,2 +1,4 @@
-- Perfil de usuario: Nuevo diseño oscuro en Editar Perfil.
-- Recuperación de PIN segura: Validación inmediata del correo.
+- Carpeta con PIN extra: Nueva carpeta segura protegida por un PIN independiente de 4 dígitos disponible en Fotos, Videos, Audios, Aplicaciones y Documentos.
+- Migración con Código QR: Asistente paso a paso para transferir toda tu bóveda y configuraciones a un celular nuevo de forma inalámbrica.
+- Bloqueo inteligente: Actualizado a bloqueo inmediato al salir de la app para mayor privacidad.
+- Diseño visual inmersivo: Fondo degradado oscuro con destellos ambientales integrado en la pantalla de PIN y desbloqueo.

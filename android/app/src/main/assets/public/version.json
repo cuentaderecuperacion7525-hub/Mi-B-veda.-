@@ -6,7 +6,10 @@
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Mi-B-veda.-/releases/latest/download/Boveda-Calculadora.apk",
   "releaseDate": "7 de noviembre de 2026",
   "changelog": [
-    "Mejoras de estabilidad y rendimiento"
+    "Carpeta con PIN extra: Nueva carpeta segura protegida por un PIN independiente de 4 dígitos disponible en Fotos, Videos, Audios, Aplicaciones y Documentos.",
+    "Migración con Código QR: Asistente paso a paso para transferir toda tu bóveda y configuraciones a un celular nuevo de forma inalámbrica.",
+    "Bloqueo inteligente: Actualizado a bloqueo inmediato al salir de la app para mayor privacidad.",
+    "Diseño visual inmersivo: Fondo degradado oscuro con destellos ambientales integrado en la pantalla de PIN y desbloqueo."
   ],
   "mandatory": false
 }

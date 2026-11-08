@@ -56,6 +56,22 @@ function generarNovedades() {
   fs.mkdirSync(path.dirname(outputJsonPath), { recursive: true });
   fs.writeFileSync(outputJsonPath, JSON.stringify(resultado, null, 2) + '\n', 'utf8');
   console.log(`Generado ${outputJsonPath} con ${cambios.length} novedad(es) (${resultado.fecha}).`);
+
+  // También sincronizar public/version.json para que cualquier comprobador de versión tenga las mismas novedades
+  const versionJsonPath = path.join(rootDir, 'public', 'version.json');
+  if (fs.existsSync(versionJsonPath)) {
+    try {
+      const vJson = JSON.parse(fs.readFileSync(versionJsonPath, 'utf8'));
+      vJson.releaseDate = resultado.fecha;
+      vJson.changelog = cambios.length > 0
+        ? cambios.map((c) => (c.titulo ? `${c.titulo}: ${c.texto}` : c.texto))
+        : ['Mejoras de estabilidad y rendimiento'];
+      fs.writeFileSync(versionJsonPath, JSON.stringify(vJson, null, 2) + '\n', 'utf8');
+      console.log(`Sincronizado ${versionJsonPath} con las novedades actuales.`);
+    } catch (e) {
+      console.warn('No se pudo actualizar version.json:', e);
+    }
+  }
 }
 
 generarNovedades();
