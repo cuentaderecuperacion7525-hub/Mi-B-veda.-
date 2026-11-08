@@ -1417,31 +1417,6 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
         >
         {activeSubMenu === 'backup' && (
           <div className="space-y-4">
-            {/* Tarjeta de Asistente de Migración a otro celular con Código QR */}
-            <div className="bg-[#0a121d] p-4 rounded-3xl border border-slate-800/90 shadow-xl space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-[#00e5ff]/10 text-[#00e5ff] rounded-2xl border border-[#00e5ff]/20">
-                  <QrCode className="w-5 h-5" />
-                </div>
-                <div>
-                  <h5 className="text-xs font-semibold text-slate-200">Migrar a otro celular (Asistente + QR)</h5>
-                  <p className="text-[11px] text-slate-400">
-                    Transfiere toda tu bóveda y tu Carpeta con PIN hacia un teléfono nuevo con guía paso a paso y código QR.
-                  </p>
-                </div>
-              </div>
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowMigrationWizard(true)}
-                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-slate-100 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 border border-slate-700/80 active:scale-[0.98] cursor-pointer"
-                >
-                  <QrCode className="w-4 h-4 text-[#00e5ff] shrink-0" />
-                  <span>Abrir asistente de migración con QR</span>
-                </button>
-              </div>
-            </div>
-
             <div className="bg-[#0a121d] p-4 rounded-3xl border border-slate-800/90 shadow-xl space-y-3">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-[#00e5ff]/10 text-[#00e5ff] rounded-2xl border border-[#00e5ff]/20">
