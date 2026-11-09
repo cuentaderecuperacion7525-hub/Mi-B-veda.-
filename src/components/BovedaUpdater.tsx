@@ -121,7 +121,11 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
         setStatus(`Nueva versión v${res.latestVersion} lista para instalar.`);
       } else {
         setUpdateAvailable(false);
-        setStatus('');
+        if (esManual) {
+          setStatus(`Comprobación completada: Tu aplicación ya cuenta con la versión más reciente (v${nombreActual || CURRENT_APP_VERSION}). No hay nuevas versiones en el servidor.`);
+        } else {
+          setStatus('');
+        }
       }
     } catch (error: any) {
       setUpdateAvailable(false);

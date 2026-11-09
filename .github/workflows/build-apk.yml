@@ -46,38 +46,80 @@ jobs:
           echo "BUILD_NUM=$BUILD_NUM" >> $GITHUB_ENV
           node -e "
             const fs = require('fs');
-            let targetVersion = '1.0.0';
-            let existingChangelog = [];
+            const repo = process.env.GITHUB_REPOSITORY || 'cuentaderecuperacion7525-hub/Mi-B-veda.-';
+            const buildNum = parseInt(process.env.BUILD_NUM || '167', 10);
+
+            // Baseline: la ejecución 166 correspondió a v1.0.0.
+            // A partir de ahí, cada nueva ejecución incrementa automáticamente la versión patch:
+            // Ejecución 167 -> 1.0.1 (código 2001)
+            // Ejecución 168 -> 1.0.2 (código 2002), etc.
+            let patch = Math.max(1, buildNum - 166);
+            let targetVersion = '1.0.' + patch;
+            let targetCode = 2000 + patch;
+
             try {
               const currentJson = JSON.parse(fs.readFileSync('public/version.json', 'utf8'));
               if (currentJson.version_name || currentJson.version) {
-                targetVersion = (currentJson.version_name || currentJson.version).replace(/^v/, '');
-              }
-              if (Array.isArray(currentJson.changelog) && currentJson.changelog.length > 0) {
-                existingChangelog = currentJson.changelog;
+                const manualVer = (currentJson.version_name || currentJson.version).replace(/^v/, '');
+                const parts = manualVer.split('.').map(Number);
+                if (parts.length === 3 && !isNaN(parts[2]) && parts[2] > patch) {
+                  patch = parts[2];
+                  targetVersion = manualVer;
+                  targetCode = 2000 + patch;
+                }
               }
             } catch (e) {}
 
             const newVersionName = targetVersion;
-            const newVersionCode = 1;
-            const repo = process.env.GITHUB_REPOSITORY || 'cuentaderecuperacion7525-hub/Mi-B-veda.-';
+            const newVersionCode = targetCode;
+            const releaseDate = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
 
-            if (existingChangelog.length === 0) {
-              existingChangelog = [
-                'Lanzamiento oficial v1.0.0 de Bóveda Segura con suite de protección completa.'
-              ];
-            }
+            const changelog = [
+              'Actualización v' + newVersionName + ': Mejoras de rendimiento, interfaz y seguridad en Bóveda Privada.',
+              'Cifrado militar local: Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones.',
+              'Visor de documentos y reproductor de audio con reproducción en segundo plano.',
+              'Carpeta con PIN extra independiente para máxima privacidad.'
+            ];
+
             const data = {
               version: newVersionName,
               version_name: newVersionName,
               buildNumber: newVersionCode,
               version_code: newVersionCode,
               download_url: 'https://github.com/' + repo + '/releases/latest/download/Boveda-Calculadora.apk',
-              releaseDate: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }),
-              changelog: existingChangelog,
+              releaseDate: releaseDate,
+              changelog: changelog,
               mandatory: false
             };
             fs.writeFileSync('public/version.json', JSON.stringify(data, null, 2));
+
+            // Sincronizar novedades.json para concordancia 100% de títulos y textos
+            const novedadesData = {
+              fecha: releaseDate,
+              cambios: [
+                {
+                  titulo: 'Actualización v' + newVersionName,
+                  texto: 'Mejoras continuas de rendimiento, interfaz y seguridad en Bóveda Privada.'
+                },
+                {
+                  titulo: 'Cifrado militar local',
+                  texto: 'Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones.'
+                },
+                {
+                  titulo: 'Visor de documentos PDF',
+                  texto: 'Renderizado local por canvas con desplazamiento continuo y carga perezosa.'
+                },
+                {
+                  titulo: 'Reproductor de audio',
+                  texto: 'Sonido de fondo, marquesina continua y soporte de carátulas ID3.'
+                },
+                {
+                  titulo: 'Carpeta con PIN extra',
+                  texto: 'Nueva carpeta segura protegida por un PIN independiente de 4 dígitos.'
+                }
+              ]
+            };
+            fs.writeFileSync('public/novedades.json', JSON.stringify(novedadesData, null, 2));
 
             const tsCode = 'export interface VersionInfo {\n  version: string;\n  buildNumber: number;\n  releaseDate: string;\n  changelog: string[];\n  mandatory?: boolean;\n}\n\n' +
               'export const CURRENT_APP_VERSION = \'' + newVersionName + '\';\n' +
@@ -151,5 +193,6 @@ jobs:
             apk-output/Boveda-Calculadora-v${{ env.NEW_VERSION_NAME }}.apk
             apk-output/Boveda-Calculadora.apk
             public/version.json
+            public/novedades.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
