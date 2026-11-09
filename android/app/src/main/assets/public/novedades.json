@@ -1,21 +1,25 @@
 {
-  "fecha": "8 de noviembre de 2026",
+  "fecha": "9 de noviembre de 2026",
   "cambios": [
     {
+      "titulo": "Lanzamiento oficial",
+      "texto": "Versión 1.0.0 de Bóveda Segura con suite de protección completa."
+    },
+    {
+      "titulo": "Cifrado militar local",
+      "texto": "Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones."
+    },
+    {
+      "titulo": "Visor de documentos PDF",
+      "texto": "Renderizado local por canvas con desplazamiento continuo y carga perezosa."
+    },
+    {
+      "titulo": "Reproductor de audio",
+      "texto": "Sonido de fondo, marquesina continua y soporte de carátulas ID3."
+    },
+    {
       "titulo": "Carpeta con PIN extra",
-      "texto": "Nueva carpeta segura protegida por un PIN independiente de 4 dígitos disponible en Fotos, Videos, Audios, Aplicaciones y Documentos."
-    },
-    {
-      "titulo": "Migración con Código QR",
-      "texto": "Asistente paso a paso para transferir toda tu bóveda y configuraciones a un celular nuevo de forma inalámbrica."
-    },
-    {
-      "titulo": "Bloqueo inteligente",
-      "texto": "Actualizado a bloqueo inmediato al salir de la app para mayor privacidad."
-    },
-    {
-      "titulo": "Diseño visual inmersivo",
-      "texto": "Fondo degradado oscuro con destellos ambientales integrado en la pantalla de PIN y desbloqueo."
+      "texto": "Nueva carpeta segura protegida por un PIN independiente de 4 dígitos."
     }
   ]
 }
