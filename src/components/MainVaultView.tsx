@@ -61,6 +61,7 @@ import {
   batchRenameAlbum,
   detectCategory,
   VaultItemCategory,
+  calculateVaultCategoryStats,
 } from '../db/vaultDb';
 import {
   encryptBuffer,
@@ -1645,63 +1646,18 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     }
   };
 
-  // Counts and sizes by category
+  // Counts and sizes by category (sincronizado dinámicamente con vaultDb)
   const counts = useMemo(() => {
-    let photos = 0;
-    let videos = 0;
-    let audios = 0;
-    let apps = 0;
-    let documents = 0;
-    let favs = 0;
-    let totalBytes = 0;
-    let photoBytes = 0;
-    let videoBytes = 0;
-    let audioBytes = 0;
-    let appBytes = 0;
-    let documentBytes = 0;
-
-    items.forEach((item) => {
-      const sz = item.record.size || 0;
-      totalBytes += sz;
-      if (item.record.category === 'photo') {
-        photos++;
-        photoBytes += sz;
-      } else if (item.record.category === 'video') {
-        videos++;
-        videoBytes += sz;
-      } else if (item.record.category === 'audio') {
-        audios++;
-        audioBytes += sz;
-      } else if (item.record.category === 'document') {
-        documents++;
-        documentBytes += sz;
-      } else {
-        apps++;
-        appBytes += sz;
-      }
-
-      if (item.record.isFavorite) favs++;
-    });
+    const stats = calculateVaultCategoryStats(items.map((it) => it.record));
 
     return {
-      photos,
-      videos,
-      audios,
-      apps,
-      documents,
-      favs,
-      totalBytes,
-      photoBytes,
-      videoBytes,
-      audioBytes,
-      appBytes,
-      documentBytes,
-      totalMB: (totalBytes / (1024 * 1024)).toFixed(1),
-      photoSize: formatSize(photoBytes),
-      videoSize: formatSize(videoBytes),
-      audioSize: formatSize(audioBytes),
-      appSize: formatSize(appBytes),
-      documentSize: formatSize(documentBytes),
+      ...stats,
+      totalMB: (stats.totalBytes / (1024 * 1024)).toFixed(1),
+      photoSize: formatSize(stats.photoBytes),
+      videoSize: formatSize(stats.videoBytes),
+      audioSize: formatSize(stats.audioBytes),
+      appSize: formatSize(stats.appBytes),
+      documentSize: formatSize(stats.documentBytes),
     };
   }, [items]);
 

@@ -44,6 +44,12 @@ import { themeService, VaultTheme } from '../services/themeService';
 import { CURRENT_APP_VERSION as APP_VERSION } from '../version';
 import { formatSize } from '../utils/formatUtils';
 import { getNativeDeviceStorage } from '../services/nativeVaultBridge';
+import {
+  getVaultStats,
+  VAULT_CATEGORIES_ORDER,
+  VAULT_CATEGORY_META,
+  VaultCategoryStat,
+} from '../db/vaultDb';
 
 interface ProfileVaultViewProps {
   counts: {
@@ -58,6 +64,7 @@ interface ProfileVaultViewProps {
     audioBytes?: number;
     appBytes?: number;
     documentBytes?: number;
+    categories?: VaultCategoryStat[];
   };
   showToast: (message: string, type?: 'info' | 'success' | 'alert' | 'error') => void;
   onOpenSettings?: () => void;
@@ -132,7 +139,13 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     };
   }, []);
 
-  // Consultar espacio de almacenamiento real del dispositivo (Android nativo StatFs con fallback a Web)
+  const [dbCategoryStats, setDbCategoryStats] = useState<{
+    totalItems: number;
+    totalBytes: number;
+    categories: VaultCategoryStat[];
+  } | null>(null);
+
+  // Consultar espacio de almacenamiento real del dispositivo y sincronizar categorías de vaultDb
   useEffect(() => {
     let isMounted = true;
     getNativeDeviceStorage().then((storage) => {
@@ -141,10 +154,34 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
         setDeviceStorage({ freeBytes: storage.free, totalQuotaBytes: storage.quota });
       }
     }).catch(() => {});
+
+    const syncFromDb = () => {
+      getVaultStats()
+        .then((stats) => {
+          if (!isMounted) return;
+          setDbCategoryStats({
+            totalItems: stats.count,
+            totalBytes: stats.totalBytes,
+            categories: stats.categories,
+          });
+        })
+        .catch(() => {});
+    };
+
+    syncFromDb();
+    window.addEventListener('vault_trash_updated', syncFromDb);
     return () => {
       isMounted = false;
+      window.removeEventListener('vault_trash_updated', syncFromDb);
     };
-  }, [counts.totalBytes]);
+  }, [
+    counts.totalBytes,
+    counts.photos,
+    counts.videos,
+    counts.audios,
+    counts.apps,
+    counts.documents,
+  ]);
 
   const openEditModal = () => {
     if (profile) {
@@ -311,7 +348,47 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     }
   };
 
-  const totalItems = counts.photos + counts.videos + counts.audios + counts.apps + (counts.documents || 0);
+  // Lista dinámica de carpetas/categorías sincronizada con MainVaultView y vaultDb
+  const dynamicCategories: VaultCategoryStat[] =
+    counts.categories && counts.categories.length > 0
+      ? counts.categories
+      : dbCategoryStats?.categories && dbCategoryStats.categories.length > 0
+      ? dbCategoryStats.categories
+      : VAULT_CATEGORIES_ORDER.map((catId) => {
+          const meta = VAULT_CATEGORY_META[catId];
+          const count =
+            catId === 'photo'
+              ? counts.photos || 0
+              : catId === 'video'
+              ? counts.videos || 0
+              : catId === 'audio'
+              ? counts.audios || 0
+              : catId === 'app'
+              ? counts.apps || 0
+              : counts.documents || 0;
+          const bytes =
+            catId === 'photo'
+              ? counts.photoBytes || 0
+              : catId === 'video'
+              ? counts.videoBytes || 0
+              : catId === 'audio'
+              ? counts.audioBytes || 0
+              : catId === 'app'
+              ? counts.appBytes || 0
+              : counts.documentBytes || 0;
+          return {
+            id: catId,
+            ...meta,
+            count,
+            bytes,
+          };
+        });
+
+  const totalItems = dynamicCategories.reduce((acc, cat) => acc + cat.count, 0);
+  const totalVaultBytes =
+    counts.totalBytes > 0
+      ? counts.totalBytes
+      : dynamicCategories.reduce((acc, cat) => acc + cat.bytes, 0);
   const initials = userProfileService.getInitials(profile);
 
   // Formato estricto en "MB" para todas las categorías de la bóveda
@@ -365,7 +442,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   const freeDeviceBytes = deviceStorage?.freeBytes || 0;
   const totalDeviceQuota = deviceStorage?.totalQuotaBytes || 0;
   const calculatedVaultPct = totalDeviceQuota > 0
-    ? (counts.totalBytes / totalDeviceQuota) * 100
+    ? (totalVaultBytes / totalDeviceQuota) * 100
     : 0;
   // Franja mínima visible si la bóveda tiene contenido
   const vaultBarWidthPct = totalItems > 0 ? Math.max(3.5, Math.min(100, calculatedVaultPct)) : 0;
@@ -542,7 +619,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
             className="text-4xl sm:text-5xl font-black font-mono tracking-tight"
             style={{ color: 'var(--theme-primary, #60a5fa)' }}
           >
-            {formatStorageMB(counts.totalBytes)}
+            {formatStorageMB(totalVaultBytes)}
           </span>
         </div>
 
@@ -563,85 +640,41 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                   minWidth: totalItems > 0 ? '16px' : '0px',
                 }}
               >
-                {/* Segmento Fotos (Azul) */}
-                <div
-                  className="h-full bg-blue-500 transition-all duration-300"
-                  style={{
-                    width: `${Math.max(counts.totalBytes > 0 ? ((counts.photoBytes || 0) / counts.totalBytes) * 100 : 0, (counts.photoBytes || 0) > 0 ? 15 : 0)}%`,
-                  }}
-                />
-                {/* Segmento Videos (Púrpura) */}
-                <div
-                  className="h-full bg-purple-500 transition-all duration-300"
-                  style={{
-                    width: `${Math.max(counts.totalBytes > 0 ? ((counts.videoBytes || 0) / counts.totalBytes) * 100 : 0, (counts.videoBytes || 0) > 0 ? 15 : 0)}%`,
-                  }}
-                />
-                {/* Segmento Documentos (Ámbar / Naranja) */}
-                <div
-                  className="h-full bg-amber-500 transition-all duration-300"
-                  style={{
-                    width: `${Math.max(counts.totalBytes > 0 ? ((counts.documentBytes || 0) / counts.totalBytes) * 100 : 0, (counts.documentBytes || 0) > 0 ? 15 : 0)}%`,
-                  }}
-                />
-                {/* Segmento Audios (Verde esmeralda si existen) */}
-                {(counts.audioBytes || 0) > 0 && (
-                  <div
-                    className="h-full bg-emerald-500 transition-all duration-300"
-                    style={{
-                      width: `${(counts.totalBytes > 0 ? ((counts.audioBytes || 0) / counts.totalBytes) * 100 : 0)}%`,
-                    }}
-                  />
-                )}
-                {/* Segmento Apps (Cyan si existen) */}
-                {(counts.appBytes || 0) > 0 && (
-                  <div
-                    className="h-full bg-cyan-400 transition-all duration-300"
-                    style={{
-                      width: `${(counts.totalBytes > 0 ? ((counts.appBytes || 0) / counts.totalBytes) * 100 : 0)}%`,
-                    }}
-                  />
-                )}
+                {dynamicCategories
+                  .filter((cat) => cat.bytes > 0 || cat.count > 0)
+                  .map((cat) => {
+                    const rawPct =
+                      totalVaultBytes > 0 ? (cat.bytes / totalVaultBytes) * 100 : 0;
+                    const segmentPct = Math.max(rawPct, cat.bytes > 0 ? 15 : 8);
+                    return (
+                      <div
+                        key={cat.id}
+                        className={`h-full ${cat.barColorClass} transition-all duration-300`}
+                        style={{
+                          width: `${segmentPct}%`,
+                        }}
+                      />
+                    );
+                  })}
               </div>
             ) : (
               <div className="h-full w-0" />
             )}
           </div>
 
-          {/* Lista de categorías con puntos de color y tamaños en MB (idéntico a la captura) */}
+          {/* Lista dinámica de todas las carpetas/categorías de la bóveda (sincronizada con MainVaultView) */}
           <div className="space-y-3 pt-3.5 text-sm sm:text-base font-normal">
-            {/* Fotos */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="w-3 h-3 rounded-full bg-blue-500 shrink-0" />
-                <span style={{ color: 'var(--theme-text-main, #ffffff)' }}>Fotos</span>
+            {dynamicCategories.map((cat) => (
+              <div key={cat.id} className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className={`w-3 h-3 rounded-full ${cat.barColorClass} shrink-0`} />
+                  <span style={{ color: 'var(--theme-text-main, #ffffff)' }}>{cat.label}</span>
+                </div>
+                <span className="font-mono text-sm" style={{ color: 'var(--theme-text-muted, #cbd5e1)' }}>
+                  {formatStorageMB(cat.bytes)}
+                </span>
               </div>
-              <span className="font-mono text-sm" style={{ color: 'var(--theme-text-muted, #cbd5e1)' }}>
-                {formatStorageMB(counts.photoBytes || 0)}
-              </span>
-            </div>
-
-            {/* Videos */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="w-3 h-3 rounded-full bg-purple-500 shrink-0" />
-                <span style={{ color: 'var(--theme-text-main, #ffffff)' }}>Videos</span>
-              </div>
-              <span className="font-mono text-sm" style={{ color: 'var(--theme-text-muted, #cbd5e1)' }}>
-                {formatStorageMB(counts.videoBytes || 0)}
-              </span>
-            </div>
-
-            {/* Documentos */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0" />
-                <span style={{ color: 'var(--theme-text-main, #ffffff)' }}>Documentos</span>
-              </div>
-              <span className="font-mono text-sm" style={{ color: 'var(--theme-text-muted, #cbd5e1)' }}>
-                {formatStorageMB(counts.documentBytes || 0)}
-              </span>
-            </div>
+            ))}
 
             {/* Libre en el dispositivo (círculo gris con borde, sin relleno) */}
             <div className="flex items-center justify-between pt-1">

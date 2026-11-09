@@ -471,32 +471,167 @@ export async function clearVaultDatabase(): Promise<void> {
   });
 }
 
+export interface VaultCategoryStat {
+  id: VaultItemCategory;
+  label: string;
+  singularDesc: string;
+  pluralDesc: string;
+  count: number;
+  bytes: number;
+  dotColor: string;
+  barColorClass: string;
+}
+
+export const VAULT_CATEGORIES_ORDER: VaultItemCategory[] = [
+  'photo',
+  'video',
+  'audio',
+  'app',
+  'document',
+];
+
+export const VAULT_CATEGORY_META: Record<
+  VaultItemCategory,
+  {
+    label: string;
+    singularDesc: string;
+    pluralDesc: string;
+    dotColor: string;
+    barColorClass: string;
+  }
+> = {
+  photo: {
+    label: 'Fotos',
+    singularDesc: 'foto cifrada',
+    pluralDesc: 'fotos cifradas',
+    dotColor: '#3b82f6',
+    barColorClass: 'bg-blue-500',
+  },
+  video: {
+    label: 'Videos',
+    singularDesc: 'video cifrado',
+    pluralDesc: 'videos cifrados',
+    dotColor: '#a855f7',
+    barColorClass: 'bg-purple-500',
+  },
+  audio: {
+    label: 'Audios',
+    singularDesc: 'audio cifrado',
+    pluralDesc: 'audios cifrados',
+    dotColor: '#10b981',
+    barColorClass: 'bg-emerald-500',
+  },
+  app: {
+    label: 'Aplicaciones',
+    singularDesc: 'aplicación protegida',
+    pluralDesc: 'aplicaciones protegidas',
+    dotColor: '#06b6d4',
+    barColorClass: 'bg-cyan-500',
+  },
+  document: {
+    label: 'Documentos',
+    singularDesc: 'documento cifrado',
+    pluralDesc: 'documentos cifrados',
+    dotColor: '#f59e0b',
+    barColorClass: 'bg-amber-500',
+  },
+};
+
+export function calculateVaultCategoryStats(
+  items: Array<{
+    category?: VaultItemCategory;
+    size?: number;
+    data?: ArrayBuffer;
+    isFavorite?: boolean;
+    name?: string;
+    mimeType?: string;
+  }>
+) {
+  const countsMap: Record<VaultItemCategory, number> = {
+    photo: 0,
+    video: 0,
+    audio: 0,
+    app: 0,
+    document: 0,
+  };
+  const bytesMap: Record<VaultItemCategory, number> = {
+    photo: 0,
+    video: 0,
+    audio: 0,
+    app: 0,
+    document: 0,
+  };
+  let favs = 0;
+  let totalBytes = 0;
+
+  items.forEach((item) => {
+    const sz = item.size || (item.data ? item.data.byteLength : 0) || 0;
+    totalBytes += sz;
+    const cat: VaultItemCategory =
+      item.category && item.category in countsMap
+        ? item.category
+        : detectCategory(item.name || '', item.mimeType || '');
+    countsMap[cat] += 1;
+    bytesMap[cat] += sz;
+    if (item.isFavorite) favs += 1;
+  });
+
+  const categories: VaultCategoryStat[] = VAULT_CATEGORIES_ORDER.map((catId) => ({
+    id: catId,
+    ...VAULT_CATEGORY_META[catId],
+    count: countsMap[catId],
+    bytes: bytesMap[catId],
+  }));
+
+  return {
+    photos: countsMap.photo,
+    videos: countsMap.video,
+    audios: countsMap.audio,
+    apps: countsMap.app,
+    documents: countsMap.document,
+    favs,
+    totalBytes,
+    photoBytes: bytesMap.photo,
+    videoBytes: bytesMap.video,
+    audioBytes: bytesMap.audio,
+    appBytes: bytesMap.app,
+    documentBytes: bytesMap.document,
+    categories,
+  };
+}
+
 export async function getVaultStats(): Promise<{
   count: number;
   totalBytes: number;
   photoCount: number;
   videoCount: number;
+  audioCount: number;
   appCount: number;
+  documentCount: number;
+  photoBytes: number;
+  videoBytes: number;
+  audioBytes: number;
+  appBytes: number;
+  documentBytes: number;
+  categories: VaultCategoryStat[];
 }> {
   const items = await getAllEncryptedItems();
-  let totalBytes = 0;
-  let photoCount = 0;
-  let videoCount = 0;
-  let appCount = 0;
-
-  items.forEach((item) => {
-    totalBytes += item.size || item.data.byteLength || 0;
-    if (item.category === 'photo') photoCount++;
-    else if (item.category === 'video') videoCount++;
-    else appCount++;
-  });
+  const stats = calculateVaultCategoryStats(items);
 
   return {
     count: items.length,
-    totalBytes,
-    photoCount,
-    videoCount,
-    appCount,
+    totalBytes: stats.totalBytes,
+    photoCount: stats.photos,
+    videoCount: stats.videos,
+    audioCount: stats.audios,
+    appCount: stats.apps,
+    documentCount: stats.documents,
+    photoBytes: stats.photoBytes,
+    videoBytes: stats.videoBytes,
+    audioBytes: stats.audioBytes,
+    appBytes: stats.appBytes,
+    documentBytes: stats.documentBytes,
+    categories: stats.categories,
   };
 }
 
