@@ -248,9 +248,10 @@ nav.fixed button.vault-nav-btn-inactive svg {
   color: #0f172a !important;
 }
 
-/* Audio & App Grid Cards with dark gradients in MainVaultView */
+/* Audio, App & Document Grid Cards with dark gradients in MainVaultView */
 [data-theme="light"] [class*="from-[#1d170e]"],
-[data-theme="light"] [class*="from-[#131c2e]"] {
+[data-theme="light"] [class*="from-[#131c2e]"],
+[data-theme="light"] [class*="from-[#0c1829]"] {
   background-image: none !important;
   background-color: #ffffff !important;
   border-color: #e2e8f0 !important;
@@ -343,10 +344,10 @@ nav.fixed button.vault-nav-btn-inactive svg {
 [data-theme="light"] button[class*="bg-purple-"] *,
 [data-theme="light"] button[class*="bg-indigo-"],
 [data-theme="light"] button[class*="bg-indigo-"] *,
-[data-theme="light"] span[class*="bg-rose-"],
-[data-theme="light"] span[class*="bg-red-"],
-[data-theme="light"] span[class*="bg-emerald-"],
-[data-theme="light"] span[class*="bg-blue-"],
+[data-theme="light"] span[class*="bg-rose-"]:not([class*="bg-rose-500/"]):not([class*="bg-rose-600/"]),
+[data-theme="light"] span[class*="bg-red-"]:not([class*="bg-red-500/"]):not([class*="bg-red-600/"]),
+[data-theme="light"] span[class*="bg-emerald-"]:not([class*="bg-emerald-500/"]):not([class*="bg-emerald-600/"]),
+[data-theme="light"] span[class*="bg-blue-"]:not([class*="bg-blue-500/"]):not([class*="bg-blue-600/"]),
 [data-theme="light"] .bg-\[\#00e5ff\] *,
 [data-theme="light"] button.bg-\[\#00e5ff\] {
   color: #ffffff !important;

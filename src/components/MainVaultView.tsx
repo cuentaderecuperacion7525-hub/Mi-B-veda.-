@@ -3183,13 +3183,21 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                         </div>
 
                         <div
-                          className={`grid gap-2.5 sm:gap-3 ${
-                            gridColumns === 2
-                              ? 'grid-cols-2'
-                              : gridColumns === 3
-                              ? 'grid-cols-3'
-                              : 'grid-cols-4'
-                          }`}
+                          className="grid gap-3"
+                          style={{
+                            gridTemplateColumns:
+                              activeCategory === 'document' ||
+                              activeCategory === 'audio' ||
+                              activeCategory === 'app' ||
+                              activeTab === 'document' ||
+                              activeTab === 'audio' ||
+                              activeTab === 'app' ||
+                              gridColumns === 3
+                                ? 'repeat(3, minmax(0, 1fr))'
+                                : gridColumns === 2
+                                ? 'repeat(2, minmax(0, 1fr))'
+                                : 'repeat(4, minmax(0, 1fr))',
+                          }}
                         >
                           {group.items.map((item) => {
                             const isSelected = selectedIds.has(item.id);
@@ -3199,8 +3207,32 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                             const isDocument = item.record.category === 'document';
                             const isApp = item.record.category === 'app';
 
+                            const rawExt = item.record.name.includes('.')
+                              ? item.record.name.split('.').pop()?.trim().toUpperCase() || ''
+                              : '';
+                            const extLabel =
+                              rawExt && rawExt.length <= 5
+                                ? rawExt
+                                : isAudio
+                                ? 'MP3'
+                                : isApp
+                                ? 'APK'
+                                : 'DOC';
+
+                            const compactSize = (() => {
+                              const bytes = item.record.size || 0;
+                              if (!bytes || bytes <= 0) return '0 KB';
+                              const kb = bytes / 1024;
+                              const mb = bytes / (1024 * 1024);
+                              const gb = bytes / (1024 * 1024 * 1024);
+                              if (gb >= 1) return `${Number(gb.toFixed(1))} GB`;
+                              if (mb >= 10) return `${Math.round(mb)} MB`;
+                              if (mb >= 0.1) return `${Number(mb.toFixed(1))} MB`;
+                              return `${Math.max(1, Math.round(kb))} KB`;
+                            })();
+
                             return (
-                              <div key={item.id} className="flex flex-col gap-1 min-w-0">
+                              <div key={item.id} className="flex flex-col gap-1.5 min-w-0 w-full">
                                 <div
                                   onPointerDown={() => handleCardPointerDown(item.id)}
                                   onPointerUp={handleCardPointerUp}
@@ -3216,7 +3248,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                                       setActiveViewerItem(item);
                                     }
                                   }}
-                                  className={`group relative aspect-square rounded-2xl overflow-hidden bg-zinc-900 border cursor-pointer transition-all duration-200 select-none ${
+                                  style={{ aspectRatio: '1 / 1' }}
+                                  className={`group relative w-full aspect-square rounded-2xl overflow-hidden bg-zinc-900 border cursor-pointer transition-all duration-200 select-none ${
                                     isSelected
                                       ? 'border-zinc-300 ring-2 ring-white/30 scale-[0.98]'
                                       : 'border-zinc-800/80 hover:border-zinc-700 active:scale-95'
@@ -3243,76 +3276,61 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                                     />
                                   )}
 
-                                  {/* Audio Card Display */}
-                                  {isAudio && (
-                                    <div className="w-full h-full bg-gradient-to-br from-[#1d170e] to-slate-950 p-3.5 flex flex-col justify-between items-center text-center pointer-events-none">
-                                      <div className="w-full flex items-center justify-between text-[10px] text-amber-400">
-                                        <span className="font-mono font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                                          {item.record.name.split('.').pop()?.toUpperCase() || 'AUDIO'}
-                                        </span>
-                                        <span className="text-slate-400">{formatSize(item.record.size)}</span>
-                                      </div>
+                                  {/* Unified Square Card Display for Audio, App, and Document */}
+                                  {(isAudio || isApp || isDocument) && (
+                                    <div
+                                      className={`relative w-full h-full pointer-events-none select-none overflow-hidden ${
+                                        isAudio
+                                          ? 'bg-gradient-to-br from-[#1d170e] to-slate-950'
+                                          : isApp
+                                          ? 'bg-gradient-to-br from-[#131c2e] to-slate-950'
+                                          : 'bg-gradient-to-br from-[#0c1829] to-slate-950'
+                                      }`}
+                                    >
+                                      {/* 1. Etiqueta de extensión: arriba a la izquierda */}
+                                      <span
+                                        className={`absolute top-2.5 left-2.5 z-10 font-mono font-bold text-[10px] leading-none px-1.5 py-1 rounded-md border whitespace-nowrap ${
+                                          isAudio
+                                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                                            : isApp
+                                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                                            : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25'
+                                        }`}
+                                      >
+                                        {extLabel}
+                                      </span>
 
-                                      <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform shadow-md shadow-amber-500/10">
-                                        <Music className="w-6 h-6 text-amber-400" />
-                                      </div>
-
-                                      <div className="w-full text-center">
-                                        <p className="text-xs font-semibold text-slate-200 truncate w-full">
-                                          {item.record.name}
-                                        </p>
-                                        <p className="text-[10px] text-amber-400/80">Audio seguro</p>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* App / File Card Display */}
-                                  {isApp && (
-                                    <div className="w-full h-full bg-gradient-to-br from-[#131c2e] to-slate-950 p-3.5 flex flex-col justify-between items-center text-center pointer-events-none">
-                                      <div className="w-full flex items-center justify-between text-[10px] text-emerald-400">
-                                        <span className="font-mono font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                                          {item.record.name.split('.').pop()?.toUpperCase() || 'FILE'}
-                                        </span>
-                                        <span className="text-slate-400">{formatSize(item.record.size)}</span>
-                                      </div>
-
-                                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
-                                        {item.record.name.endsWith('.apk') ? (
-                                          <Smartphone className="w-6 h-6" />
+                                      {/* 2. Icono centrado: siempre 52x52 px exactos */}
+                                      <div
+                                        style={{ width: '52px', height: '52px' }}
+                                        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[52px] h-[52px] min-w-[52px] min-h-[52px] max-w-[52px] max-h-[52px] rounded-2xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                                          isAudio
+                                            ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                                            : isApp
+                                            ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+                                            : 'bg-cyan-500/10 border-cyan-500/25 text-cyan-400'
+                                        }`}
+                                      >
+                                        {isAudio ? (
+                                          <Music className="w-[26px] h-[26px] text-amber-400 shrink-0" />
+                                        ) : isApp ? (
+                                          item.record.name.toLowerCase().endsWith('.apk') ? (
+                                            <Smartphone className="w-[26px] h-[26px] text-emerald-400 shrink-0" />
+                                          ) : (
+                                            <Folder className="w-[26px] h-[26px] text-emerald-400 shrink-0" />
+                                          )
                                         ) : (
-                                          <Folder className="w-6 h-6" />
+                                          <FileText className="w-[26px] h-[26px] text-cyan-400 shrink-0" />
                                         )}
                                       </div>
 
-                                      <div className="w-full text-center">
-                                        <p className="text-xs font-semibold text-slate-200 truncate w-full">
-                                          {item.record.name}
-                                        </p>
-                                        <p className="text-[10px] text-slate-500">Cifrado local</p>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Document Card Display */}
-                                  {isDocument && (
-                                    <div className="w-full h-full bg-gradient-to-br from-[#0c1829] to-slate-950 p-3.5 flex flex-col justify-between items-center text-center pointer-events-none">
-                                      <div className="w-full flex items-center justify-between text-[10px] text-cyan-400">
-                                        <span className="font-mono font-bold bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
-                                          {item.record.name.split('.').pop()?.toUpperCase() || 'DOC'}
-                                        </span>
-                                        <span className="text-slate-400">{formatSize(item.record.size)}</span>
-                                      </div>
-
-                                      <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform shadow-md shadow-cyan-500/10">
-                                        <FileText className="w-6 h-6 text-cyan-400" />
-                                      </div>
-
-                                      <div className="w-full text-center">
-                                        <p className="text-xs font-semibold text-slate-200 truncate w-full">
-                                          {item.record.name}
-                                        </p>
-                                        <p className="text-[10px] text-cyan-400/80">Documento seguro</p>
-                                      </div>
+                                      {/* 3. Tamaño del archivo: abajo a la derecha, sin partirse en dos líneas */}
+                                      <span
+                                        style={{ whiteSpace: 'nowrap' }}
+                                        className="absolute bottom-2.5 right-2.5 z-10 text-[10px] font-mono font-medium leading-none text-slate-400 whitespace-nowrap"
+                                      >
+                                        {compactSize}
+                                      </span>
                                     </div>
                                   )}
 
@@ -3325,7 +3343,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
                                   {/* Selection indicator - circular checkmark */}
                                   {isSelectMode && (
-                                    <div className="absolute top-2 left-2 z-20 pointer-events-none">
+                                    <div className="absolute top-2 right-2 z-20 pointer-events-none">
                                       <div
                                         className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                                           isSelected
@@ -3339,7 +3357,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                                   )}
                                 </div>
 
-                                {/* Nombre del archivo debajo del cuadro (Opción B) */}
+                                {/* Nombre del archivo solo debajo de la tarjeta, altura fija de 2 líneas (line-height: 1.25) */}
                                 <div
                                   onClick={() => {
                                     if (isSelectMode) {
@@ -3348,11 +3366,30 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                                       setActiveViewerItem(item);
                                     }
                                   }}
-                                  className="px-0.5 cursor-pointer text-center select-none"
+                                  className="px-0.5 cursor-pointer text-center select-none w-full overflow-hidden"
+                                  style={{
+                                    minHeight: '27.5px',
+                                    maxHeight: '27.5px',
+                                    height: '27.5px',
+                                  }}
                                 >
                                   <p
-                                    className="text-[10px] sm:text-[11px] font-medium truncate leading-tight"
-                                    style={{ color: 'var(--theme-text-main, #f1f5f9)' }}
+                                    className="font-medium w-full m-0"
+                                    style={{
+                                      fontSize: '11px',
+                                      lineHeight: 1.25,
+                                      minHeight: '27.5px',
+                                      maxHeight: '27.5px',
+                                      height: '27.5px',
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      wordBreak: 'break-word',
+                                      overflowWrap: 'anywhere',
+                                      color: 'var(--theme-text-main, #f1f5f9)',
+                                    }}
                                     title={item.record.name}
                                   >
                                     {item.record.name}
