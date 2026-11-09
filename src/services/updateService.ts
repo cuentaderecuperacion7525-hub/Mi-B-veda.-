@@ -209,7 +209,7 @@ class UpdateService {
             if (ghRes.ok) {
               const rawData = await ghRes.json();
               remoteData = rawData;
-              remoteBuild = rawData.version_code ?? rawData.buildNumber ?? 1000;
+              remoteBuild = rawData.version_code ?? rawData.buildNumber ?? CURRENT_BUILD_NUMBER;
               remoteVersionStr = rawData.version_name ?? rawData.version ?? CURRENT_APP_VERSION;
               directApkUrl = rawData.download_url || `https://github.com/${repo}/releases/latest/download/Boveda-Calculadora.apk`;
               break;

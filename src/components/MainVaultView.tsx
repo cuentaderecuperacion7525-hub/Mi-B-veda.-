@@ -3166,8 +3166,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                     ? 'max(calc(env(safe-area-inset-top, 0px) + 10.5rem), 11.75rem)'
                     : 'max(calc(env(safe-area-inset-top, 0px) + 7.75rem), 8.75rem)'
                   : isSearchOpen || searchQuery
-                  ? 'max(calc(env(safe-area-inset-top, 0px) + 6.75rem), 7.65rem)'
-                  : 'max(calc(env(safe-area-inset-top, 0px) + 3.95rem), 4.85rem)',
+                  ? 'max(calc(env(safe-area-inset-top, 0px) + 7.5rem), 8.5rem)'
+                  : 'max(calc(env(safe-area-inset-top, 0px) + 4.75rem), 5.75rem)',
             }}
           />
 
@@ -3297,20 +3297,20 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               <div className="space-y-3 animate-in fade-in duration-200">
                 {/* Clasificación de Aplicaciones: "Instaladas" / "Paquetes de instalación" */}
                 {isListCategoryView && (activeCategory === 'app' || activeTab === 'app') && (
-                  <div className="flex items-center justify-center gap-8 pt-1 select-none">
+                  <div className="flex items-center justify-center gap-8 pt-2.5 pb-2 border-b border-black/5 dark:border-white/5 mb-2 select-none">
                     <button
                       type="button"
                       onClick={() => setAppSourceTab('installed')}
-                      className="relative pb-2 text-sm font-medium transition-colors cursor-pointer"
+                      className="relative pb-2 text-sm font-semibold transition-colors cursor-pointer"
                       style={{
                         color:
                           appSourceTab === 'installed'
                             ? currentTheme === 'light'
                               ? '#0284c7'
-                              : '#3b82f6'
+                              : '#38bdf8'
                             : currentTheme === 'light'
                             ? '#64748b'
-                            : '#8e8e93',
+                            : '#9ca3af',
                       }}
                     >
                       <span>Instaladas</span>
@@ -3318,7 +3318,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                         <span
                           className="absolute left-0 right-0 bottom-0 h-[2.5px] rounded-full"
                           style={{
-                            backgroundColor: currentTheme === 'light' ? '#0284c7' : '#3b82f6',
+                            backgroundColor: currentTheme === 'light' ? '#0284c7' : '#38bdf8',
                           }}
                         />
                       )}
@@ -3326,16 +3326,16 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setAppSourceTab('packages')}
-                      className="relative pb-2 text-sm font-medium transition-colors cursor-pointer"
+                      className="relative pb-2 text-sm font-semibold transition-colors cursor-pointer"
                       style={{
                         color:
                           appSourceTab === 'packages'
                             ? currentTheme === 'light'
                               ? '#0284c7'
-                              : '#3b82f6'
+                              : '#38bdf8'
                             : currentTheme === 'light'
                             ? '#64748b'
-                            : '#8e8e93',
+                            : '#9ca3af',
                       }}
                     >
                       <span>Paquetes de instalación</span>
@@ -3343,7 +3343,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                         <span
                           className="absolute left-0 right-0 bottom-0 h-[2.5px] rounded-full"
                           style={{
-                            backgroundColor: currentTheme === 'light' ? '#0284c7' : '#3b82f6',
+                            backgroundColor: currentTheme === 'light' ? '#0284c7' : '#38bdf8',
                           }}
                         />
                       )}
