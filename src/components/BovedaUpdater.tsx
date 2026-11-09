@@ -344,20 +344,30 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
 
         <div className="space-y-3 pt-1">
           {cambiosNovedades.length > 0 ? (
-            cambiosNovedades.map((item, idx) => (
-              <div key={idx} className="flex items-start gap-3 text-sm text-slate-300 leading-relaxed">
-                <span className="w-2 h-2 rounded-full bg-[#00d2ff] shrink-0 mt-2 shadow-[0_0_8px_rgba(0,210,255,0.7)]" />
-                <p className="flex-1">
-                  {item.titulo ? (
-                    <>
-                      <strong className="text-white font-semibold">{item.titulo}</strong>: {item.texto}
-                    </>
-                  ) : (
-                    item.texto
-                  )}
-                </p>
-              </div>
-            ))
+            cambiosNovedades.map((item, idx) => {
+              const displayVer = updateAvailable ? (serverVersionName || installedVersionName) : installedVersionName;
+              const formattedTexto = item.texto
+                ? item.texto.replace(/Versi[oó]n\s+[0-9]+\.[0-9]+(\.[0-9]+)?/gi, `Versión ${displayVer}`)
+                : '';
+              const formattedTitulo = item.titulo
+                ? item.titulo.replace(/v[0-9]+\.[0-9]+(\.[0-9]+)?/gi, `v${displayVer}`)
+                : '';
+
+              return (
+                <div key={idx} className="flex items-start gap-3 text-sm text-slate-300 leading-relaxed">
+                  <span className="w-2 h-2 rounded-full bg-[#00d2ff] shrink-0 mt-2 shadow-[0_0_8px_rgba(0,210,255,0.7)]" />
+                  <p className="flex-1">
+                    {formattedTitulo ? (
+                      <>
+                        <strong className="text-white font-semibold">{formattedTitulo}</strong>: {formattedTexto}
+                      </>
+                    ) : (
+                      formattedTexto
+                    )}
+                  </p>
+                </div>
+              );
+            })
           ) : (
             <div className="flex items-start gap-3 text-sm text-slate-300 leading-relaxed">
               <span className="w-2 h-2 rounded-full bg-[#00d2ff] shrink-0 mt-2 shadow-[0_0_8px_rgba(0,210,255,0.7)]" />

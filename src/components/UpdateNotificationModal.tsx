@@ -50,9 +50,10 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
       })
       .then((data) => {
         if (data && Array.isArray(data.cambios)) {
-          const list = data.cambios.map((c: any) =>
-            c.titulo ? `${c.titulo}: ${c.texto}` : c.texto || ''
-          ).filter(Boolean);
+          const list = data.cambios.map((c: any) => {
+            const raw = c.titulo ? `${c.titulo}: ${c.texto}` : c.texto || '';
+            return raw.replace(/Versi[oó]n\s+[0-9]+\.[0-9]+(\.[0-9]+)?/gi, `Versión ${CURRENT_APP_VERSION}`);
+          }).filter(Boolean);
           setDynamicNotes({
             fecha: typeof data.fecha === 'string' ? data.fecha : CURRENT_RELEASE_DATE,
             cambios: list.length > 0 ? list : ['Mejoras de estabilidad y rendimiento'],
