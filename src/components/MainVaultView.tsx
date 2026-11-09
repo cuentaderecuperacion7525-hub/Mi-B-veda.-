@@ -296,6 +296,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     return localStorage.getItem('nullvault_last_access') || '21:14';
   });
   const [gridColumns, setGridColumns] = useState<2 | 3 | 4>(3);
+  const [appSourceTab, setAppSourceTab] = useState<'installed' | 'packages'>('installed');
   const [aspectMode, setAspectMode] = useState<'real' | 'square'>(() => {
     return (localStorage.getItem('vault_aspect_mode') as 'real' | 'square') || 'real';
   });
@@ -1730,6 +1731,14 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     return fileDate.toLocaleDateString('es-ES', options);
   };
 
+  const isListCategoryView =
+    activeCategory === 'audio' ||
+    activeCategory === 'document' ||
+    activeCategory === 'app' ||
+    activeTab === 'audio' ||
+    activeTab === 'document' ||
+    activeTab === 'app';
+
   // PRUEBA DE FECHA: Agrupación cronológica de archivos ordenados por fecha
   const groupedByDate = useMemo(() => {
     const sorted = [...filteredItems].sort(
@@ -1747,6 +1756,153 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     });
     return groups;
   }, [filteredItems]);
+
+  // Agrupación dinámica para la vista de lista vertical (Audios, Documentos/Archivos, Aplicaciones)
+  const groupedListSections = useMemo(() => {
+    const sorted = [...filteredItems].sort(
+      (a, b) => (b.record.timestamp || 0) - (a.record.timestamp || 0)
+    );
+
+    const getExtLower = (name: string): string => {
+      const clean = (name || '').trim();
+      const dotIdx = clean.lastIndexOf('.');
+      if (dotIdx <= 0 || dotIdx === clean.length - 1) return '';
+      return clean.slice(dotIdx + 1).trim().toLowerCase();
+    };
+
+    const isAudioSection = activeCategory === 'audio' || activeTab === 'audio';
+    const isDocSection = activeCategory === 'document' || activeTab === 'document';
+    const isAppSection = activeCategory === 'app' || activeTab === 'app';
+
+    if (isAudioSection) {
+      const knownAudioExts = ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'wma', 'mid', 'midi'];
+      const map = new Map<string, typeof filteredItems>();
+      sorted.forEach((item) => {
+        const ext = getExtLower(item.record.name);
+        const sectionTitle =
+          !ext || ext === 'opus' || ext === 'amr' || !knownAudioExts.includes(ext)
+            ? 'Desconocida'
+            : ext.toUpperCase();
+        const existing = map.get(sectionTitle) || [];
+        existing.push(item);
+        map.set(sectionTitle, existing);
+      });
+      const entries = Array.from(map.entries()).map(([sectionTitle, sectionItems]) => ({
+        sectionTitle,
+        items: sectionItems,
+      }));
+      entries.sort((a, b) => {
+        if (a.sectionTitle === 'Desconocida') return -1;
+        if (b.sectionTitle === 'Desconocida') return 1;
+        return a.sectionTitle.localeCompare(b.sectionTitle);
+      });
+      return entries;
+    }
+
+    if (isDocSection) {
+      const map = new Map<string, typeof filteredItems>();
+      sorted.forEach((item) => {
+        const ext = getExtLower(item.record.name);
+        const sectionTitle = ext ? ext.toUpperCase() : 'ARCHIVO';
+        const existing = map.get(sectionTitle) || [];
+        existing.push(item);
+        map.set(sectionTitle, existing);
+      });
+      return Array.from(map.entries()).map(([sectionTitle, sectionItems]) => ({
+        sectionTitle,
+        items: sectionItems,
+      }));
+    }
+
+    if (isAppSection) {
+      const groups: { sectionTitle: string; items: typeof filteredItems }[] = [];
+      sorted.forEach((item) => {
+        const label = formatDateGroupLabel(item.record.timestamp || Date.now());
+        const lastGroup = groups[groups.length - 1];
+        if (lastGroup && lastGroup.sectionTitle === label) {
+          lastGroup.items.push(item);
+        } else {
+          groups.push({ sectionTitle: label, items: [item] });
+        }
+      });
+      return groups;
+    }
+
+    return [];
+  }, [filteredItems, activeCategory, activeTab, appSourceTab]);
+
+  // Generador de icono nativo en SVG data URI para Aplicaciones (src={app.icon})
+  const getAppIconSrc = (item: DecryptedVaultItem): string => {
+    if (item.thumbnailUrl) return item.thumbnailUrl;
+    const lower = (item.record.name || '').toLowerCase();
+
+    if (lower.includes('boveda') || lower.includes('calculadora')) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88"><rect width="88" height="88" rx="22" fill="#131636"/><path d="M44 16L22 25v18c0 15.5 9.4 29.8 22 35 12.6-5.2 22-19.5 22-35V25L44 16z" fill="none" stroke="#4f6ef7" stroke-width="4.5"/><rect x="36" y="41" width="16" height="13" rx="3" fill="#6384ff"/><path d="M39 41v-4a5 5 0 0 1 10 0v4" fill="none" stroke="#6384ff" stroke-width="3.5"/></svg>`;
+      return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    }
+    if (lower.includes('whatsapp')) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88"><defs><linearGradient id="wa" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f97316"/><stop offset="100%" stop-color="#e11d48"/></linearGradient></defs><rect width="88" height="88" rx="22" fill="url(#wa)"/><path d="M44 20c-13.2 0-24 10.5-24 23.5 0 4.5 1.3 8.8 3.6 12.5L20 68l12.5-3.4c3.5 1.9 7.4 2.9 11.5 2.9 13.2 0 24-10.5 24-23.5S57.2 20 44 20z" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linejoin="round"/><path d="M36 34c-1.2 0-2.5 1.2-2.5 3.2 0 4.5 5 11.5 11.5 14.5 2 .9 3.8.2 4.8-1l1.8-2.2c.5-.6.3-1.5-.4-1.9l-4.2-2c-.6-.3-1.4-.1-1.8.4l-1.2 1.5c-2.5-1.3-4.6-3.3-5.8-5.8l1.4-1.2c.5-.4.7-1.2.4-1.8l-2-4.2c-.4-.7-1.2-.9-1.8-.5z" fill="#ffffff"/></svg>`;
+      return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    }
+    if (lower.includes('youtube') || lower.includes('morphe')) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88"><rect width="88" height="88" rx="22" fill="#0f172a"/><path d="M22 60V28l22 18 22-18v32" fill="none" stroke="#14b8a6" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    }
+    if (lower.includes('indrive')) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88"><rect width="88" height="88" rx="22" fill="#bef264"/><text x="44" y="56" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="36" fill="#0f172a">iD</text></svg>`;
+      return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    }
+
+    // Icono nativo Android APK (cuadrícula blueprint azul + robot Android blanco, idéntico a la captura)
+    const apkSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88">
+      <rect width="88" height="88" rx="20" fill="#3b6998"/>
+      <g stroke="rgba(255,255,255,0.18)" stroke-width="1">
+        <line x1="0" y1="22" x2="88" y2="22"/>
+        <line x1="0" y1="44" x2="88" y2="44"/>
+        <line x1="0" y1="66" x2="88" y2="66"/>
+        <line x1="22" y1="0" x2="22" y2="88"/>
+        <line x1="44" y1="0" x2="44" y2="88"/>
+        <line x1="66" y1="0" x2="66" y2="88"/>
+      </g>
+      <line x1="31" y1="42" x2="25" y2="32" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"/>
+      <line x1="57" y1="42" x2="63" y2="32" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"/>
+      <path d="M22 68a22 20 0 0 1 44 0Z" fill="#ffffff"/>
+      <circle cx="35" cy="55" r="2.6" fill="#3b6998"/>
+      <circle cx="53" cy="55" r="2.6" fill="#3b6998"/>
+    </svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(apkSvg)}`;
+  };
+
+  // Formateo de fecha DD/MM/AA y tamaño detallado (ej. "24/08/26 - 15.86 KB", "29/10/26 - 13.18 MB")
+  const formatDetailedSizeStr = (bytes: number): string => {
+    if (!bytes || bytes <= 0) return '0 B';
+    if (bytes >= 1024 * 1024 * 1024) {
+      return `${Number((bytes / (1024 * 1024 * 1024)).toFixed(2))} GB`;
+    }
+    if (bytes >= 1024 * 1024) {
+      return `${Number((bytes / (1024 * 1024)).toFixed(2))} MB`;
+    }
+    if (bytes >= 1024) {
+      return `${Number((bytes / 1024).toFixed(2))} KB`;
+    }
+    return `${Math.max(0, bytes)} B`;
+  };
+
+  const formatFileRowMeta = (timestamp: number, sizeBytes: number): string => {
+    const d = new Date(timestamp || Date.now());
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${dd}/${mm}/${yy} - ${formatDetailedSizeStr(sizeBytes)}`;
+  };
+
+  const formatAppRowMeta = (filename: string, sizeBytes: number): string => {
+    const match =
+      filename.match(/(?:v|ver|version|_|-|\s)(\d+(?:\.\d+){1,3})/i) ||
+      filename.match(/(\d+\.\d+(?:\.\d+){0,2})/);
+    const ver = match && match[1] ? match[1] : '1.0.0';
+    return `Versión ${ver} - ${formatDetailedSizeStr(sizeBytes)}`;
+  };
 
   return (
     <div
@@ -2800,8 +2956,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   </div>
                 </button>
 
-                {/* Controles de vista y búsqueda compactos a la derecha: solo dentro de una carpeta que contiene archivos */}
-                {carpetaActiva !== 'todas' && (
+                {/* Controles de vista y búsqueda compactos a la derecha: solo para Fotos y Videos */}
+                {carpetaActiva !== 'todas' && !isListCategoryView && (
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
@@ -2856,8 +3012,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               </div>
             )}
 
-            {/* Barra de búsqueda desplegable compacta */}
-            {carpetaActiva !== 'todas' && (isSearchOpen || searchQuery) && (
+            {/* Barra de búsqueda desplegable compacta (Fotos y Videos) */}
+            {carpetaActiva !== 'todas' && !isListCategoryView && (isSearchOpen || searchQuery) && (
               <div className="relative mt-2 mb-1 animate-in fade-in duration-150">
                 <Search size={15} strokeWidth={1.5} className="text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -3133,6 +3289,107 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
             ) : (
               /* VISTA DE CONTENIDO DENTRO DE LA CARPETA ESPECÍFICA (O RESULTADOS DE BÚSQUEDA) */
               <div className="space-y-3 animate-in fade-in duration-200">
+                {/* 4. Barra de Búsqueda Contextual para Aplicaciones, Audios y Documentos/Archivos */}
+                {isListCategoryView && (
+                  <div className="space-y-2.5">
+                    <div
+                      className="relative w-full rounded-full px-4 py-2.5 flex items-center gap-2.5 transition-colors"
+                      style={{
+                        backgroundColor: currentTheme === 'light' ? '#e2e8f0' : '#1c1c1e',
+                      }}
+                    >
+                      <Search
+                        size={17}
+                        strokeWidth={2}
+                        className="shrink-0"
+                        style={{ color: currentTheme === 'light' ? '#64748b' : '#8e8e93' }}
+                      />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder={
+                          activeCategory === 'app' || activeTab === 'app'
+                            ? 'Buscar aplicaciones'
+                            : activeCategory === 'audio' || activeTab === 'audio'
+                            ? 'Buscar archivos de audio'
+                            : 'Buscar archivos'
+                        }
+                        className="w-full bg-transparent text-sm focus:outline-none border-0 p-0"
+                        style={{
+                          color: currentTheme === 'light' ? '#0f172a' : '#f1f5f9',
+                        }}
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="p-0.5 rounded-full hover:opacity-80 cursor-pointer shrink-0"
+                          style={{ color: currentTheme === 'light' ? '#64748b' : '#8e8e93' }}
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Clasificación de Aplicaciones: "Instaladas" / "Paquetes de instalación" */}
+                    {(activeCategory === 'app' || activeTab === 'app') && (
+                      <div className="flex items-center justify-center gap-8 pt-1 select-none">
+                        <button
+                          type="button"
+                          onClick={() => setAppSourceTab('installed')}
+                          className="relative pb-2 text-sm font-medium transition-colors cursor-pointer"
+                          style={{
+                            color:
+                              appSourceTab === 'installed'
+                                ? currentTheme === 'light'
+                                  ? '#0284c7'
+                                  : '#3b82f6'
+                                : currentTheme === 'light'
+                                ? '#64748b'
+                                : '#8e8e93',
+                          }}
+                        >
+                          <span>Instaladas</span>
+                          {appSourceTab === 'installed' && (
+                            <span
+                              className="absolute left-0 right-0 bottom-0 h-[2.5px] rounded-full"
+                              style={{
+                                backgroundColor: currentTheme === 'light' ? '#0284c7' : '#3b82f6',
+                              }}
+                            />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAppSourceTab('packages')}
+                          className="relative pb-2 text-sm font-medium transition-colors cursor-pointer"
+                          style={{
+                            color:
+                              appSourceTab === 'packages'
+                                ? currentTheme === 'light'
+                                  ? '#0284c7'
+                                  : '#3b82f6'
+                                : currentTheme === 'light'
+                                ? '#64748b'
+                                : '#8e8e93',
+                          }}
+                        >
+                          <span>Paquetes de instalación</span>
+                          {appSourceTab === 'packages' && (
+                            <span
+                              className="absolute left-0 right-0 bottom-0 h-[2.5px] rounded-full"
+                              style={{
+                                backgroundColor: currentTheme === 'light' ? '#0284c7' : '#3b82f6',
+                              }}
+                            />
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {filteredItems.length === 0 ? (
                   <div className="text-center py-20 px-4 bg-zinc-900/30 border border-dashed border-zinc-800 rounded-3xl">
                     <div className="w-16 h-16 bg-zinc-900/70 border border-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-3 text-amber-400/80">
@@ -3142,7 +3399,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                       No hay elementos cifrados en este álbum
                     </h3>
                     <p className="text-xs text-zinc-500 max-w-sm mx-auto mb-6">
-                      Esta carpeta no contiene archivos. Agrega fotos o captura nuevo contenido para guardarlo aquí de forma protegida.
+                      Esta carpeta no contiene archivos. Agrega contenido para guardarlo aquí de forma protegida.
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-2.5">
                       <button
@@ -3158,17 +3415,211 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                         <Plus className="w-4 h-4 stroke-[2.5]" />
                         <span>Añadir a esta carpeta</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsCameraOpen(true)}
-                        className="px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl border border-zinc-800 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
-                      >
-                        <Camera className="w-4 h-4 text-zinc-400" />
-                        <span>Usar Cámara</span>
-                      </button>
+                      {!isListCategoryView && (
+                        <button
+                          type="button"
+                          onClick={() => setIsCameraOpen(true)}
+                          className="px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl border border-zinc-800 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                        >
+                          <Camera className="w-4 h-4 text-zinc-400" />
+                          <span>Usar Cámara</span>
+                        </button>
+                      )}
                     </div>
                   </div>
+                ) : isListCategoryView ? (
+                  /* DISEÑO DE LISTA VERTICAL AGRUPADA PARA AUDIOS, DOCUMENTOS/ARCHIVOS Y APLICACIONES */
+                  <div className="space-y-4 pt-1">
+                    {groupedListSections.map((section) => (
+                      <div key={section.sectionTitle} className="space-y-0.5">
+                        {/* Subtítulo divisor en gris para cada grupo ("MP3", "WAV", "Desconocida", "ZIP", "PDF", "Hoy", "Ayer") */}
+                        <div className="pt-2 pb-1.5 select-none">
+                          <h3
+                            className="text-[13px] font-medium tracking-tight"
+                            style={{ color: currentTheme === 'light' ? '#64748b' : '#9ca3af' }}
+                          >
+                            {section.sectionTitle}
+                          </h3>
+                        </div>
+
+                        <div className="flex flex-col">
+                          {section.items.map((item) => {
+                            const isSelected = selectedIds.has(item.id);
+                            const isAudio = item.record.category === 'audio';
+                            const isApp = item.record.category === 'app';
+                            const cleanName = (item.record.name || '').trim();
+                            const dotIdx = cleanName.lastIndexOf('.');
+                            const extLower =
+                              dotIdx > 0 && dotIdx < cleanName.length - 1
+                                ? cleanName.slice(dotIdx + 1).trim().toLowerCase()
+                                : '';
+                            const extUpper = extLower ? extLower.toUpperCase() : 'DOC';
+
+                            const isCompressedArchive = ['zip', 'rar', '7z', 'tar', 'gz'].includes(extLower);
+                            const knownAudioExts = ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'wma', 'mid', 'midi'];
+                            const isUnknownAudio =
+                              isAudio && (!extLower || extLower === 'opus' || extLower === 'amr' || !knownAudioExts.includes(extLower));
+
+                            const getDocBadgeGradient = () => {
+                              if (extLower === 'pdf') {
+                                return 'linear-gradient(180deg, #ee776d 0%, #dc4c42 100%)';
+                              }
+                              if (extLower === 'doc' || extLower === 'docx') {
+                                return 'linear-gradient(180deg, #4f8ff7 0%, #2563eb 100%)';
+                              }
+                              if (extLower === 'xls' || extLower === 'xlsx' || extLower === 'csv') {
+                                return 'linear-gradient(180deg, #34d399 0%, #059669 100%)';
+                              }
+                              if (extLower === 'ppt' || extLower === 'pptx') {
+                                return 'linear-gradient(180deg, #fb923c 0%, #ea580c 100%)';
+                              }
+                              return 'linear-gradient(180deg, #64748b 0%, #475569 100%)';
+                            };
+
+                            return (
+                              <div
+                                key={item.id}
+                                onPointerDown={() => handleCardPointerDown(item.id)}
+                                onPointerUp={handleCardPointerUp}
+                                onPointerCancel={handleCardPointerUp}
+                                onClick={() => {
+                                  if (isLongPressTriggered.current) {
+                                    isLongPressTriggered.current = false;
+                                    return;
+                                  }
+                                  if (isSelectMode) {
+                                    toggleSelectItem(item.id, {} as React.MouseEvent);
+                                  } else {
+                                    setActiveViewerItem(item);
+                                  }
+                                }}
+                                className={`flex items-center gap-4 py-3 border-b border-white/5 cursor-pointer transition-colors select-none ${
+                                  isSelected ? 'bg-white/[0.06] rounded-xl px-2' : 'hover:bg-white/[0.02]'
+                                }`}
+                              >
+                                {/* Icono a la izquierda con tamaño fijo estricto (44x44 px) */}
+                                <div className="relative w-[44px] h-[44px] min-w-[44px] min-h-[44px] max-w-[44px] max-h-[44px] shrink-0">
+                                  {isCompressedArchive ? (
+                                    /* Documentos comprimidos (ZIP/RAR): Contenedor cuadrado azul con cremallera y texto "ZIP" */
+                                    <div
+                                      style={{
+                                        width: '44px',
+                                        height: '44px',
+                                        background: 'linear-gradient(180deg, #63a4ff 0%, #3b82f6 100%)',
+                                      }}
+                                      className="vault-file-type-badge w-[44px] h-[44px] rounded-[11px] relative flex items-center justify-center overflow-hidden shadow-xs"
+                                    >
+                                      {/* Cremallera superior derecha */}
+                                      <div className="absolute top-0 right-3 w-[5px] h-[14px] flex flex-col justify-between py-[1px] opacity-90">
+                                        <span className="w-full h-[2px] bg-white rounded-xs" />
+                                        <span className="w-full h-[2px] bg-white rounded-xs" />
+                                        <span className="w-full h-[2px] bg-white rounded-xs" />
+                                        <span className="w-full h-[3px] border border-white rounded-xs" />
+                                      </div>
+                                      <span className="text-white font-bold text-[13px] tracking-tight leading-none mt-1">
+                                        {extUpper.slice(0, 4)}
+                                      </span>
+                                    </div>
+                                  ) : isApp ? (
+                                    /* Aplicaciones: Logotipo nativo o icono de la aplicación (src={app.icon}) */
+                                    <img
+                                      src={getAppIconSrc(item)}
+                                      alt={item.record.name}
+                                      style={{ width: '44px', height: '44px' }}
+                                      className="w-[44px] h-[44px] rounded-[11px] object-cover block shadow-xs"
+                                    />
+                                  ) : isAudio ? (
+                                    isUnknownAudio ? (
+                                      /* Audios desconocidos / notas de voz (.opus): Icono gris con signo de interrogación (?) */
+                                      <div
+                                        style={{
+                                          width: '44px',
+                                          height: '44px',
+                                          background: 'linear-gradient(180deg, #b8c2ce 0%, #8f9ba8 100%)',
+                                        }}
+                                        className="w-[44px] h-[44px] rounded-[11px] flex items-center justify-center shadow-xs"
+                                      >
+                                        <div className="w-[24px] h-[24px] rounded-full bg-white flex items-center justify-center">
+                                          <span
+                                            style={{ color: '#8f9ba8' }}
+                                            className="font-bold text-[15px] leading-none"
+                                          >
+                                            ?
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      /* Audios comunes (MP3/WAV/M4A): Contenedor cuadrado rosa con nota musical blanca */
+                                      <div
+                                        style={{
+                                          width: '44px',
+                                          height: '44px',
+                                          background: 'linear-gradient(180deg, #ff756b 0%, #ec4899 100%)',
+                                        }}
+                                        className="vault-file-type-badge w-[44px] h-[44px] rounded-[11px] flex items-center justify-center shadow-xs"
+                                      >
+                                        <Music className="w-[24px] h-[24px] text-white stroke-[2.2]" />
+                                      </div>
+                                    )
+                                  ) : (
+                                    /* Documentos (PDF, DOCX, TXT, etc.): Contenedor cuadrado con texto de extensión en blanco */
+                                    <div
+                                      style={{
+                                        width: '44px',
+                                        height: '44px',
+                                        background: getDocBadgeGradient(),
+                                      }}
+                                      className="vault-file-type-badge w-[44px] h-[44px] rounded-[11px] flex items-center justify-center shadow-xs"
+                                    >
+                                      <span className="text-white font-bold text-[13px] tracking-tight leading-none">
+                                        {extUpper.slice(0, 4)}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Bloque vertical derecho: Nombre en blanco (truncate) + Metadatos en gris pequeño */}
+                                <div className="flex flex-col flex-1 min-w-0">
+                                  <p
+                                    className="text-[15px] font-normal text-white truncate leading-snug"
+                                    title={item.record.name}
+                                  >
+                                    {item.record.name}
+                                  </p>
+                                  <p
+                                    className="text-xs text-zinc-400 truncate mt-0.5 leading-tight"
+                                    style={{ whiteSpace: 'nowrap' }}
+                                  >
+                                    {isApp && !isCompressedArchive
+                                      ? formatAppRowMeta(item.record.name, item.record.size || 0)
+                                      : formatFileRowMeta(item.record.timestamp, item.record.size || 0)}
+                                  </p>
+                                </div>
+
+                                {/* Indicadores opcionales a la derecha (Favorito o Modo Selección) */}
+                                {item.record.isFavorite && !isSelectMode && (
+                                  <Heart className="w-4 h-4 fill-rose-500 text-rose-500 shrink-0" />
+                                )}
+                                {isSelectMode && (
+                                  <div
+                                    className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                                      isSelected
+                                        ? 'bg-blue-500 text-white border-2 border-blue-500'
+                                        : 'border border-zinc-600 bg-transparent text-transparent'
+                                    }`}
+                                  >
+                                    <Check className="w-3 h-3 stroke-[3]" />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
+                  /* VISTA DE CUADRÍCULA PARA FOTOS Y VIDEOS */
                   <div className="space-y-4">
                     {groupedByDate.map((group) => (
                       <div key={group.dateLabel} className="space-y-1.5">
@@ -3186,12 +3637,6 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                           className="grid gap-3"
                           style={{
                             gridTemplateColumns:
-                              activeCategory === 'document' ||
-                              activeCategory === 'audio' ||
-                              activeCategory === 'app' ||
-                              activeTab === 'document' ||
-                              activeTab === 'audio' ||
-                              activeTab === 'app' ||
                               gridColumns === 3
                                 ? 'repeat(3, minmax(0, 1fr))'
                                 : gridColumns === 2
@@ -3203,36 +3648,9 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                             const isSelected = selectedIds.has(item.id);
                             const isPhoto = item.record.category === 'photo';
                             const isVideo = item.record.category === 'video';
-                            const isAudio = item.record.category === 'audio';
-                            const isDocument = item.record.category === 'document';
-                            const isApp = item.record.category === 'app';
-
-                            const rawExt = item.record.name.includes('.')
-                              ? item.record.name.split('.').pop()?.trim().toUpperCase() || ''
-                              : '';
-                            const extLabel =
-                              rawExt && rawExt.length <= 5
-                                ? rawExt
-                                : isAudio
-                                ? 'MP3'
-                                : isApp
-                                ? 'APK'
-                                : 'DOC';
-
-                            const compactSize = (() => {
-                              const bytes = item.record.size || 0;
-                              if (!bytes || bytes <= 0) return '0 KB';
-                              const kb = bytes / 1024;
-                              const mb = bytes / (1024 * 1024);
-                              const gb = bytes / (1024 * 1024 * 1024);
-                              if (gb >= 1) return `${Number(gb.toFixed(1))} GB`;
-                              if (mb >= 10) return `${Math.round(mb)} MB`;
-                              if (mb >= 0.1) return `${Number(mb.toFixed(1))} MB`;
-                              return `${Math.max(1, Math.round(kb))} KB`;
-                            })();
 
                             return (
-                              <div key={item.id} className="flex flex-col gap-1.5 min-w-0 w-full">
+                              <div key={item.id} className="flex flex-col gap-1 min-w-0 w-full">
                                 <div
                                   onPointerDown={() => handleCardPointerDown(item.id)}
                                   onPointerUp={handleCardPointerUp}
@@ -3276,64 +3694,6 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                                     />
                                   )}
 
-                                  {/* Unified Square Card Display for Audio, App, and Document */}
-                                  {(isAudio || isApp || isDocument) && (
-                                    <div
-                                      className={`relative w-full h-full pointer-events-none select-none overflow-hidden ${
-                                        isAudio
-                                          ? 'bg-gradient-to-br from-[#1d170e] to-slate-950'
-                                          : isApp
-                                          ? 'bg-gradient-to-br from-[#131c2e] to-slate-950'
-                                          : 'bg-gradient-to-br from-[#0c1829] to-slate-950'
-                                      }`}
-                                    >
-                                      {/* 1. Etiqueta de extensión: arriba a la izquierda */}
-                                      <span
-                                        className={`absolute top-2.5 left-2.5 z-10 font-mono font-bold text-[10px] leading-none px-1.5 py-1 rounded-md border whitespace-nowrap ${
-                                          isAudio
-                                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
-                                            : isApp
-                                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
-                                            : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25'
-                                        }`}
-                                      >
-                                        {extLabel}
-                                      </span>
-
-                                      {/* 2. Icono centrado: siempre 52x52 px exactos */}
-                                      <div
-                                        style={{ width: '52px', height: '52px' }}
-                                        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[52px] h-[52px] min-w-[52px] min-h-[52px] max-w-[52px] max-h-[52px] rounded-2xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
-                                          isAudio
-                                            ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                                            : isApp
-                                            ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
-                                            : 'bg-cyan-500/10 border-cyan-500/25 text-cyan-400'
-                                        }`}
-                                      >
-                                        {isAudio ? (
-                                          <Music className="w-[26px] h-[26px] text-amber-400 shrink-0" />
-                                        ) : isApp ? (
-                                          item.record.name.toLowerCase().endsWith('.apk') ? (
-                                            <Smartphone className="w-[26px] h-[26px] text-emerald-400 shrink-0" />
-                                          ) : (
-                                            <Folder className="w-[26px] h-[26px] text-emerald-400 shrink-0" />
-                                          )
-                                        ) : (
-                                          <FileText className="w-[26px] h-[26px] text-cyan-400 shrink-0" />
-                                        )}
-                                      </div>
-
-                                      {/* 3. Tamaño del archivo: abajo a la derecha, sin partirse en dos líneas */}
-                                      <span
-                                        style={{ whiteSpace: 'nowrap' }}
-                                        className="absolute bottom-2.5 right-2.5 z-10 text-[10px] font-mono font-medium leading-none text-slate-400 whitespace-nowrap"
-                                      >
-                                        {compactSize}
-                                      </span>
-                                    </div>
-                                  )}
-
                                   {/* Top-right Favorite indicator */}
                                   {item.record.isFavorite && (
                                     <div className="absolute top-2 right-2 p-1 bg-black/60 backdrop-blur-md rounded-lg text-rose-500 z-10 pointer-events-none">
@@ -3343,7 +3703,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
                                   {/* Selection indicator - circular checkmark */}
                                   {isSelectMode && (
-                                    <div className="absolute top-2 right-2 z-20 pointer-events-none">
+                                    <div className="absolute top-2 left-2 z-20 pointer-events-none">
                                       <div
                                         className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                                           isSelected
@@ -3357,7 +3717,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                                   )}
                                 </div>
 
-                                {/* Nombre del archivo solo debajo de la tarjeta, altura fija de 2 líneas (line-height: 1.25) */}
+                                {/* Nombre del archivo debajo del cuadro */}
                                 <div
                                   onClick={() => {
                                     if (isSelectMode) {
@@ -3366,30 +3726,11 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                                       setActiveViewerItem(item);
                                     }
                                   }}
-                                  className="px-0.5 cursor-pointer text-center select-none w-full overflow-hidden"
-                                  style={{
-                                    minHeight: '27.5px',
-                                    maxHeight: '27.5px',
-                                    height: '27.5px',
-                                  }}
+                                  className="px-0.5 cursor-pointer text-center select-none"
                                 >
                                   <p
-                                    className="font-medium w-full m-0"
-                                    style={{
-                                      fontSize: '11px',
-                                      lineHeight: 1.25,
-                                      minHeight: '27.5px',
-                                      maxHeight: '27.5px',
-                                      height: '27.5px',
-                                      display: '-webkit-box',
-                                      WebkitLineClamp: 2,
-                                      WebkitBoxOrient: 'vertical',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      wordBreak: 'break-word',
-                                      overflowWrap: 'anywhere',
-                                      color: 'var(--theme-text-main, #f1f5f9)',
-                                    }}
+                                    className="text-[10px] sm:text-[11px] font-medium truncate leading-tight"
+                                    style={{ color: 'var(--theme-text-main, #f1f5f9)' }}
                                     title={item.record.name}
                                   >
                                     {item.record.name}

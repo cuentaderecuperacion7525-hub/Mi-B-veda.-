@@ -348,6 +348,8 @@ nav.fixed button.vault-nav-btn-inactive svg {
 [data-theme="light"] span[class*="bg-red-"]:not([class*="bg-red-500/"]):not([class*="bg-red-600/"]),
 [data-theme="light"] span[class*="bg-emerald-"]:not([class*="bg-emerald-500/"]):not([class*="bg-emerald-600/"]),
 [data-theme="light"] span[class*="bg-blue-"]:not([class*="bg-blue-500/"]):not([class*="bg-blue-600/"]),
+[data-theme="light"] .vault-file-type-badge,
+[data-theme="light"] .vault-file-type-badge *,
 [data-theme="light"] .bg-\[\#00e5ff\] *,
 [data-theme="light"] button.bg-\[\#00e5ff\] {
   color: #ffffff !important;
@@ -393,7 +395,7 @@ nav.fixed button.vault-nav-btn-inactive svg {
 }
 
 /* Convert text-white on regular content to dark slate #0f172a */
-[data-theme="light"] [class*="text-white"]:not(button[class*="from-"]):not(button[class*="from-"] *):not([class*="from-blue-"]):not([class*="from-blue-"] *):not(button[class*="bg-gradient-"] *):not(button[class*="bg-rose-"]):not(button[class*="bg-rose-"] *):not(button[class*="bg-red-"]):not(button[class*="bg-red-"] *):not(button[class*="bg-emerald-"]):not(button[class*="bg-emerald-"] *):not(button[class*="bg-blue-"]):not(button[class*="bg-blue-"] *):not(button[class*="bg-sky-"]):not(button[class*="bg-purple-"]):not(button[class*="bg-indigo-"]):not(span[class*="bg-rose-"]):not(span[class*="bg-red-"]):not(span[class*="bg-emerald-"]):not(span[class*="bg-blue-"]):not(.bg-\[\#00e5ff\] *):not(button.bg-\[\#00e5ff\]):not(button[class*="bg-zinc-100"]):not(button[class*="bg-zinc-100"] *) {
+[data-theme="light"] [class*="text-white"]:not(.vault-file-type-badge):not(.vault-file-type-badge *):not(button[class*="from-"]):not(button[class*="from-"] *):not([class*="from-blue-"]):not([class*="from-blue-"] *):not(button[class*="bg-gradient-"] *):not(button[class*="bg-rose-"]):not(button[class*="bg-rose-"] *):not(button[class*="bg-red-"]):not(button[class*="bg-red-"] *):not(button[class*="bg-emerald-"]):not(button[class*="bg-emerald-"] *):not(button[class*="bg-blue-"]):not(button[class*="bg-blue-"] *):not(button[class*="bg-sky-"]):not(button[class*="bg-purple-"]):not(button[class*="bg-indigo-"]):not(span[class*="bg-rose-"]):not(span[class*="bg-red-"]):not(span[class*="bg-emerald-"]):not(span[class*="bg-blue-"]):not(.bg-\[\#00e5ff\] *):not(button.bg-\[\#00e5ff\]):not(button[class*="bg-zinc-100"]):not(button[class*="bg-zinc-100"] *) {
   color: #0f172a !important;
 }
 
