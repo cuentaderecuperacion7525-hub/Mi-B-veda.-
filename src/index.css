@@ -975,37 +975,90 @@ html.light button.vault-auth-submit-btn * {
   stroke: #ffffff !important;
 }
 
-/* 20. Video Player Slider (6px track, 16px white thumb) */
-.vault-video-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  outline: none;
+/* 20. Video Player UI & Slider (Google Photos style: vertical white bar thumb, minimalist white controls) */
+[data-theme="light"] input.vault-video-slider,
+html.light input.vault-video-slider,
+input.vault-video-slider {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  outline: none !important;
+  border: none !important;
+  padding: 0 !important;
 }
 .vault-video-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  width: 5px;
+  height: 30px;
+  border-radius: 9999px;
+  background: #ffffff !important;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
   cursor: pointer;
   border: none;
   transition: transform 0.1s ease;
 }
 .vault-video-slider::-webkit-slider-thumb:active {
-  transform: scale(1.18);
+  transform: scaleY(1.12);
 }
 .vault-video-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  width: 5px;
+  height: 30px;
+  border-radius: 9999px;
+  background: #ffffff !important;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
   cursor: pointer;
   border: none;
   transition: transform 0.1s ease;
 }
 .vault-video-slider::-moz-range-thumb:active {
-  transform: scale(1.18);
+  transform: scaleY(1.12);
+}
+
+/* Force pure white buttons, icons, and text inside the video player in both Dark and Light themes */
+.vault-video-player-ui,
+.vault-video-player-ui *,
+[data-theme="light"] .vault-video-player-ui,
+[data-theme="light"] .vault-video-player-ui *,
+.vault-video-header,
+.vault-video-header *,
+[data-theme="light"] .vault-video-header,
+[data-theme="light"] .vault-video-header * {
+  color: #ffffff !important;
+}
+
+.vault-video-player-ui svg,
+[data-theme="light"] .vault-video-player-ui svg,
+.vault-video-header svg,
+[data-theme="light"] .vault-video-header svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.vault-video-player-ui svg.vault-video-icon-filled,
+[data-theme="light"] .vault-video-player-ui svg.vault-video-icon-filled {
+  fill: #ffffff !important;
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+[data-theme="light"] button.vault-video-btn-minimal,
+button.vault-video-btn-minimal {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .vault-video-btn-glass,
+.vault-video-btn-glass {
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+[data-theme="light"] .vault-video-stage-black,
+.vault-video-stage-black {
+  background-color: #000000 !important;
 }

@@ -11,7 +11,12 @@ import {
   HardDrive,
   Folder,
   FolderPlus,
+  ArrowLeft,
   ArrowRight,
+  ChevronRight,
+  Share2,
+  Plus,
+  MoreVertical,
   Play,
   Pause,
   Volume2,
@@ -21,11 +26,9 @@ import {
   Box,
   FileCode,
   PackageCheck,
-  Film,
   Music,
   Check,
   Edit2,
-  FileText,
 } from 'lucide-react';
 import { EncryptedVaultItem } from '../db/vaultDb';
 import { registerBackHandler } from '../services/backButtonService';
@@ -838,12 +841,15 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       return;
     }
 
+    const autoSound = localStorage.getItem('vault_video_auto_sound') !== 'false';
     setIsVideoReady(false);
     setIsPlaying(false);
     setIsEnded(false);
     setVideoProgress(0);
+    setIsMuted(!autoSound);
     setShowUnmutePrompt(false);
-    setShowVideoControls(true);
+    // Ocultar controles inicialmente para que el video ocupe toda la pantalla limpia y aparezcan al tocar el video
+    setShowVideoControls(false);
 
     const cached = activeItem.thumbnailUrl || getCachedVideoThumbnail(activeItem.id);
     if (cached) {
@@ -893,44 +899,39 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
-  // Auto-hide controls and header after 3s of active playback
+  // Auto-hide controls and header after 3s without touch interaction
   const resetHideControlsTimer = useCallback(() => {
     if (hideControlsTimerRef.current) {
       clearTimeout(hideControlsTimerRef.current);
       hideControlsTimerRef.current = null;
     }
-    if (isPlaying) {
-      hideControlsTimerRef.current = setTimeout(() => {
-        setShowVideoControls(false);
-      }, 3000);
-    }
-  }, [isPlaying]);
+    hideControlsTimerRef.current = setTimeout(() => {
+      setShowVideoControls(false);
+    }, 3000);
+  }, []);
 
   useEffect(() => {
-    if (isPlaying) {
+    if (showVideoControls) {
       resetHideControlsTimer();
-    } else {
-      if (hideControlsTimerRef.current) {
-        clearTimeout(hideControlsTimerRef.current);
-        hideControlsTimerRef.current = null;
-      }
-      setShowVideoControls(true);
+    } else if (hideControlsTimerRef.current) {
+      clearTimeout(hideControlsTimerRef.current);
+      hideControlsTimerRef.current = null;
     }
     return () => {
       if (hideControlsTimerRef.current) {
         clearTimeout(hideControlsTimerRef.current);
       }
     };
-  }, [isPlaying, resetHideControlsTimer]);
+  }, [showVideoControls, resetHideControlsTimer]);
 
-  // Autoplay handler when video can play
+  // Autoplay handler when video can play (reproduce con sonido por defecto)
   const handleCanPlay = useCallback(() => {
     setIsVideoReady(true);
     const video = videoRef.current;
     if (!video) return;
 
     video.playbackRate = playbackRate;
-    const autoSound = localStorage.getItem('vault_video_auto_sound') === 'true';
+    const autoSound = localStorage.getItem('vault_video_auto_sound') !== 'false';
 
     if (autoSound) {
       video.muted = false;
@@ -942,7 +943,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
           setShowUnmutePrompt(false);
         })
         .catch(() => {
-          // Si el navegador rechaza con sonido, reintenta silenciado y muestra botón "Activar sonido"
+          // Si el navegador bloquea el inicio con audio, reintenta en silencio y muestra botón blanco "Activar sonido"
           video.muted = true;
           setIsMuted(true);
           video
@@ -954,10 +955,10 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
             .catch(() => {
               setIsPlaying(false);
               setShowUnmutePrompt(false);
+              setShowVideoControls(true);
             });
         });
     } else {
-      // Reproducir en silencio por defecto
       video.muted = true;
       setIsMuted(true);
       video
@@ -969,6 +970,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         .catch(() => {
           setIsPlaying(false);
           setShowUnmutePrompt(false);
+          setShowVideoControls(true);
         });
     }
   }, [playbackRate]);
@@ -1027,15 +1029,9 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         clearTimeout(singleTapTimeoutRef.current);
       }
       singleTapTimeoutRef.current = setTimeout(() => {
-        setShowVideoControls((prev) => {
-          const next = !prev;
-          if (next && isPlaying) {
-            resetHideControlsTimer();
-          }
-          return next;
-        });
+        setShowVideoControls((prev) => !prev);
         singleTapTimeoutRef.current = null;
-      }, 300);
+      }, 280);
     }
   };
 
@@ -1051,16 +1047,6 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     }
   };
 
-  const speedList = [1, 1.5, 2, 0.5];
-  const handleCycleSpeed = () => {
-    const curIdx = speedList.indexOf(playbackRate);
-    const next = speedList[(curIdx + 1) % speedList.length];
-    setPlaybackRate(next);
-    if (videoRef.current) {
-      videoRef.current.playbackRate = next;
-    }
-  };
-
   const toggleFullscreen = () => {
     const elem = videoRef.current;
     if (!elem) return;
@@ -1071,6 +1057,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     } else if ((elem as any).webkitEnterFullscreen) {
       (elem as any).webkitEnterFullscreen();
     }
+    resetHideControlsTimer();
   };
 
   const handlePlayPause = () => {
@@ -1093,70 +1080,124 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
   const toggleMute = () => {
     if (!videoRef.current) return;
-    videoRef.current.muted = !isMuted;
-    setIsMuted(!isMuted);
+    const nextMuted = !isMuted;
+    videoRef.current.muted = nextMuted;
+    setIsMuted(nextMuted);
+    if (!nextMuted) {
+      setShowUnmutePrompt(false);
+    }
+    resetHideControlsTimer();
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col justify-between select-none overflow-hidden">
-      {/* Top Bar para videos, audios y documentos */}
+    <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between select-none overflow-hidden">
+      {/* Top Bar para videos (estilo Google Fotos) y para audios/documentos */}
       {!isPhoto && (
         <header
-          className={`absolute top-0 left-0 right-0 px-4 safe-top-sticky pb-4 bg-gradient-to-b from-black/95 via-black/70 to-transparent flex items-center justify-between text-white z-30 transition-all duration-300 ease-in-out ${
+          className={`vault-video-header absolute top-0 left-0 right-0 px-4 safe-top-sticky pb-6 bg-gradient-to-b from-black/90 via-black/55 to-transparent flex items-center justify-between text-white z-30 transition-opacity duration-300 ease-in-out ${
             isImmersive || (isVideo && !showVideoControls)
-              ? '-translate-y-full opacity-0 pointer-events-none'
-              : 'translate-y-0 opacity-100'
+              ? 'opacity-0 pointer-events-none'
+              : 'opacity-100'
           }`}
         >
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 rounded-xl bg-black/40 hover:bg-black/60 text-white/90 hover:text-white transition-colors cursor-pointer shrink-0"
-              title="Cerrar (Esc)"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="text-left min-w-0">
-              <h4 className="text-[15px] font-medium text-white truncate leading-tight">
-                {activeItem.record.name}
-              </h4>
-              <div className="flex items-center gap-1.5 text-[12px] text-white/80 font-normal leading-tight pt-0.5">
-                <span>{new Date(activeItem.record.timestamp).toLocaleDateString()}</span>
-                <span>·</span>
-                <span>
-                  {activeItem.record.category === 'document'
-                    ? 'Documentos'
-                    : activeItem.record.category === 'app'
-                    ? 'Aplicaciones'
-                    : activeItem.record.category === 'audio'
-                    ? 'Audio'
-                    : activeItem.record.category === 'video'
-                    ? 'Videos'
-                    : 'Fotos'}
-                </span>
-                <span>·</span>
-                <span>
-                  {currentIndex + 1} de {allItems.length}
-                </span>
-              </div>
-            </div>
-          </div>
+          {isVideo ? (
+            <>
+              {/* Izquierda: Botón minimalista de regresar */}
+              <button
+                type="button"
+                onClick={onClose}
+                className="vault-video-btn-minimal p-2 -ml-1 flex items-center justify-center text-white active:scale-90 transition-transform cursor-pointer shrink-0"
+                title="Atrás"
+              >
+                <ArrowLeft className="w-6 h-6 text-white" strokeWidth={2} />
+              </button>
 
-          <div className="flex items-center gap-1.5 shrink-0 ml-2">
-            <button
-              type="button"
-              onClick={() => setShowDetails(!showDetails)}
-              className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                showDetails
-                  ? 'text-[#00e5ff] bg-black/60'
-                  : 'text-white/80 hover:text-white bg-black/40 hover:bg-black/60'
-              }`}
-              title="Detalles"
-            >
-              <Info className="w-5 h-5" />
-            </button>
-          </div>
+              {/* Centro: Fecha y hora al estilo Google Fotos */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDetails(!showDetails);
+                  resetHideControlsTimer();
+                }}
+                className="vault-video-btn-minimal flex flex-col items-center justify-center text-center cursor-pointer px-3"
+                title="Ver detalles del video"
+              >
+                <div className="flex items-center gap-0.5 text-[16px] font-medium text-white leading-tight drop-shadow">
+                  <span>
+                    {new Date(activeItem.record.timestamp).toLocaleDateString('es-ES', {
+                      day: 'numeric',
+                      month: 'short',
+                    })}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-white/90" strokeWidth={2} />
+                </div>
+                <span className="text-[12px] text-white/85 font-normal leading-tight pt-0.5 drop-shadow">
+                  {new Date(activeItem.record.timestamp).toLocaleTimeString('es-ES', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true,
+                  })}
+                </span>
+              </button>
+
+              {/* Derecha: Menú de 3 puntos minimalista */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMoreMenu((prev) => !prev);
+                  resetHideControlsTimer();
+                }}
+                className="vault-video-btn-minimal p-2 -mr-1 flex items-center justify-center text-white active:scale-90 transition-transform cursor-pointer shrink-0"
+                title="Más opciones"
+              >
+                <MoreVertical className="w-6 h-6 text-white" strokeWidth={2} />
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="vault-video-btn-glass w-10 h-10 rounded-full flex items-center justify-center text-white active:scale-95 transition-all cursor-pointer shrink-0"
+                  title="Cerrar (Esc)"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+                <div className="text-left min-w-0">
+                  <h4 className="text-[15px] font-medium text-white truncate leading-tight drop-shadow">
+                    {activeItem.record.name}
+                  </h4>
+                  <div className="flex items-center gap-1.5 text-[12px] text-white/90 font-normal leading-tight pt-0.5 drop-shadow">
+                    <span>{new Date(activeItem.record.timestamp).toLocaleDateString()}</span>
+                    <span>·</span>
+                    <span>
+                      {activeItem.record.category === 'document'
+                        ? 'Documentos'
+                        : activeItem.record.category === 'app'
+                        ? 'Aplicaciones'
+                        : 'Audio'}
+                    </span>
+                    <span>·</span>
+                    <span>
+                      {currentIndex + 1} de {allItems.length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDetails(!showDetails)}
+                  className="vault-video-btn-glass w-10 h-10 rounded-full flex items-center justify-center text-white active:scale-95 transition-all cursor-pointer"
+                  title="Detalles"
+                >
+                  <Info className="w-5 h-5 text-white" />
+                </button>
+              </div>
+            </>
+          )}
         </header>
       )}
 
@@ -1175,7 +1216,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         onMouseLeave={handleMouseUp}
         style={{ touchAction: scale > 1.05 ? 'none' : 'pan-y' }}
         className={`relative flex-1 w-full h-full flex items-center justify-center overflow-hidden cursor-pointer select-none ${
-          isImmersive ? 'p-0' : 'p-2 sm:p-6'
+          isImmersive || isVideo ? 'p-0' : 'p-2 sm:p-6'
         }`}
       >
         {/* Floating Zoom Indicator & Reset when zoomed in */}
@@ -1219,13 +1260,14 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
           </div>
         )}
 
-        {/* VIDEO VIEW */}
+        {/* VIDEO VIEW (ESTILO GOOGLE FOTOS) */}
         {isVideo && (
           <div
             onClick={handleVideoAreaTap}
-            className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden select-none"
+            style={{ objectFit: 'contain' }}
+            className="vault-video-player-ui vault-video-stage-black relative w-full h-full flex items-center justify-center bg-black overflow-hidden select-none"
           >
-            {/* Video Element */}
+            {/* Video Element - tamaño y proporción real sin deformarse */}
             <video
               ref={videoRef}
               src={activeItem.blobUrl}
@@ -1257,29 +1299,41 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
                 setIsEnded(true);
                 setShowVideoControls(true);
               }}
-              style={{ backgroundColor: '#000000' }}
-              className={`w-full h-full object-contain transition-opacity duration-300 ${
+              style={{
+                backgroundColor: '#000000',
+                maxWidth: '100vw',
+                maxHeight: '100dvh',
+                width: 'auto',
+                height: 'auto',
+                objectFit: 'contain',
+              }}
+              className={`max-w-full max-h-full w-auto h-auto object-contain m-auto transition-opacity duration-300 ${
                 isVideoReady ? 'opacity-100' : 'opacity-0'
               }`}
             />
 
             {/* Portada real del video (segundo 0.5) con velo oscuro e indicador circular de carga mientras descifra */}
             {!isVideoReady && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black z-20 pointer-events-none">
+              <div className="vault-video-stage-black absolute inset-0 flex items-center justify-center bg-black z-20 pointer-events-none">
                 {videoPoster ? (
                   <img
                     src={videoPoster}
                     alt="Portada"
-                    className="w-full h-full object-contain"
+                    style={{
+                      maxWidth: '100vw',
+                      maxHeight: '100dvh',
+                      width: 'auto',
+                      height: 'auto',
+                      objectFit: 'contain',
+                    }}
+                    className="max-w-full max-h-full w-auto h-auto object-contain m-auto"
                   />
                 ) : null}
-                {/* Velo oscuro suave encima */}
                 <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
 
-                {/* Indicador circular de carga con texto */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-                  <div className="w-12 h-12 border-3 border-white/20 border-t-white rounded-full animate-spin mb-3 shadow-lg" />
-                  <span className="text-sm font-medium text-white/95 tracking-wide drop-shadow-md">
+                  <div className="w-12 h-12 border-3 border-white/25 border-t-white rounded-full animate-spin mb-3 shadow-lg" />
+                  <span className="text-sm font-medium text-white tracking-wide drop-shadow-md">
                     Descifrando video…
                   </span>
                 </div>
@@ -1289,16 +1343,16 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
             {/* Double-tap visual feedback (-10s / +10s) */}
             {doubleTapFeedback && (
               <div
-                className={`absolute top-1/2 -translate-y-1/2 z-30 pointer-events-none flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-black/75 backdrop-blur-md border border-white/20 text-white font-semibold text-sm shadow-2xl animate-in zoom-in-95 duration-150 ${
+                className={`vault-video-btn-glass absolute top-1/2 -translate-y-1/2 z-30 pointer-events-none flex items-center gap-2 px-4 py-2.5 rounded-full text-white font-semibold text-sm shadow-2xl animate-in zoom-in-95 duration-150 ${
                   doubleTapFeedback.side === 'left' ? 'left-8' : 'right-8'
                 }`}
               >
                 {doubleTapFeedback.side === 'left' ? (
-                  <RotateCcw className="w-5 h-5 text-[#00e5ff]" />
+                  <RotateCcw className="w-5 h-5 text-white" />
                 ) : (
-                  <RotateCw className="w-5 h-5 text-[#00e5ff]" />
+                  <RotateCw className="w-5 h-5 text-white" />
                 )}
-                <span>{doubleTapFeedback.label}</span>
+                <span className="text-white">{doubleTapFeedback.label}</span>
               </div>
             )}
 
@@ -1307,60 +1361,67 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
               <button
                 type="button"
                 onClick={handleUnmuteClick}
-                className="absolute bottom-32 sm:bottom-36 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-black/85 hover:bg-black border border-white/25 text-white text-xs font-semibold backdrop-blur-md shadow-2xl flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
+                className="vault-video-btn-glass absolute bottom-44 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full text-white text-xs font-semibold shadow-2xl flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
               >
-                <VolumeX className="w-4 h-4 text-rose-400" />
-                <span>Activar sonido</span>
+                <VolumeX className="w-4 h-4 text-white" />
+                <span className="text-white">Activar sonido</span>
               </button>
             )}
 
-            {/* Botón grande central de Play cuando está pausado / listo / terminado */}
-            {isVideoReady && !isPlaying && (
-              <div
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePlayPause();
-                }}
-                className="absolute inset-0 flex items-center justify-center z-20 cursor-pointer"
-              >
-                <div
-                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-white backdrop-blur-md border shadow-2xl transition-transform active:scale-95"
-                  style={{
-                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                    borderColor: 'var(--theme-primary, #00e5ff)',
-                    boxShadow: '0 0 24px var(--theme-glow, rgba(0, 229, 255, 0.45))',
-                  }}
-                >
-                  {isEnded ? (
-                    <RotateCcw className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
-                  ) : (
-                    <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-white ml-1 text-white" />
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Barra de Controles Inferiores */}
+            {/* Controles inferiores unificados estilo Google Fotos (se desvanecen suavemente tras 3 s) */}
             <div
               onClick={(e) => e.stopPropagation()}
-              className={`absolute bottom-[68px] sm:bottom-[72px] left-0 right-0 z-30 px-4 sm:px-6 pt-6 pb-2 bg-gradient-to-t from-black/95 via-black/80 to-transparent flex flex-col gap-2.5 transition-all duration-300 select-none ${
+              className={`absolute bottom-0 left-0 right-0 z-30 pt-14 pb-safe bg-gradient-to-t from-black via-black/85 to-transparent flex flex-col gap-3 transition-opacity duration-300 select-none ${
                 !showVideoControls || isImmersive
-                  ? 'opacity-0 translate-y-6 pointer-events-none'
-                  : 'opacity-100 translate-y-0'
+                  ? 'opacity-0 pointer-events-none'
+                  : 'opacity-100'
               } ${!isVideoReady ? 'opacity-50 pointer-events-none' : ''}`}
             >
-              {/* 1. Barra de progreso de 6 px con tiradera blanca de 16 px y tiempos a los lados */}
-              <div className="w-full flex items-center gap-3">
-                <span className="font-mono text-[12px] text-white/90 min-w-[34px] text-left select-none">
-                  {formatTime(videoProgress)}
+              {/* Fila 1: Play/Pausa a la izquierda, Tiempo al centro, Sonido a la derecha (iconos blancos minimalistas sin fondo circular) */}
+              <div className="w-full px-5 flex items-center justify-between">
+                <button
+                  type="button"
+                  disabled={!isVideoReady}
+                  onClick={handlePlayPause}
+                  className="vault-video-btn-minimal p-2 -ml-2 flex items-center justify-center text-white active:scale-90 transition-transform cursor-pointer"
+                  title={isEnded ? 'Repetir' : isPlaying ? 'Pausar' : 'Reproducir'}
+                >
+                  {isEnded ? (
+                    <RotateCcw className="w-6 h-6 text-white" strokeWidth={2} />
+                  ) : isPlaying ? (
+                    <Pause className="vault-video-icon-filled w-6 h-6 fill-white text-white" />
+                  ) : (
+                    <Play className="vault-video-icon-filled w-6 h-6 fill-white text-white" />
+                  )}
+                </button>
+
+                <span className="text-[14px] font-medium text-white tracking-wide select-none drop-shadow">
+                  {formatTime(videoProgress)} / {formatTime(videoDuration)}
                 </span>
 
-                <div className="relative flex-1 flex items-center h-6">
+                <button
+                  type="button"
+                  disabled={!isVideoReady}
+                  onClick={toggleMute}
+                  className="vault-video-btn-minimal p-2 -mr-2 flex items-center justify-center text-white active:scale-90 transition-transform cursor-pointer"
+                  title={isMuted ? 'Activar sonido' : 'Silenciar'}
+                >
+                  {isMuted ? (
+                    <VolumeX className="w-6 h-6 text-white" strokeWidth={2} />
+                  ) : (
+                    <Volume2 className="w-6 h-6 text-white" strokeWidth={2} />
+                  )}
+                </button>
+              </div>
+
+              {/* Fila 2: Barra de progreso estilo Google Fotos con indicador vertical blanco */}
+              <div className="w-full px-5 flex items-center">
+                <div className="relative w-full flex items-center h-8">
                   <input
                     type="range"
                     min={0}
                     max={videoDuration || 100}
-                    step={0.1}
+                    step={0.05}
                     disabled={!isVideoReady}
                     value={isVideoReady ? videoProgress : 0}
                     onChange={(e) => {
@@ -1372,111 +1433,77 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
                         resetHideControlsTimer();
                       }
                     }}
-                    className="vault-video-slider w-full h-[6px] rounded-full appearance-none cursor-pointer select-none"
+                    className="vault-video-slider w-full h-[8px] rounded-full appearance-none cursor-pointer select-none"
                     style={{
-                      background: `linear-gradient(to right, var(--theme-primary, #00e5ff) 0%, var(--theme-primary, #00e5ff) ${
+                      background: `linear-gradient(to right, #ffffff 0%, #ffffff ${
                         videoDuration > 0 && isVideoReady ? (videoProgress / videoDuration) * 100 : 0
-                      }%, rgba(255, 255, 255, 0.25) ${
+                      }%, rgba(255, 255, 255, 0.45) ${
                         videoDuration > 0 && isVideoReady ? (videoProgress / videoDuration) * 100 : 0
-                      }%, rgba(255, 255, 255, 0.25) 100%)`,
+                      }%, rgba(255, 255, 255, 0.45) 100%)`,
                     }}
                   />
+                  {/* Punto blanco sutil al extremo derecho de la barra (estilo Google Fotos) */}
+                  <span className="w-1.5 h-1.5 rounded-full bg-white pointer-events-none absolute right-1" />
                 </div>
-
-                <span className="font-mono text-[12px] text-white/90 min-w-[34px] text-right select-none">
-                  {formatTime(videoDuration)}
-                </span>
               </div>
 
-              {/* 2. Fila de botones de control */}
-              <div className="flex items-center justify-between text-xs px-1">
-                {/* Izquierda: Velocidad */}
-                <div className="flex items-center">
-                  <button
-                    type="button"
-                    disabled={!isVideoReady}
-                    onClick={handleCycleSpeed}
-                    className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white font-mono text-[12px] font-semibold transition-all cursor-pointer border border-white/10"
-                    title="Cambiar velocidad de reproducción"
-                  >
-                    {playbackRate}x
-                  </button>
-                </div>
+              {/* Fila 3: Barra de Acciones Inferior estilo Google Fotos (iconos minimalistas blancos sin fondo circular ni bordes) */}
+              <div className="w-full px-2 pt-2 pb-3 flex items-center justify-around">
+                {/* 1. Compartir */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetHideControlsTimer();
+                    handleShare();
+                  }}
+                  className="vault-video-btn-minimal flex flex-col items-center justify-center gap-1.5 py-1 px-3 text-white active:scale-95 transition-transform cursor-pointer"
+                  aria-label="Compartir"
+                >
+                  <Share2 className="w-[22px] h-[22px] text-white" strokeWidth={1.8} />
+                  <span className="text-[12px] font-medium text-white tracking-tight">Compartir</span>
+                </button>
 
-                {/* Centro: Atrasar 10s, Play/Pausa/Repetir, Adelantar 10s */}
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <button
-                    type="button"
-                    disabled={!isVideoReady}
-                    onClick={() => {
-                      seekRelative(-10);
-                      showDoubleTapFeedback('left', '-10s');
-                    }}
-                    className="p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer flex items-center justify-center"
-                    title="Atrasar 10 segundos"
-                  >
-                    <RotateCcw className="w-5 h-5" />
-                  </button>
+                {/* 2. Agregar a (Copiar a carpeta) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetHideControlsTimer();
+                    setShowMoreMenu(false);
+                    setNewFolderInputOpen(false);
+                    setIsCopyModalOpen(true);
+                  }}
+                  className="vault-video-btn-minimal flex flex-col items-center justify-center gap-1.5 py-1 px-3 text-white active:scale-95 transition-transform cursor-pointer"
+                  aria-label="Agregar a"
+                >
+                  <Plus className="w-[24px] h-[24px] text-white" strokeWidth={1.8} />
+                  <span className="text-[12px] font-medium text-white tracking-tight">Agregar a</span>
+                </button>
 
-                  <button
-                    type="button"
-                    disabled={!isVideoReady}
-                    onClick={handlePlayPause}
-                    className="w-11 h-11 rounded-full text-black flex items-center justify-center active:scale-95 transition-transform cursor-pointer shadow-lg"
-                    style={{
-                      backgroundColor: 'var(--theme-primary, #00e5ff)',
-                    }}
-                    title={isEnded ? 'Repetir' : isPlaying ? 'Pausar' : 'Reproducir'}
-                  >
-                    {isEnded ? (
-                      <RotateCcw className="w-5 h-5 text-black stroke-[2.2]" />
-                    ) : isPlaying ? (
-                      <Pause className="w-5 h-5 fill-black text-black" />
-                    ) : (
-                      <Play className="w-5 h-5 fill-black text-black ml-0.5" />
-                    )}
-                  </button>
+                {/* 3. Maximizar / Pantalla completa (justo a la izquierda del botón de Eliminar) */}
+                <button
+                  type="button"
+                  onClick={toggleFullscreen}
+                  className="vault-video-btn-minimal flex flex-col items-center justify-center gap-1.5 py-1 px-3 text-white active:scale-95 transition-transform cursor-pointer"
+                  aria-label="Maximizar"
+                >
+                  <Maximize2 className="w-[21px] h-[21px] text-white" strokeWidth={1.8} />
+                  <span className="text-[12px] font-medium text-white tracking-tight">Maximizar</span>
+                </button>
 
-                  <button
-                    type="button"
-                    disabled={!isVideoReady}
-                    onClick={() => {
-                      seekRelative(10);
-                      showDoubleTapFeedback('right', '+10s');
-                    }}
-                    className="p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer flex items-center justify-center"
-                    title="Adelantar 10 segundos"
-                  >
-                    <RotateCw className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Derecha: Sonido y Pantalla completa */}
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <button
-                    type="button"
-                    disabled={!isVideoReady}
-                    onClick={toggleMute}
-                    className="p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
-                    title={isMuted ? 'Activar sonido' : 'Silenciar'}
-                  >
-                    {isMuted ? (
-                      <VolumeX className="w-5 h-5 text-rose-400" />
-                    ) : (
-                      <Volume2 className="w-5 h-5" />
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={!isVideoReady}
-                    onClick={toggleFullscreen}
-                    className="p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
-                    title="Pantalla completa"
-                  >
-                    <Maximize2 className="w-5 h-5" />
-                  </button>
-                </div>
+                {/* 4. Eliminar (icono clásico de bote de basura) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetHideControlsTimer();
+                    setShowMoreMenu(false);
+                    setShowDeleteConfirm(true);
+                  }}
+                  className="vault-video-btn-minimal flex flex-col items-center justify-center gap-1.5 py-1 px-3 text-white active:scale-95 transition-transform cursor-pointer"
+                  aria-label="Eliminar"
+                >
+                  <Trash2 className="w-[22px] h-[22px] text-white" strokeWidth={1.8} />
+                  <span className="text-[12px] font-medium text-white tracking-tight">Eliminar</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1691,22 +1718,24 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         </>
       )}
 
-      {/* Barra de Acciones Inferior - 4 botones (Compartir, Copiar, Eliminar, Más) */}
-      <BarraAccionesInferior
-        onCompartir={handleShare}
-        onCopiar={() => {
-          setShowMoreMenu(false);
-          setNewFolderInputOpen(false);
-          setIsCopyModalOpen(true);
-        }}
-        onEliminar={() => {
-          setShowMoreMenu(false);
-          setShowDeleteConfirm(true);
-        }}
-        onMas={() => setShowMoreMenu((prev) => !prev)}
-        menuMasAbierto={showMoreMenu}
-        esInmersivo={isImmersive || (isVideo && !showVideoControls)}
-      />
+      {/* Barra de Acciones Inferior para fotos/documentos/audios (los videos usan su propia barra estilo Google Fotos integrada) */}
+      {!isVideo && (
+        <BarraAccionesInferior
+          onCompartir={handleShare}
+          onCopiar={() => {
+            setShowMoreMenu(false);
+            setNewFolderInputOpen(false);
+            setIsCopyModalOpen(true);
+          }}
+          onEliminar={() => {
+            setShowMoreMenu(false);
+            setShowDeleteConfirm(true);
+          }}
+          onMas={() => setShowMoreMenu((prev) => !prev)}
+          menuMasAbierto={showMoreMenu}
+          esInmersivo={isImmersive}
+        />
+      )}
 
       {/* Modal: Cambiar nombre */}
       {isRenameModalOpen && (

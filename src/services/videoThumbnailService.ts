@@ -39,26 +39,28 @@ export async function generateVideoThumbnail(
       isResolved = true;
 
       try {
-        const width = video.videoWidth || 320;
-        const height = video.videoHeight || 240;
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        if (width > 0 && height > 0) {
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
 
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-          const duration = video.duration || 0;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, width, height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+            const duration = video.duration || 0;
 
-          if (cacheKey) {
-            thumbnailCache.set(cacheKey, dataUrl);
-            durationCache.set(cacheKey, duration);
+            if (cacheKey) {
+              thumbnailCache.set(cacheKey, dataUrl);
+              durationCache.set(cacheKey, duration);
+            }
+
+            cleanup();
+            resolve({ thumbnailUrl: dataUrl, duration });
+            return;
           }
-
-          cleanup();
-          resolve({ thumbnailUrl: dataUrl, duration });
-          return;
         }
       } catch (err) {
         console.warn('[VideoThumbnail] Error capturing frame:', err);

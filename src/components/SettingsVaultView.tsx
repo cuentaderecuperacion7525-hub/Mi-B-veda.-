@@ -160,9 +160,9 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     showToast(`Tema "${VAULT_THEMES[theme].name}" activado`, 'success');
   };
 
-  // Ajuste: Reproducir con sonido al abrir (apagado por defecto)
+  // Ajuste: Reproducir con sonido al abrir (activado por defecto)
   const [videoAutoSound, setVideoAutoSound] = useState<boolean>(() => {
-    return localStorage.getItem('vault_video_auto_sound') === 'true';
+    return localStorage.getItem('vault_video_auto_sound') !== 'false';
   });
 
   const handleToggleVideoAutoSound = (enabled: boolean) => {

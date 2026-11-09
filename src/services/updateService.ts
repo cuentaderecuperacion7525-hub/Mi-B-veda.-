@@ -3,6 +3,7 @@
  */
 
 import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER, CURRENT_RELEASE_DATE, CURRENT_CHANGELOG, VersionInfo } from '../version';
+import { getSafeAppVersionCode } from './nativeUpdaterBridge';
 
 export interface UpdateCheckResult {
   hasUpdate: boolean;
@@ -100,7 +101,6 @@ class UpdateService {
       let installedBuildNumber = CURRENT_BUILD_NUMBER;
       let installedVersionName = CURRENT_APP_VERSION;
       try {
-        const { getSafeAppVersionCode } = await import('./nativeUpdaterBridge');
         const nativeVer = await getSafeAppVersionCode();
         if (nativeVer && typeof nativeVer.versionCode === 'number') {
           installedBuildNumber = nativeVer.versionCode;
