@@ -38,6 +38,8 @@ import { ModalEliminar } from './ModalEliminar';
 import { formatSize as formatBytes } from '../utils/formatUtils';
 import { DocumentReader } from './DocumentReader';
 import { generateVideoThumbnail, getCachedVideoThumbnail } from '../services/videoThumbnailService';
+import { VaultAudioPlayerScreen } from './VaultAudioPlayerScreen';
+import { vaultAudioEngine } from '../services/vaultAudioEngine';
 
 export interface DecryptedVaultItem {
   id: string;
@@ -634,6 +636,9 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
       setExportProgress(85);
       setExportStage('Retirando de la bóveda privada...');
+      if (isAudio) {
+        vaultAudioEngine.stopAndRevoke();
+      }
       await onDelete(activeItem.id);
 
       setExportProgress(100);
@@ -814,6 +819,9 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     setIsDeleting(true);
     try {
       setShowDeleteConfirm(false);
+      if (isAudio) {
+        vaultAudioEngine.stopAndRevoke();
+      }
       await onDelete(activeItem.id);
       showToast('Elemento movido a la Papelera de Reciclaje (30 días)', 'info');
       onClose();
@@ -1074,8 +1082,8 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between select-none overflow-hidden">
-      {/* Top Bar para videos (estilo Google Fotos) y para audios/documentos */}
-      {!isPhoto && (
+      {/* Top Bar para videos (estilo Google Fotos) y para documentos/apps */}
+      {!isPhoto && !isAudio && (
         <header
           className={`vault-video-header absolute top-0 left-0 right-0 px-4 safe-top-sticky pb-6 bg-gradient-to-b from-black/90 via-black/55 to-transparent flex items-center justify-between text-white z-30 transition-opacity duration-300 ease-in-out ${
             isImmersive || (isVideo && !showVideoControls)
@@ -1492,54 +1500,32 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
           </div>
         )}
 
-        {/* AUDIO VIEW */}
+        {/* AUDIO VIEW (Reproductor de Audio Personalizado #6A3A35) */}
         {isAudio && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md bg-[#0a121d] border border-slate-800/90 rounded-3xl p-6 sm:p-8 text-center shadow-2xl"
-          >
-            <div className="w-20 h-20 bg-amber-500/10 border border-amber-500/30 rounded-3xl flex items-center justify-center mx-auto mb-4 text-amber-400 shadow-lg shadow-amber-500/10">
-              <Music className="w-10 h-10" />
-            </div>
-
-            <h3 className="text-lg font-bold text-white mb-1 break-all">
-              {activeItem.record.name}
-            </h3>
-            <p className="text-xs text-amber-400/80 mb-6">
-              Grabación / Audio cifrado en Caja Fuerte
-            </p>
-
-            <audio
-              src={activeItem.blobUrl}
-              controls
-              controlsList="nodownload"
-              className="w-full mb-6 accent-amber-500 rounded-xl"
-            />
-
-            <div className="bg-slate-900/80 rounded-2xl p-4 border border-slate-800 text-left text-xs space-y-2 mb-6">
-              <div className="flex justify-between text-slate-400">
-                <span>Formato:</span>
-                <span className="font-semibold text-slate-200">
-                  {activeItem.record.name.split('.').pop()?.toUpperCase() || 'AUDIO'}
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Tamaño:</span>
-                <span className="font-semibold text-slate-200">
-                  {formatBytes(activeItem.record.size)}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={handleExport}
-              disabled={isExporting}
-              className="w-full py-3.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold rounded-2xl shadow-lg shadow-amber-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Download className={`w-5 h-5 ${isExporting ? 'animate-bounce' : ''}`} />
-              <span>{isExporting ? 'Sacando a tu dispositivo...' : 'Sacar a mi dispositivo'}</span>
-            </button>
-          </div>
+          <VaultAudioPlayerScreen
+            activeItem={activeItem}
+            allItems={allItems}
+            onSelectTrack={(nextItem) => {
+              const idx = allItems.findIndex((it) => it.id === nextItem.id);
+              if (idx !== -1) {
+                activeItemIdRef.current = nextItem.id;
+                setCurrentIndex(idx);
+              }
+            }}
+            onClose={onClose}
+            onExport={handleExport}
+            onShare={handleShare}
+            onCopy={() => {
+              setShowMoreMenu(false);
+              setNewFolderInputOpen(false);
+              setIsCopyModalOpen(true);
+            }}
+            onDeleteRequest={() => {
+              setShowMoreMenu(false);
+              setShowDeleteConfirm(true);
+            }}
+            isExporting={isExporting}
+          />
         )}
 
         {/* APPLICATION / PACKAGE VIEW */}
@@ -1701,8 +1687,8 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         </>
       )}
 
-      {/* Barra de Acciones Inferior para fotos/documentos/audios (los videos usan su propia barra estilo Google Fotos integrada) */}
-      {!isVideo && (
+      {/* Barra de Acciones Inferior para fotos/documentos/apps (videos y audios usan su propia interfaz integrada) */}
+      {!isVideo && !isAudio && (
         <BarraAccionesInferior
           onCompartir={handleShare}
           onCopiar={() => {

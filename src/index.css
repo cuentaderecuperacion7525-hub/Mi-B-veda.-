@@ -1065,3 +1065,34 @@ button.vault-video-btn-minimal {
 .vault-video-stage-black {
   background-color: #000000 !important;
 }
+
+/* 21. Custom Audio Player Screen (#6A3A35) & Continuous Marquee Title */
+@keyframes vault-audio-marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.vault-audio-marquee-track {
+  animation-name: vault-audio-marquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vault-audio-marquee-track {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+[data-theme="light"] .vault-audio-player-screen,
+.vault-audio-player-screen {
+  background-color: #6A3A35 !important;
+  color: #F6E8E5 !important;
+}
+
