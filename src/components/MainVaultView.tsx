@@ -2956,8 +2956,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   </div>
                 </button>
 
-                {/* Controles de vista y búsqueda compactos a la derecha: solo para Fotos y Videos */}
-                {carpetaActiva !== 'todas' && !isListCategoryView && (
+                {/* Controles de vista y búsqueda compactos a la derecha en todas las subcarpetas */}
+                {carpetaActiva !== 'todas' && (
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
@@ -3012,15 +3012,21 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
               </div>
             )}
 
-            {/* Barra de búsqueda desplegable compacta (Fotos y Videos) */}
-            {carpetaActiva !== 'todas' && !isListCategoryView && (isSearchOpen || searchQuery) && (
+            {/* Barra de búsqueda desplegable compacta en todas las subcarpetas */}
+            {carpetaActiva !== 'todas' && (isSearchOpen || searchQuery) && (
               <div className="relative mt-2 mb-1 animate-in fade-in duration-150">
                 <Search size={15} strokeWidth={1.5} className="text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar en esta carpeta..."
+                  placeholder={
+                    activeCategory === 'app' || activeTab === 'app'
+                      ? 'Buscar aplicaciones...'
+                      : activeCategory === 'audio' || activeTab === 'audio'
+                      ? 'Buscar archivos de audio...'
+                      : 'Buscar en esta carpeta...'
+                  }
                   autoFocus
                   className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl pl-9 pr-8 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors"
                 />
@@ -3289,104 +3295,59 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
             ) : (
               /* VISTA DE CONTENIDO DENTRO DE LA CARPETA ESPECÍFICA (O RESULTADOS DE BÚSQUEDA) */
               <div className="space-y-3 animate-in fade-in duration-200">
-                {/* 4. Barra de Búsqueda Contextual para Aplicaciones, Audios y Documentos/Archivos */}
-                {isListCategoryView && (
-                  <div className="space-y-2.5">
-                    <div
-                      className="relative w-full rounded-full px-4 py-2.5 flex items-center gap-2.5 transition-colors"
+                {/* Clasificación de Aplicaciones: "Instaladas" / "Paquetes de instalación" */}
+                {isListCategoryView && (activeCategory === 'app' || activeTab === 'app') && (
+                  <div className="flex items-center justify-center gap-8 pt-1 select-none">
+                    <button
+                      type="button"
+                      onClick={() => setAppSourceTab('installed')}
+                      className="relative pb-2 text-sm font-medium transition-colors cursor-pointer"
                       style={{
-                        backgroundColor: currentTheme === 'light' ? '#e2e8f0' : '#1c1c1e',
+                        color:
+                          appSourceTab === 'installed'
+                            ? currentTheme === 'light'
+                              ? '#0284c7'
+                              : '#3b82f6'
+                            : currentTheme === 'light'
+                            ? '#64748b'
+                            : '#8e8e93',
                       }}
                     >
-                      <Search
-                        size={17}
-                        strokeWidth={2}
-                        className="shrink-0"
-                        style={{ color: currentTheme === 'light' ? '#64748b' : '#8e8e93' }}
-                      />
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder={
-                          activeCategory === 'app' || activeTab === 'app'
-                            ? 'Buscar aplicaciones'
-                            : activeCategory === 'audio' || activeTab === 'audio'
-                            ? 'Buscar archivos de audio'
-                            : 'Buscar archivos'
-                        }
-                        className="w-full bg-transparent text-sm focus:outline-none border-0 p-0"
-                        style={{
-                          color: currentTheme === 'light' ? '#0f172a' : '#f1f5f9',
-                        }}
-                      />
-                      {searchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => setSearchQuery('')}
-                          className="p-0.5 rounded-full hover:opacity-80 cursor-pointer shrink-0"
-                          style={{ color: currentTheme === 'light' ? '#64748b' : '#8e8e93' }}
-                        >
-                          <X size={15} />
-                        </button>
+                      <span>Instaladas</span>
+                      {appSourceTab === 'installed' && (
+                        <span
+                          className="absolute left-0 right-0 bottom-0 h-[2.5px] rounded-full"
+                          style={{
+                            backgroundColor: currentTheme === 'light' ? '#0284c7' : '#3b82f6',
+                          }}
+                        />
                       )}
-                    </div>
-
-                    {/* Clasificación de Aplicaciones: "Instaladas" / "Paquetes de instalación" */}
-                    {(activeCategory === 'app' || activeTab === 'app') && (
-                      <div className="flex items-center justify-center gap-8 pt-1 select-none">
-                        <button
-                          type="button"
-                          onClick={() => setAppSourceTab('installed')}
-                          className="relative pb-2 text-sm font-medium transition-colors cursor-pointer"
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAppSourceTab('packages')}
+                      className="relative pb-2 text-sm font-medium transition-colors cursor-pointer"
+                      style={{
+                        color:
+                          appSourceTab === 'packages'
+                            ? currentTheme === 'light'
+                              ? '#0284c7'
+                              : '#3b82f6'
+                            : currentTheme === 'light'
+                            ? '#64748b'
+                            : '#8e8e93',
+                      }}
+                    >
+                      <span>Paquetes de instalación</span>
+                      {appSourceTab === 'packages' && (
+                        <span
+                          className="absolute left-0 right-0 bottom-0 h-[2.5px] rounded-full"
                           style={{
-                            color:
-                              appSourceTab === 'installed'
-                                ? currentTheme === 'light'
-                                  ? '#0284c7'
-                                  : '#3b82f6'
-                                : currentTheme === 'light'
-                                ? '#64748b'
-                                : '#8e8e93',
+                            backgroundColor: currentTheme === 'light' ? '#0284c7' : '#3b82f6',
                           }}
-                        >
-                          <span>Instaladas</span>
-                          {appSourceTab === 'installed' && (
-                            <span
-                              className="absolute left-0 right-0 bottom-0 h-[2.5px] rounded-full"
-                              style={{
-                                backgroundColor: currentTheme === 'light' ? '#0284c7' : '#3b82f6',
-                              }}
-                            />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAppSourceTab('packages')}
-                          className="relative pb-2 text-sm font-medium transition-colors cursor-pointer"
-                          style={{
-                            color:
-                              appSourceTab === 'packages'
-                                ? currentTheme === 'light'
-                                  ? '#0284c7'
-                                  : '#3b82f6'
-                                : currentTheme === 'light'
-                                ? '#64748b'
-                                : '#8e8e93',
-                          }}
-                        >
-                          <span>Paquetes de instalación</span>
-                          {appSourceTab === 'packages' && (
-                            <span
-                              className="absolute left-0 right-0 bottom-0 h-[2.5px] rounded-full"
-                              style={{
-                                backgroundColor: currentTheme === 'light' ? '#0284c7' : '#3b82f6',
-                              }}
-                            />
-                          )}
-                        </button>
-                      </div>
-                    )}
+                        />
+                      )}
+                    </button>
                   </div>
                 )}
 
