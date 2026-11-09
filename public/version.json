@@ -6,11 +6,11 @@
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Mi-B-veda.-/releases/latest/download/Boveda-Calculadora.apk",
   "releaseDate": "9 de noviembre de 2026",
   "changelog": [
-    "Lanzamiento oficial v1.0.0 de Bóveda Segura.",
-    "Cifrado militar local AES-256 para fotos, videos, audios, documentos y aplicaciones.",
-    "Visor de documentos PDF local integrado con renderizado por canvas.",
-    "Reproductor de audio integrado con modo segundo plano y controles avanzados.",
-    "Carpeta protegida con PIN extra independiente."
+    "Lanzamiento oficial: Versión 1.0.0 de Bóveda Segura con suite de protección completa.",
+    "Cifrado militar local: Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones.",
+    "Visor de documentos PDF: Renderizado local por canvas con desplazamiento continuo y carga perezosa.",
+    "Reproductor de audio: Sonido de fondo, marquesina continua y soporte de carátulas ID3.",
+    "Carpeta con PIN extra: Nueva carpeta segura protegida por un PIN independiente de 4 dígitos."
   ],
   "mandatory": false
 }
