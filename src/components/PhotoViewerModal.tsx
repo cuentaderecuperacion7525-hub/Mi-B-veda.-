@@ -1082,8 +1082,8 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between select-none overflow-hidden">
-      {/* Top Bar para videos (estilo Google Fotos) y para documentos/apps */}
-      {!isPhoto && !isAudio && (
+      {/* Top Bar para videos (estilo Google Fotos) y para apps */}
+      {!isPhoto && !isAudio && !isDocument && (
         <header
           className={`vault-video-header absolute top-0 left-0 right-0 px-4 safe-top-sticky pb-6 bg-gradient-to-b from-black/90 via-black/55 to-transparent flex items-center justify-between text-white z-30 transition-opacity duration-300 ease-in-out ${
             isImmersive || (isVideo && !showVideoControls)
@@ -1584,13 +1584,17 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
           </div>
         )}
 
-        {/* DOCUMENT VIEW & READER */}
+        {/* DOCUMENT VIEW & READER (Lector PDF Canvas local, Word y TXT) */}
         {isDocument && (
           <DocumentReader
             activeItem={activeItem}
+            allItems={allItems}
+            currentIndex={currentIndex}
+            onClose={onClose}
             onExport={handleExport}
             isExporting={isExporting}
             showToast={showToast}
+            onShowDetails={() => setShowDetails(!showDetails)}
           />
         )}
 
@@ -1687,8 +1691,8 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         </>
       )}
 
-      {/* Barra de Acciones Inferior para fotos/documentos/apps (videos y audios usan su propia interfaz integrada) */}
-      {!isVideo && !isAudio && (
+      {/* Barra de Acciones Inferior para fotos/apps (videos, audios y documentos usan su propia interfaz integrada) */}
+      {!isVideo && !isAudio && !isDocument && (
         <BarraAccionesInferior
           onCompartir={handleShare}
           onCopiar={() => {
