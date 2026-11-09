@@ -34,11 +34,11 @@ export const DeleteGalleryReminderModal: React.FC<DeleteGalleryReminderModalProp
   };
 
   const formatSize = (bytes: number) => {
-    if (!bytes || bytes <= 0) return '0 Mb';
+    if (!bytes || bytes <= 0) return '0 MB';
     const mb = bytes / (1024 * 1024);
-    if (mb < 0.01) return '< 0.01 Mb';
-    if (mb < 1) return `${mb.toFixed(2)} Mb`;
-    return `${mb.toFixed(1)} Mb`;
+    if (mb < 0.01) return '< 0.01 MB';
+    if (mb < 1) return `${mb.toFixed(2)} MB`;
+    return `${mb.toFixed(1)} MB`;
   };
 
   return (
