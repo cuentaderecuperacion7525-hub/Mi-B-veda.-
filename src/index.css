@@ -974,3 +974,38 @@ html.light button.vault-auth-submit-btn * {
   color: #ffffff !important;
   stroke: #ffffff !important;
 }
+
+/* 20. Video Player Slider (6px track, 16px white thumb) */
+.vault-video-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+}
+.vault-video-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  border: none;
+  transition: transform 0.1s ease;
+}
+.vault-video-slider::-webkit-slider-thumb:active {
+  transform: scale(1.18);
+}
+.vault-video-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  border: none;
+  transition: transform 0.1s ease;
+}
+.vault-video-slider::-moz-range-thumb:active {
+  transform: scale(1.18);
+}

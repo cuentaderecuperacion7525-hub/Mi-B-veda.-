@@ -89,7 +89,13 @@ import {
   isExtraPinConfigured,
 } from '../services/extraPinFolderService';
 import { ExtraPinModal } from './ExtraPinModal';
-import { generateVideoThumbnail, getCachedVideoThumbnail } from '../services/videoThumbnailService';
+import {
+  generateVideoThumbnail,
+  getCachedVideoThumbnail,
+  getCachedVideoDuration,
+  setCachedVideoThumbnail,
+  setCachedVideoDuration,
+} from '../services/videoThumbnailService';
 
 export interface Carpeta {
   id: string;
@@ -109,20 +115,37 @@ export interface ArchivoCifrado {
 const VideoThumbnailCard: React.FC<{
   item: DecryptedVaultItem;
   aspectMode: 'real' | 'square';
-}> = ({ item, aspectMode }) => {
-  const [thumbUrl, setThumbUrl] = useState<string>(() => getCachedVideoThumbnail(item.id) || '');
-  const [durationStr, setDurationStr] = useState<string>('');
+  masterKey?: CryptoKey;
+}> = ({ item, masterKey }) => {
+  const [thumbUrl, setThumbUrl] = useState<string>(
+    () => item.thumbnailUrl || getCachedVideoThumbnail(item.id) || ''
+  );
+  const [durationStr, setDurationStr] = useState<string>(() => {
+    const d = item.duration || item.record.duration || getCachedVideoDuration(item.id) || 0;
+    if (d > 0) {
+      const m = Math.floor(d / 60);
+      const s = Math.floor(d % 60);
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+    return '';
+  });
 
   useEffect(() => {
     let isMounted = true;
-    const cached = getCachedVideoThumbnail(item.id);
+    const cached = item.thumbnailUrl || getCachedVideoThumbnail(item.id);
+    const cachedDur = item.duration || item.record.duration || getCachedVideoDuration(item.id) || 0;
     if (cached) {
       setThumbUrl(cached);
-      return;
+      if (cachedDur > 0) {
+        const m = Math.floor(cachedDur / 60);
+        const s = Math.floor(cachedDur % 60);
+        setDurationStr(`${m}:${s.toString().padStart(2, '0')}`);
+        return;
+      }
     }
 
     generateVideoThumbnail(item.blobUrl, item.id)
-      .then((res) => {
+      .then(async (res) => {
         if (!isMounted) return;
         if (res.thumbnailUrl) {
           setThumbUrl(res.thumbnailUrl);
@@ -132,32 +155,51 @@ const VideoThumbnailCard: React.FC<{
           const s = Math.floor(res.duration % 60);
           setDurationStr(`${m}:${s.toString().padStart(2, '0')}`);
         }
+        // Guardar miniatura cifrada en IndexedDB para no regenerarla cada vez
+        if (
+          res.thumbnailUrl &&
+          masterKey &&
+          !item.record.thumbnailData &&
+          sessionStorage.getItem('vault_is_duress_mode') !== 'true'
+        ) {
+          try {
+            const encoder = new TextEncoder();
+            const thumbBytes = encoder.encode(res.thumbnailUrl);
+            const encThumb = await encryptBuffer(thumbBytes.buffer, masterKey);
+            const updatedRec: EncryptedVaultItem = {
+              ...item.record,
+              thumbnailData: encThumb.data,
+              thumbnailIv: encThumb.iv,
+              duration: res.duration || item.record.duration || 0,
+            };
+            item.record.thumbnailData = encThumb.data;
+            item.record.thumbnailIv = encThumb.iv;
+            item.record.duration = updatedRec.duration;
+            await saveEncryptedItem(updatedRec);
+          } catch {}
+        }
       })
       .catch(() => {});
 
     return () => {
       isMounted = false;
     };
-  }, [item.id, item.blobUrl]);
+  }, [item.id, item.blobUrl, masterKey]);
 
   return (
-    <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center relative pointer-events-none overflow-hidden">
+    <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center relative pointer-events-none overflow-hidden rounded-2xl">
       {thumbUrl ? (
         <img
           src={thumbUrl}
           alt={item.record.name}
-          className={`w-full h-full ${
-            aspectMode === 'real' ? 'object-contain p-0.5' : 'object-cover'
-          } transition-transform duration-300 group-hover:scale-105 pointer-events-none`}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 pointer-events-none"
           loading="lazy"
         />
       ) : (
         <video
           src={item.blobUrl}
           preload="metadata"
-          className={`w-full h-full ${
-            aspectMode === 'real' ? 'object-contain p-0.5' : 'object-cover'
-          } opacity-75 group-hover:opacity-95 transition-opacity`}
+          className="w-full h-full object-cover opacity-75 group-hover:opacity-95 transition-opacity"
         />
       )}
 
@@ -564,10 +606,28 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
             const blobUrl = URL.createObjectURL(blob);
             newBlobUrls.push(blobUrl);
 
+            let thumbnailUrl: string | undefined = getCachedVideoThumbnail(rec.id);
+            if (!thumbnailUrl && rec.thumbnailData && rec.thumbnailIv) {
+              try {
+                const thumbBuf = await decryptBuffer(rec.thumbnailData, rec.thumbnailIv, activeKey);
+                const decoder = new TextDecoder();
+                const dataUrl = decoder.decode(thumbBuf);
+                if (dataUrl.startsWith('data:image/')) {
+                  thumbnailUrl = dataUrl;
+                  setCachedVideoThumbnail(rec.id, dataUrl);
+                }
+              } catch {}
+            }
+            if (rec.duration && rec.duration > 0) {
+              setCachedVideoDuration(rec.id, rec.duration);
+            }
+
             decryptedItems.push({
               id: rec.id,
               blobUrl,
               record: rec,
+              thumbnailUrl,
+              duration: rec.duration,
             });
           } else {
             // Never delete user records on decryption mismatch; skip safely.
@@ -3220,7 +3280,11 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
 
                                   {/* Video Thumbnail Display with extracted real frame */}
                                   {isVideo && (
-                                    <VideoThumbnailCard item={item} aspectMode={aspectMode} />
+                                    <VideoThumbnailCard
+                                      item={item}
+                                      aspectMode={aspectMode}
+                                      masterKey={masterKeyRef.current || masterKey}
+                                    />
                                   )}
 
                                   {/* Audio Card Display */}

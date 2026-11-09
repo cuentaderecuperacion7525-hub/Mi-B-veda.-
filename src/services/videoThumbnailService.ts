@@ -105,6 +105,20 @@ export async function generateVideoThumbnail(
 }
 
 /**
+ * Establece la miniatura en caché directamente
+ */
+export function setCachedVideoThumbnail(cacheKey: string, dataUrl: string): void {
+  thumbnailCache.set(cacheKey, dataUrl);
+}
+
+/**
+ * Establece la duración en caché directamente
+ */
+export function setCachedVideoDuration(cacheKey: string, duration: number): void {
+  durationCache.set(cacheKey, duration);
+}
+
+/**
  * Obtiene la miniatura en caché si ya existe de forma síncrona
  */
 export function getCachedVideoThumbnail(cacheKey: string): string | undefined {

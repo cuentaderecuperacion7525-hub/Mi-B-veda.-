@@ -82,6 +82,9 @@ export interface EncryptedVaultItem {
   lastModified?: number;
   originalUri?: string;
   deletedAt?: number;
+  thumbnailData?: ArrayBuffer;
+  thumbnailIv?: number[];
+  duration?: number;
 }
 
 // Backwards compatibility alias

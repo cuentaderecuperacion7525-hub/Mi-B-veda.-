@@ -32,6 +32,7 @@ import {
   Cloud,
   Share2,
   QrCode,
+  Volume2,
 } from 'lucide-react';
 import { updateService, UpdateCheckResult } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
@@ -157,6 +158,22 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
   const handleSelectTheme = (theme: VaultTheme) => {
     themeService.setTheme(theme);
     showToast(`Tema "${VAULT_THEMES[theme].name}" activado`, 'success');
+  };
+
+  // Ajuste: Reproducir con sonido al abrir (apagado por defecto)
+  const [videoAutoSound, setVideoAutoSound] = useState<boolean>(() => {
+    return localStorage.getItem('vault_video_auto_sound') === 'true';
+  });
+
+  const handleToggleVideoAutoSound = (enabled: boolean) => {
+    setVideoAutoSound(enabled);
+    localStorage.setItem('vault_video_auto_sound', enabled ? 'true' : 'false');
+    showToast(
+      enabled
+        ? 'Los videos intentarán reproducirse con sonido al abrir'
+        : 'Los videos iniciarán en silencio al abrir',
+      'info'
+    );
   };
 
   // Recovery key states
@@ -1380,6 +1397,30 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             </div>
             <div className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-slate-900 border border-slate-800 text-slate-500 group-hover:text-[#00e5ff] group-hover:border-[#00e5ff]/40 transition-colors">
               <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </div>
+
+          {/* Tarjeta: Reproducir con sonido al abrir */}
+          <div className="bg-[#0a121d] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 shadow-lg flex items-center justify-between gap-3 transition-all">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-center text-blue-400 shrink-0">
+                <Volume2 className="w-4.5 h-4.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-white truncate">
+                  Reproducir con sonido al abrir
+                </h3>
+                <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                  Iniciar videos con audio (o en silencio si está apagado)
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0">
+              <NeonSwitch
+                checked={videoAutoSound}
+                onChange={handleToggleVideoAutoSound}
+                ariaLabel="Reproducir videos con sonido al abrir"
+              />
             </div>
           </div>
 

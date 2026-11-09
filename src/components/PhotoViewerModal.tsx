@@ -4,6 +4,7 @@ import {
   Download,
   Trash2,
   RotateCcw,
+  RotateCw,
   Copy,
   Info,
   Calendar,
@@ -33,11 +34,14 @@ import { BarraAccionesInferior } from './BarraAccionesInferior';
 import { ModalEliminar } from './ModalEliminar';
 import { formatSize as formatBytes } from '../utils/formatUtils';
 import { DocumentReader } from './DocumentReader';
+import { generateVideoThumbnail, getCachedVideoThumbnail } from '../services/videoThumbnailService';
 
 export interface DecryptedVaultItem {
   id: string;
   blobUrl: string;
   record: EncryptedVaultItem;
+  thumbnailUrl?: string;
+  duration?: number;
 }
 
 interface VaultItemViewerModalProps {
@@ -99,6 +103,16 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [videoProgress, setVideoProgress] = useState<number>(0);
   const [videoDuration, setVideoDuration] = useState<number>(0);
+  const [isVideoReady, setIsVideoReady] = useState<boolean>(false);
+  const [videoPoster, setVideoPoster] = useState<string>('');
+  const [playbackRate, setPlaybackRate] = useState<number>(1);
+  const [showUnmutePrompt, setShowUnmutePrompt] = useState<boolean>(false);
+  const [showVideoControls, setShowVideoControls] = useState<boolean>(true);
+  const [isEnded, setIsEnded] = useState<boolean>(false);
+  const [doubleTapFeedback, setDoubleTapFeedback] = useState<{ side: 'left' | 'right'; label: string } | null>(null);
+  const hideControlsTimerRef = useRef<any>(null);
+  const doubleTapFeedbackTimerRef = useRef<any>(null);
+  const lastVideoTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
 
   // Back button handlers for sub-modals and menus inside the viewer
 
@@ -567,7 +581,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       else if (e.key === 'ArrowRight') handleNext();
       else if (e.key === ' ' && activeItem?.record.category === 'video') {
         e.preventDefault();
-        togglePlayVideo();
+        handlePlayPause();
       }
     };
 
@@ -808,20 +822,273 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   };
 
   const formatTime = (secs: number) => {
+    if (isNaN(secs) || secs < 0) return '0:00';
     const mins = Math.floor(secs / 60);
     const remainingSecs = Math.floor(secs % 60);
     return `${mins}:${remainingSecs.toString().padStart(2, '0')}`;
   };
 
-  const togglePlayVideo = () => {
+  // Video playback lifecycle and thumbnail loading
+  useEffect(() => {
+    if (!activeItem || activeItem.record.category !== 'video') {
+      setIsVideoReady(false);
+      setVideoPoster('');
+      setIsEnded(false);
+      setShowUnmutePrompt(false);
+      return;
+    }
+
+    setIsVideoReady(false);
+    setIsPlaying(false);
+    setIsEnded(false);
+    setVideoProgress(0);
+    setShowUnmutePrompt(false);
+    setShowVideoControls(true);
+
+    const cached = activeItem.thumbnailUrl || getCachedVideoThumbnail(activeItem.id);
+    if (cached) {
+      setVideoPoster(cached);
+    } else {
+      generateVideoThumbnail(activeItem.blobUrl, activeItem.id)
+        .then((res) => {
+          if (res.thumbnailUrl) {
+            setVideoPoster(res.thumbnailUrl);
+          }
+          if (res.duration > 0 && !videoDuration) {
+            setVideoDuration(res.duration);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [activeItem?.id]);
+
+  // Clean up video playback on unmount or item change
+  useEffect(() => {
+    return () => {
+      if (videoRef.current) {
+        try {
+          videoRef.current.pause();
+          videoRef.current.removeAttribute('src');
+          videoRef.current.load();
+        } catch {}
+      }
+      if (hideControlsTimerRef.current) {
+        clearTimeout(hideControlsTimerRef.current);
+      }
+      if (doubleTapFeedbackTimerRef.current) {
+        clearTimeout(doubleTapFeedbackTimerRef.current);
+      }
+    };
+  }, [activeItem?.id]);
+
+  // Pause video on background/tab switch
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden && videoRef.current) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
+
+  // Auto-hide controls and header after 3s of active playback
+  const resetHideControlsTimer = useCallback(() => {
+    if (hideControlsTimerRef.current) {
+      clearTimeout(hideControlsTimerRef.current);
+      hideControlsTimerRef.current = null;
+    }
+    if (isPlaying) {
+      hideControlsTimerRef.current = setTimeout(() => {
+        setShowVideoControls(false);
+      }, 3000);
+    }
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (isPlaying) {
+      resetHideControlsTimer();
+    } else {
+      if (hideControlsTimerRef.current) {
+        clearTimeout(hideControlsTimerRef.current);
+        hideControlsTimerRef.current = null;
+      }
+      setShowVideoControls(true);
+    }
+    return () => {
+      if (hideControlsTimerRef.current) {
+        clearTimeout(hideControlsTimerRef.current);
+      }
+    };
+  }, [isPlaying, resetHideControlsTimer]);
+
+  // Autoplay handler when video can play
+  const handleCanPlay = useCallback(() => {
+    setIsVideoReady(true);
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.playbackRate = playbackRate;
+    const autoSound = localStorage.getItem('vault_video_auto_sound') === 'true';
+
+    if (autoSound) {
+      video.muted = false;
+      setIsMuted(false);
+      video
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+          setShowUnmutePrompt(false);
+        })
+        .catch(() => {
+          // Si el navegador rechaza con sonido, reintenta silenciado y muestra botón "Activar sonido"
+          video.muted = true;
+          setIsMuted(true);
+          video
+            .play()
+            .then(() => {
+              setIsPlaying(true);
+              setShowUnmutePrompt(true);
+            })
+            .catch(() => {
+              setIsPlaying(false);
+              setShowUnmutePrompt(false);
+            });
+        });
+    } else {
+      // Reproducir en silencio por defecto
+      video.muted = true;
+      setIsMuted(true);
+      video
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+          setShowUnmutePrompt(false);
+        })
+        .catch(() => {
+          setIsPlaying(false);
+          setShowUnmutePrompt(false);
+        });
+    }
+  }, [playbackRate]);
+
+  // Seeker relative (+10s / -10s)
+  const seekRelative = (delta: number) => {
     if (!videoRef.current) return;
+    const cur = videoRef.current.currentTime;
+    const dur = videoRef.current.duration || videoDuration || 0;
+    const next = Math.max(0, Math.min(dur, cur + delta));
+    videoRef.current.currentTime = next;
+    setVideoProgress(next);
+    setIsEnded(false);
+    resetHideControlsTimer();
+  };
+
+  const showDoubleTapFeedback = (side: 'left' | 'right', label: string) => {
+    if (doubleTapFeedbackTimerRef.current) {
+      clearTimeout(doubleTapFeedbackTimerRef.current);
+    }
+    setDoubleTapFeedback({ side, label });
+    doubleTapFeedbackTimerRef.current = setTimeout(() => {
+      setDoubleTapFeedback(null);
+    }, 650);
+  };
+
+  // Tap handler on the video area (single tap toggles controls, double tap seeks 10s)
+  const handleVideoAreaTap = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (hasMovedRef.current) {
+      hasMovedRef.current = false;
+      return;
+    }
+
+    const now = Date.now();
+    const isDoubleTap = now - lastVideoTapRef.current.time < 320;
+    const clientX = e.clientX;
+
+    if (isDoubleTap) {
+      if (singleTapTimeoutRef.current) {
+        clearTimeout(singleTapTimeoutRef.current);
+        singleTapTimeoutRef.current = null;
+      }
+      const isLeftSide = clientX < window.innerWidth / 2;
+      if (isLeftSide) {
+        seekRelative(-10);
+        showDoubleTapFeedback('left', '-10s');
+      } else {
+        seekRelative(10);
+        showDoubleTapFeedback('right', '+10s');
+      }
+      lastVideoTapRef.current = { time: 0, x: 0 };
+    } else {
+      lastVideoTapRef.current = { time: now, x: clientX };
+      if (singleTapTimeoutRef.current) {
+        clearTimeout(singleTapTimeoutRef.current);
+      }
+      singleTapTimeoutRef.current = setTimeout(() => {
+        setShowVideoControls((prev) => {
+          const next = !prev;
+          if (next && isPlaying) {
+            resetHideControlsTimer();
+          }
+          return next;
+        });
+        singleTapTimeoutRef.current = null;
+      }, 300);
+    }
+  };
+
+  const handleUnmuteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+      setIsMuted(false);
+      setShowUnmutePrompt(false);
+      if (videoRef.current.paused) {
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  };
+
+  const speedList = [1, 1.5, 2, 0.5];
+  const handleCycleSpeed = () => {
+    const curIdx = speedList.indexOf(playbackRate);
+    const next = speedList[(curIdx + 1) % speedList.length];
+    setPlaybackRate(next);
+    if (videoRef.current) {
+      videoRef.current.playbackRate = next;
+    }
+  };
+
+  const toggleFullscreen = () => {
+    const elem = videoRef.current;
+    if (!elem) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else if (elem.requestFullscreen) {
+      elem.requestFullscreen().catch(() => {});
+    } else if ((elem as any).webkitEnterFullscreen) {
+      (elem as any).webkitEnterFullscreen();
+    }
+  };
+
+  const handlePlayPause = () => {
+    if (!videoRef.current) return;
+    if (isEnded) {
+      videoRef.current.currentTime = 0;
+      setVideoProgress(0);
+      setIsEnded(false);
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      return;
+    }
     if (isPlaying) {
       videoRef.current.pause();
       setIsPlaying(false);
     } else {
-      videoRef.current.play();
-      setIsPlaying(true);
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
     }
+    resetHideControlsTimer();
   };
 
   const toggleMute = () => {
@@ -832,32 +1099,29 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col justify-between select-none overflow-hidden">
-      {/* Top Bar solo para videos, audios y documentos */}
+      {/* Top Bar para videos, audios y documentos */}
       {!isPhoto && (
         <header
-          className={`absolute top-0 left-0 right-0 px-4 safe-top-sticky pb-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent flex items-center justify-between text-slate-200 z-30 transition-all duration-300 ease-in-out ${
-            isImmersive ? '-translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+          className={`absolute top-0 left-0 right-0 px-4 safe-top-sticky pb-4 bg-gradient-to-b from-black/95 via-black/70 to-transparent flex items-center justify-between text-white z-30 transition-all duration-300 ease-in-out ${
+            isImmersive || (isVideo && !showVideoControls)
+              ? '-translate-y-full opacity-0 pointer-events-none'
+              : 'translate-y-0 opacity-100'
           }`}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
+              type="button"
               onClick={onClose}
-              className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+              className="p-2 rounded-xl bg-black/40 hover:bg-black/60 text-white/90 hover:text-white transition-colors cursor-pointer shrink-0"
               title="Cerrar (Esc)"
             >
               <X className="w-5 h-5" />
             </button>
-            <div className="text-left">
-              <div className="flex items-center gap-1.5">
-                {isVideo && <Film className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
-                {isApp && <Smartphone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
-                {isAudio && <Music className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
-                {isDocument && <FileText className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
-                <h4 className="text-xs sm:text-sm font-semibold text-slate-100 max-w-[200px] sm:max-w-xs truncate">
-                  {activeItem.record.name}
-                </h4>
-              </div>
-              <div className="flex items-center gap-2 text-[11px] text-slate-400">
+            <div className="text-left min-w-0">
+              <h4 className="text-[15px] font-medium text-white truncate leading-tight">
+                {activeItem.record.name}
+              </h4>
+              <div className="flex items-center gap-1.5 text-[12px] text-white/80 font-normal leading-tight pt-0.5">
                 <span>{new Date(activeItem.record.timestamp).toLocaleDateString()}</span>
                 <span>·</span>
                 <span>
@@ -879,15 +1143,18 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
             <button
+              type="button"
               onClick={() => setShowDetails(!showDetails)}
-              className={`p-2 rounded-xl transition-colors ${
-                showDetails ? 'text-indigo-400 bg-indigo-500/20' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+              className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                showDetails
+                  ? 'text-[#00e5ff] bg-black/60'
+                  : 'text-white/80 hover:text-white bg-black/40 hover:bg-black/60'
               }`}
               title="Detalles"
             >
-              <Info className="w-4 h-4" />
+              <Info className="w-5 h-5" />
             </button>
           </div>
         </header>
@@ -955,134 +1222,259 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         {/* VIDEO VIEW */}
         {isVideo && (
           <div
-            onClick={(e) => {
-              e.stopPropagation();
-              togglePlayVideo();
-            }}
-            className="w-full h-full max-w-4xl flex items-center justify-center relative cursor-pointer select-none"
+            onClick={handleVideoAreaTap}
+            className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden select-none"
           >
+            {/* Video Element */}
             <video
               ref={videoRef}
               src={activeItem.blobUrl}
               playsInline
+              preload="auto"
               controls={false}
               controlsList="nodownload"
+              onCanPlay={handleCanPlay}
               onTimeUpdate={() => {
                 if (videoRef.current) {
                   setVideoProgress(videoRef.current.currentTime);
-                  setVideoDuration(videoRef.current.duration || 0);
+                  if (videoRef.current.duration) {
+                    setVideoDuration(videoRef.current.duration);
+                  }
                 }
               }}
               onLoadedMetadata={() => {
-                if (videoRef.current) {
-                  setVideoDuration(videoRef.current.duration || 0);
+                if (videoRef.current?.duration) {
+                  setVideoDuration(videoRef.current.duration);
                 }
               }}
-              onPlay={() => setIsPlaying(true)}
+              onPlay={() => {
+                setIsPlaying(true);
+                setIsEnded(false);
+              }}
               onPause={() => setIsPlaying(false)}
-              onEnded={() => setIsPlaying(false)}
-              className="max-h-[calc(100vh-140px)] max-w-full w-auto h-auto object-contain rounded-2xl shadow-2xl"
-              style={{ backgroundColor: '#000' }}
+              onEnded={() => {
+                setIsPlaying(false);
+                setIsEnded(true);
+                setShowVideoControls(true);
+              }}
+              style={{ backgroundColor: '#000000' }}
+              className={`w-full h-full object-contain transition-opacity duration-300 ${
+                isVideoReady ? 'opacity-100' : 'opacity-0'
+              }`}
             />
 
-            {/* Botón flotante central de Play cuando está pausado */}
-            {!isPlaying && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div
-                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-white backdrop-blur-md border shadow-2xl transition-transform active:scale-95"
-                  style={{
-                    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-                    borderColor: 'var(--theme-primary, #00e5ff)',
-                    boxShadow: '0 0 24px var(--theme-glow, rgba(0, 229, 255, 0.4))',
-                  }}
-                >
-                  <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-white ml-1 text-white" />
+            {/* Portada real del video (segundo 0.5) con velo oscuro e indicador circular de carga mientras descifra */}
+            {!isVideoReady && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black z-20 pointer-events-none">
+                {videoPoster ? (
+                  <img
+                    src={videoPoster}
+                    alt="Portada"
+                    className="w-full h-full object-contain"
+                  />
+                ) : null}
+                {/* Velo oscuro suave encima */}
+                <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
+
+                {/* Indicador circular de carga con texto */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
+                  <div className="w-12 h-12 border-3 border-white/20 border-t-white rounded-full animate-spin mb-3 shadow-lg" />
+                  <span className="text-sm font-medium text-white/95 tracking-wide drop-shadow-md">
+                    Descifrando video…
+                  </span>
                 </div>
               </div>
             )}
 
-            {/* Barra flotante de controles inferior moderna */}
+            {/* Double-tap visual feedback (-10s / +10s) */}
+            {doubleTapFeedback && (
+              <div
+                className={`absolute top-1/2 -translate-y-1/2 z-30 pointer-events-none flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-black/75 backdrop-blur-md border border-white/20 text-white font-semibold text-sm shadow-2xl animate-in zoom-in-95 duration-150 ${
+                  doubleTapFeedback.side === 'left' ? 'left-8' : 'right-8'
+                }`}
+              >
+                {doubleTapFeedback.side === 'left' ? (
+                  <RotateCcw className="w-5 h-5 text-[#00e5ff]" />
+                ) : (
+                  <RotateCw className="w-5 h-5 text-[#00e5ff]" />
+                )}
+                <span>{doubleTapFeedback.label}</span>
+              </div>
+            )}
+
+            {/* Botón flotante "Activar sonido" si el navegador rechazó reproducción con sonido */}
+            {showUnmutePrompt && isPlaying && (
+              <button
+                type="button"
+                onClick={handleUnmuteClick}
+                className="absolute bottom-32 sm:bottom-36 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-black/85 hover:bg-black border border-white/25 text-white text-xs font-semibold backdrop-blur-md shadow-2xl flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
+              >
+                <VolumeX className="w-4 h-4 text-rose-400" />
+                <span>Activar sonido</span>
+              </button>
+            )}
+
+            {/* Botón grande central de Play cuando está pausado / listo / terminado */}
+            {isVideoReady && !isPlaying && (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePlayPause();
+                }}
+                className="absolute inset-0 flex items-center justify-center z-20 cursor-pointer"
+              >
+                <div
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-white backdrop-blur-md border shadow-2xl transition-transform active:scale-95"
+                  style={{
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    borderColor: 'var(--theme-primary, #00e5ff)',
+                    boxShadow: '0 0 24px var(--theme-glow, rgba(0, 229, 255, 0.45))',
+                  }}
+                >
+                  {isEnded ? (
+                    <RotateCcw className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+                  ) : (
+                    <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-white ml-1 text-white" />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Barra de Controles Inferiores */}
             <div
               onClick={(e) => e.stopPropagation()}
-              className="absolute bottom-4 left-4 right-4 sm:left-8 sm:right-8 z-30 [backdrop-filter:blur(20px)] backdrop-blur-xl p-3 sm:p-3.5 rounded-2xl border shadow-2xl flex flex-col gap-2 transition-all cursor-default"
-              style={{
-                backgroundColor: 'rgba(10, 18, 29, 0.92)',
-                borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.8))',
-              }}
+              className={`absolute bottom-[68px] sm:bottom-[72px] left-0 right-0 z-30 px-4 sm:px-6 pt-6 pb-2 bg-gradient-to-t from-black/95 via-black/80 to-transparent flex flex-col gap-2.5 transition-all duration-300 select-none ${
+                !showVideoControls || isImmersive
+                  ? 'opacity-0 translate-y-6 pointer-events-none'
+                  : 'opacity-100 translate-y-0'
+              } ${!isVideoReady ? 'opacity-50 pointer-events-none' : ''}`}
             >
-              {/* Barra de progreso interactiva */}
-              <input
-                type="range"
-                min={0}
-                max={videoDuration || 100}
-                value={videoProgress}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  if (videoRef.current) {
-                    videoRef.current.currentTime = val;
-                    setVideoProgress(val);
-                  }
-                }}
-                className="w-full h-1.5 rounded-lg appearance-none cursor-pointer"
-                style={{
-                  accentColor: 'var(--theme-primary, #00e5ff)',
-                  backgroundColor: 'rgba(51, 65, 85, 0.6)',
-                }}
-              />
+              {/* 1. Barra de progreso de 6 px con tiradera blanca de 16 px y tiempos a los lados */}
+              <div className="w-full flex items-center gap-3">
+                <span className="font-mono text-[12px] text-white/90 min-w-[34px] text-left select-none">
+                  {formatTime(videoProgress)}
+                </span>
 
-              <div className="flex items-center justify-between text-xs pt-0.5">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={togglePlayVideo}
-                    className="p-2 rounded-xl text-white transition-all active:scale-90 cursor-pointer flex items-center justify-center"
-                    style={{
-                      backgroundColor: 'var(--theme-primary, #00e5ff)',
-                      color: '#000000',
+                <div className="relative flex-1 flex items-center h-6">
+                  <input
+                    type="range"
+                    min={0}
+                    max={videoDuration || 100}
+                    step={0.1}
+                    disabled={!isVideoReady}
+                    value={isVideoReady ? videoProgress : 0}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (videoRef.current) {
+                        videoRef.current.currentTime = val;
+                        setVideoProgress(val);
+                        setIsEnded(false);
+                        resetHideControlsTimer();
+                      }
                     }}
-                    title={isPlaying ? 'Pausar' : 'Reproducir'}
-                  >
-                    {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={toggleMute}
-                    className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                    title={isMuted ? 'Activar sonido' : 'Silenciar'}
-                  >
-                    {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
-                  </button>
-                  <span className="font-mono text-[11px] text-slate-300">
-                    {formatTime(videoProgress)} / {formatTime(videoDuration)}
-                  </span>
+                    className="vault-video-slider w-full h-[6px] rounded-full appearance-none cursor-pointer select-none"
+                    style={{
+                      background: `linear-gradient(to right, var(--theme-primary, #00e5ff) 0%, var(--theme-primary, #00e5ff) ${
+                        videoDuration > 0 && isVideoReady ? (videoProgress / videoDuration) * 100 : 0
+                      }%, rgba(255, 255, 255, 0.25) ${
+                        videoDuration > 0 && isVideoReady ? (videoProgress / videoDuration) * 100 : 0
+                      }%, rgba(255, 255, 255, 0.25) 100%)`,
+                    }}
+                  />
                 </div>
 
-                <div className="flex items-center gap-2">
+                <span className="font-mono text-[12px] text-white/90 min-w-[34px] text-right select-none">
+                  {formatTime(videoDuration)}
+                </span>
+              </div>
+
+              {/* 2. Fila de botones de control */}
+              <div className="flex items-center justify-between text-xs px-1">
+                {/* Izquierda: Velocidad */}
+                <div className="flex items-center">
                   <button
                     type="button"
-                    onClick={() => {
-                      if (videoRef.current) {
-                        videoRef.current.currentTime = 0;
-                        videoRef.current.play();
-                        setIsPlaying(true);
-                      }
-                    }}
-                    className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                    title="Reiniciar video"
+                    disabled={!isVideoReady}
+                    onClick={handleCycleSpeed}
+                    className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white font-mono text-[12px] font-semibold transition-all cursor-pointer border border-white/10"
+                    title="Cambiar velocidad de reproducción"
                   >
-                    <RotateCcw className="w-4 h-4" />
+                    {playbackRate}x
                   </button>
+                </div>
+
+                {/* Centro: Atrasar 10s, Play/Pausa/Repetir, Adelantar 10s */}
+                <div className="flex items-center gap-3 sm:gap-4">
                   <button
                     type="button"
+                    disabled={!isVideoReady}
                     onClick={() => {
-                      if (videoRef.current?.requestFullscreen) {
-                        videoRef.current.requestFullscreen();
-                      }
+                      seekRelative(-10);
+                      showDoubleTapFeedback('left', '-10s');
                     }}
-                    className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                    className="p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer flex items-center justify-center"
+                    title="Atrasar 10 segundos"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={!isVideoReady}
+                    onClick={handlePlayPause}
+                    className="w-11 h-11 rounded-full text-black flex items-center justify-center active:scale-95 transition-transform cursor-pointer shadow-lg"
+                    style={{
+                      backgroundColor: 'var(--theme-primary, #00e5ff)',
+                    }}
+                    title={isEnded ? 'Repetir' : isPlaying ? 'Pausar' : 'Reproducir'}
+                  >
+                    {isEnded ? (
+                      <RotateCcw className="w-5 h-5 text-black stroke-[2.2]" />
+                    ) : isPlaying ? (
+                      <Pause className="w-5 h-5 fill-black text-black" />
+                    ) : (
+                      <Play className="w-5 h-5 fill-black text-black ml-0.5" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={!isVideoReady}
+                    onClick={() => {
+                      seekRelative(10);
+                      showDoubleTapFeedback('right', '+10s');
+                    }}
+                    className="p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer flex items-center justify-center"
+                    title="Adelantar 10 segundos"
+                  >
+                    <RotateCw className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Derecha: Sonido y Pantalla completa */}
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    disabled={!isVideoReady}
+                    onClick={toggleMute}
+                    className="p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
+                    title={isMuted ? 'Activar sonido' : 'Silenciar'}
+                  >
+                    {isMuted ? (
+                      <VolumeX className="w-5 h-5 text-rose-400" />
+                    ) : (
+                      <Volume2 className="w-5 h-5" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={!isVideoReady}
+                    onClick={toggleFullscreen}
+                    className="p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
                     title="Pantalla completa"
                   >
-                    <Maximize2 className="w-4 h-4" />
+                    <Maximize2 className="w-5 h-5" />
                   </button>
                 </div>
               </div>
@@ -1313,7 +1705,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         }}
         onMas={() => setShowMoreMenu((prev) => !prev)}
         menuMasAbierto={showMoreMenu}
-        esInmersivo={isImmersive}
+        esInmersivo={isImmersive || (isVideo && !showVideoControls)}
       />
 
       {/* Modal: Cambiar nombre */}
