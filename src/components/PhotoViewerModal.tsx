@@ -924,55 +924,38 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
     };
   }, [showVideoControls, resetHideControlsTimer]);
 
-  // Autoplay handler when video can play (reproduce con sonido por defecto)
+  // Autoplay handler when video can play (reproduce siempre con sonido directamente en el visor de video)
   const handleCanPlay = useCallback(() => {
     setIsVideoReady(true);
     const video = videoRef.current;
     if (!video) return;
 
     video.playbackRate = playbackRate;
-    const autoSound = localStorage.getItem('vault_video_auto_sound') !== 'false';
+    video.muted = false;
+    setIsMuted(false);
 
-    if (autoSound) {
-      video.muted = false;
-      setIsMuted(false);
-      video
-        .play()
-        .then(() => {
-          setIsPlaying(true);
-          setShowUnmutePrompt(false);
-        })
-        .catch(() => {
-          // Si el navegador bloquea el inicio con audio, reintenta en silencio y muestra botón blanco "Activar sonido"
-          video.muted = true;
-          setIsMuted(true);
-          video
-            .play()
-            .then(() => {
-              setIsPlaying(true);
-              setShowUnmutePrompt(true);
-            })
-            .catch(() => {
-              setIsPlaying(false);
-              setShowUnmutePrompt(false);
-              setShowVideoControls(true);
-            });
-        });
-    } else {
-      video.muted = true;
-      setIsMuted(true);
-      video
-        .play()
-        .then(() => {
-          setIsPlaying(true);
-          setShowUnmutePrompt(false);
-        })
-        .catch(() => {
-          setIsPlaying(false);
-          setShowUnmutePrompt(false);
-          setShowVideoControls(true);
-        });
-    }
+    video
+      .play()
+      .then(() => {
+        setIsPlaying(true);
+        setShowUnmutePrompt(false);
+      })
+      .catch(() => {
+        // Si el navegador bloquea el inicio con audio, reintenta en silencio y muestra botón blanco "Activar sonido"
+        video.muted = true;
+        setIsMuted(true);
+        video
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+            setShowUnmutePrompt(true);
+          })
+          .catch(() => {
+            setIsPlaying(false);
+            setShowUnmutePrompt(false);
+            setShowVideoControls(true);
+          });
+      });
   }, [playbackRate]);
 
   // Seeker relative (+10s / -10s)
