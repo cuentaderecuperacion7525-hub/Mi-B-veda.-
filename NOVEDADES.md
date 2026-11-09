@@ -1,4 +1,5 @@
-- Carpeta con PIN extra: Nueva carpeta segura protegida por un PIN independiente de 4 dígitos disponible en Fotos, Videos, Audios, Aplicaciones y Documentos.
-- Migración con Código QR: Asistente paso a paso para transferir toda tu bóveda y configuraciones a un celular nuevo de forma inalámbrica.
-- Bloqueo inteligente: Actualizado a bloqueo inmediato al salir de la app para mayor privacidad.
-- Diseño visual inmersivo: Fondo degradado oscuro con destellos ambientales integrado en la pantalla de PIN y desbloqueo.
+- Lanzamiento oficial: Versión 1.0.0 de Bóveda Segura con suite de protección completa.
+- Cifrado militar local: Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones.
+- Visor de documentos PDF: Renderizado local por canvas con desplazamiento continuo y carga perezosa.
+- Reproductor de audio: Sonido de fondo, marquesina continua y soporte de carátulas ID3.
+- Carpeta con PIN extra: Nueva carpeta segura protegida por un PIN independiente de 4 dígitos.

@@ -10,13 +10,17 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const APP_VERSION = '1.2.46';
+export const APP_VERSION = '1.0.0';
 export const CURRENT_APP_VERSION = APP_VERSION;
-export const CURRENT_BUILD_NUMBER = 1046;
-export const CURRENT_RELEASE_DATE = '';
+export const CURRENT_BUILD_NUMBER = 1;
+export const CURRENT_RELEASE_DATE = '9 de noviembre de 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
-  'Mejoras de estabilidad y rendimiento'
+  'Lanzamiento oficial v1.0.0 de Bóveda Segura.',
+  'Cifrado militar local AES-256 para fotos, videos, audios, documentos y aplicaciones.',
+  'Visor de documentos PDF local integrado con renderizado por canvas.',
+  'Reproductor de audio integrado con modo segundo plano y controles avanzados.',
+  'Carpeta protegida con PIN extra independiente.'
 ];
 
 export const APP_VERSION_METADATA: VersionInfo = {
