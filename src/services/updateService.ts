@@ -129,13 +129,13 @@ class UpdateService {
               const tag = release.tag_name.replace(/^v/, '');
               remoteVersionStr = tag;
 
-              // Calcular build number de forma ascendente
-              let parsedBuild = 1000;
+              // Calcular build number
+              let parsedBuild = 1;
               const parts = tag.split('.');
               if (parts.length >= 3) {
                 const patch = parseInt(parts[2], 10);
                 if (!isNaN(patch)) {
-                  parsedBuild = patch >= 1000 ? patch : 1000 + patch;
+                  parsedBuild = patch;
                 }
               }
               remoteBuild = parsedBuild;
@@ -252,11 +252,16 @@ class UpdateService {
         }
       }
 
-      // Comparar versión semver y build number
-      const versionDiff = this.compareVersions(remoteVersionStr, installedVersionName);
-      const hasRemoteUpdate = versionDiff > 0 || remoteBuild > installedBuildNumber;
+      // Comparar versión semver
+      const cleanRemote = remoteVersionStr.trim().replace(/^v/, '');
+      const cleanInstalled = installedVersionName.trim().replace(/^v/, '');
+      const versionDiff = this.compareVersions(cleanRemote, cleanInstalled);
 
-      const hasUpdate = hasRemoteUpdate || swHasUpdate;
+      // Solo hay actualización remota si la versión del servidor es estrictamente mayor a la instalada.
+      // Si la versión instalada y la del servidor son idénticas (ej. v1.0.0 y v1.0.0), el sistema ya está actualizado.
+      const hasRemoteUpdate = versionDiff > 0;
+
+      const hasUpdate = isNativeEnv ? hasRemoteUpdate : (hasRemoteUpdate || swHasUpdate);
 
       const effectiveDownloadUrl = directApkUrl || (remoteData as any).download_url ||
         `https://github.com/${this.getGitHubRepo()}/releases/latest/download/Boveda-Calculadora.apk`;

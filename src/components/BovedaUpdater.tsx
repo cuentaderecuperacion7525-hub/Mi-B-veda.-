@@ -23,7 +23,12 @@ interface BovedaUpdaterProps {
 
 export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
   const cachedCheck = updateService.getLastCheckResult();
-  const [updateAvailable, setUpdateAvailable] = useState<boolean>(() => !!cachedCheck?.hasUpdate);
+  const isCachedTrulyNew = Boolean(
+    cachedCheck?.hasUpdate &&
+    cachedCheck?.latestVersion &&
+    cachedCheck.latestVersion.trim().replace(/^v/, '') !== APP_VERSION.trim().replace(/^v/, '')
+  );
+  const [updateAvailable, setUpdateAvailable] = useState<boolean>(isCachedTrulyNew);
   const [downloadUrl, setDownloadUrl] = useState<string>(() => cachedCheck?.downloadUrl || '');
   const [serverVersionName, setServerVersionName] = useState<string>(() => cachedCheck?.latestVersion || '');
   const [serverVersionCode, setServerVersionCode] = useState<number>(() => cachedCheck?.buildNumber || 0);
@@ -107,7 +112,10 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       }
       setLastCheckTime(getFormattedTime());
 
-      if (res.hasUpdate) {
+      const cleanServer = (res.latestVersion || '').trim().replace(/^v/, '');
+      const cleanInstalled = (nombreActual || '').trim().replace(/^v/, '');
+
+      if (res.hasUpdate && cleanServer !== cleanInstalled) {
         setUpdateAvailable(true);
         setDownloadUrl(res.downloadUrl || '');
         setStatus(`Nueva versión v${res.latestVersion} lista para instalar.`);

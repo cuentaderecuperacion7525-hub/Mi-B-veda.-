@@ -23,6 +23,12 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/* ========================================================================= */
+/* CÓDIGO CRÍTICO PROTEGIDO - NO MODIFICAR NI ALTERAR                        */
+/* Este plugin controla la ventana oficial de autorización de Google        */
+/* (Google Play Services / Android OS) y requiere el certificado original.   */
+/* ========================================================================= */
+
 /**
  * Plugin nativo de Capacitor para invocar el selector oficial de cuentas de Google (Google Play Services / Android OS).
  * Paso 1: Abre la lista nativa del sistema con las cuentas reales de Gmail guardadas en el teléfono.

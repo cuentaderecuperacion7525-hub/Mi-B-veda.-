@@ -1,4 +1,9 @@
 /**
+ * =========================================================================
+ * CÓDIGO CRÍTICO PROTEGIDO - NO MODIFICAR NI ALTERAR
+ * Motor criptográfico de Bóveda Segura (PBKDF2 + AES-GCM 256-bit).
+ * Prohibido modificar o alterar este archivo sin autorización explícita.
+ * =========================================================================
  * Cryptographic engine for Bóveda Segura using Web Crypto API.
  * Uses PBKDF2 (100,000 rounds, SHA-256) + AES-GCM (256-bit).
  */

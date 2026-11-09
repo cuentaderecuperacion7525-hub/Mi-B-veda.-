@@ -1,3 +1,10 @@
+/**
+ * =========================================================================
+ * CÓDIGO CRÍTICO PROTEGIDO - NO MODIFICAR NI ALTERAR
+ * Este servicio comunica con el selector nativo oficial de Google Accounts.
+ * No modificar sin autorización explícita previa del usuario.
+ * =========================================================================
+ */
 import { registerPlugin, Capacitor } from '@capacitor/core';
 import { userProfileService, UserProfile } from './userProfileService';
 import { syncUserProfile } from './firebaseAuthService';
