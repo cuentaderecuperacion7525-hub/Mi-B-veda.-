@@ -955,26 +955,62 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
         {/* VIDEO VIEW */}
         {isVideo && (
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="max-w-4xl w-full max-h-full flex flex-col items-center justify-center relative rounded-2xl overflow-hidden bg-black/60 border border-slate-800"
+            onClick={(e) => {
+              e.stopPropagation();
+              togglePlayVideo();
+            }}
+            className="w-full h-full max-w-4xl flex items-center justify-center relative cursor-pointer select-none"
           >
             <video
               ref={videoRef}
               src={activeItem.blobUrl}
               playsInline
+              controls={false}
               controlsList="nodownload"
-              onClick={togglePlayVideo}
               onTimeUpdate={() => {
                 if (videoRef.current) {
                   setVideoProgress(videoRef.current.currentTime);
                   setVideoDuration(videoRef.current.duration || 0);
                 }
               }}
+              onLoadedMetadata={() => {
+                if (videoRef.current) {
+                  setVideoDuration(videoRef.current.duration || 0);
+                }
+              }}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
               onEnded={() => setIsPlaying(false)}
-              className="max-h-[calc(100vh-220px)] w-full object-contain cursor-pointer"
+              className="max-h-[calc(100vh-140px)] max-w-full w-auto h-auto object-contain rounded-2xl shadow-2xl"
+              style={{ backgroundColor: '#000' }}
             />
 
-            <div className="w-full bg-slate-900/90 backdrop-blur-md p-3 border-t border-slate-800 flex flex-col gap-2">
+            {/* Botón flotante central de Play cuando está pausado */}
+            {!isPlaying && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-white backdrop-blur-md border shadow-2xl transition-transform active:scale-95"
+                  style={{
+                    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                    borderColor: 'var(--theme-primary, #00e5ff)',
+                    boxShadow: '0 0 24px var(--theme-glow, rgba(0, 229, 255, 0.4))',
+                  }}
+                >
+                  <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-white ml-1 text-white" />
+                </div>
+              </div>
+            )}
+
+            {/* Barra flotante de controles inferior moderna */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-4 left-4 right-4 sm:left-8 sm:right-8 z-30 [backdrop-filter:blur(20px)] backdrop-blur-xl p-3 sm:p-3.5 rounded-2xl border shadow-2xl flex flex-col gap-2 transition-all cursor-default"
+              style={{
+                backgroundColor: 'rgba(10, 18, 29, 0.92)',
+                borderColor: 'var(--theme-border, rgba(51, 65, 85, 0.8))',
+              }}
+            >
+              {/* Barra de progreso interactiva */}
               <input
                 type="range"
                 min={0}
@@ -987,27 +1023,43 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
                     setVideoProgress(val);
                   }
                 }}
-                className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                className="w-full h-1.5 rounded-lg appearance-none cursor-pointer"
+                style={{
+                  accentColor: 'var(--theme-primary, #00e5ff)',
+                  backgroundColor: 'rgba(51, 65, 85, 0.6)',
+                }}
               />
 
-              <div className="flex items-center justify-between text-xs text-slate-300">
+              <div className="flex items-center justify-between text-xs pt-0.5">
                 <div className="flex items-center gap-3">
                   <button
+                    type="button"
                     onClick={togglePlayVideo}
-                    className="p-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+                    className="p-2 rounded-xl text-white transition-all active:scale-90 cursor-pointer flex items-center justify-center"
+                    style={{
+                      backgroundColor: 'var(--theme-primary, #00e5ff)',
+                      color: '#000000',
+                    }}
+                    title={isPlaying ? 'Pausar' : 'Reproducir'}
                   >
-                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-white" />}
+                    {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
                   </button>
-                  <button onClick={toggleMute} className="text-slate-400 hover:text-white transition-colors">
+                  <button
+                    type="button"
+                    onClick={toggleMute}
+                    className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                    title={isMuted ? 'Activar sonido' : 'Silenciar'}
+                  >
                     {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
                   </button>
-                  <span className="font-mono text-[11px] text-slate-400">
+                  <span className="font-mono text-[11px] text-slate-300">
                     {formatTime(videoProgress)} / {formatTime(videoDuration)}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={() => {
                       if (videoRef.current) {
                         videoRef.current.currentTime = 0;
@@ -1015,21 +1067,22 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
                         setIsPlaying(true);
                       }
                     }}
-                    className="p-1 text-slate-400 hover:text-white"
+                    className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
                     title="Reiniciar video"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
+                    <RotateCcw className="w-4 h-4" />
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       if (videoRef.current?.requestFullscreen) {
                         videoRef.current.requestFullscreen();
                       }
                     }}
-                    className="p-1 text-slate-400 hover:text-white"
+                    className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
                     title="Pantalla completa"
                   >
-                    <Maximize2 className="w-3.5 h-3.5" />
+                    <Maximize2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>

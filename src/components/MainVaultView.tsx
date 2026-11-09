@@ -89,6 +89,7 @@ import {
   isExtraPinConfigured,
 } from '../services/extraPinFolderService';
 import { ExtraPinModal } from './ExtraPinModal';
+import { generateVideoThumbnail, getCachedVideoThumbnail } from '../services/videoThumbnailService';
 
 export interface Carpeta {
   id: string;
@@ -101,6 +102,87 @@ export interface ArchivoCifrado {
   tipo: string;
   carpetaId: string;
 }
+
+/**
+ * Componente para renderizar la miniatura real extraída de un video con badge de duración
+ */
+const VideoThumbnailCard: React.FC<{
+  item: DecryptedVaultItem;
+  aspectMode: 'real' | 'square';
+}> = ({ item, aspectMode }) => {
+  const [thumbUrl, setThumbUrl] = useState<string>(() => getCachedVideoThumbnail(item.id) || '');
+  const [durationStr, setDurationStr] = useState<string>('');
+
+  useEffect(() => {
+    let isMounted = true;
+    const cached = getCachedVideoThumbnail(item.id);
+    if (cached) {
+      setThumbUrl(cached);
+      return;
+    }
+
+    generateVideoThumbnail(item.blobUrl, item.id)
+      .then((res) => {
+        if (!isMounted) return;
+        if (res.thumbnailUrl) {
+          setThumbUrl(res.thumbnailUrl);
+        }
+        if (res.duration > 0) {
+          const m = Math.floor(res.duration / 60);
+          const s = Math.floor(res.duration % 60);
+          setDurationStr(`${m}:${s.toString().padStart(2, '0')}`);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [item.id, item.blobUrl]);
+
+  return (
+    <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center relative pointer-events-none overflow-hidden">
+      {thumbUrl ? (
+        <img
+          src={thumbUrl}
+          alt={item.record.name}
+          className={`w-full h-full ${
+            aspectMode === 'real' ? 'object-contain p-0.5' : 'object-cover'
+          } transition-transform duration-300 group-hover:scale-105 pointer-events-none`}
+          loading="lazy"
+        />
+      ) : (
+        <video
+          src={item.blobUrl}
+          preload="metadata"
+          className={`w-full h-full ${
+            aspectMode === 'real' ? 'object-contain p-0.5' : 'object-cover'
+          } opacity-75 group-hover:opacity-95 transition-opacity`}
+        />
+      )}
+
+      {/* Botón sutil de Play en el centro */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white group-hover:scale-110 transition-transform shadow-lg">
+          <Play className="w-4 h-4 fill-white ml-0.5" />
+        </div>
+      </div>
+
+      {/* Badge de tipo VIDEO superior izquierdo */}
+      <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-md text-[10px] font-mono text-purple-300 flex items-center gap-1 shadow-md">
+        <Film className="w-3 h-3" />
+        <span>VIDEO</span>
+      </div>
+
+      {/* Badge de duración inferior derecho si está disponible */}
+      {durationStr && (
+        <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md text-[10px] font-mono font-medium text-slate-200 shadow-md">
+          {durationStr}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface MainVaultViewProps {
   masterKey: CryptoKey;
@@ -3136,26 +3218,9 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                                     />
                                   )}
 
-                                  {/* Video Thumbnail Display */}
+                                  {/* Video Thumbnail Display with extracted real frame */}
                                   {isVideo && (
-                                    <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center relative pointer-events-none">
-                                      <video
-                                        src={item.blobUrl}
-                                        preload="metadata"
-                                        className={`w-full h-full ${
-                                          aspectMode === 'real' ? 'object-contain p-0.5' : 'object-cover'
-                                        } opacity-75 group-hover:opacity-95 transition-opacity`}
-                                      />
-                                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                        <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white group-hover:scale-110 transition-transform">
-                                          <Play className="w-4 h-4 fill-white ml-0.5" />
-                                        </div>
-                                      </div>
-                                      <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-md text-[10px] font-mono text-purple-300 flex items-center gap-1">
-                                        <Film className="w-3 h-3" />
-                                        <span>VIDEO</span>
-                                      </div>
-                                    </div>
+                                    <VideoThumbnailCard item={item} aspectMode={aspectMode} />
                                   )}
 
                                   {/* Audio Card Display */}
