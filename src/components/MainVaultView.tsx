@@ -430,6 +430,14 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   const setActiveSubfolder = (folder: string | null) => {
     setCarpetaActiva(folder === null ? 'todas' : folder);
   };
+
+  // Cerrar y limpiar automáticamente la barra de búsqueda de subcarpeta al volver a la vista general de álbumes
+  useEffect(() => {
+    if (carpetaActiva === 'todas' || !activeCategory) {
+      setIsSearchOpen(false);
+      setSearchQuery('');
+    }
+  }, [carpetaActiva, activeCategory]);
   const [folderToRename, setFolderToRename] = useState<string | null>(null);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState<boolean>(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState<boolean>(false);
@@ -3162,10 +3170,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
             style={{
               height:
                 carpetaActiva === 'todas' && !isSelectMode
-                  ? isSearchOpen || searchQuery
-                    ? 'max(calc(env(safe-area-inset-top, 0px) + 10.5rem), 11.75rem)'
-                    : 'max(calc(env(safe-area-inset-top, 0px) + 7.75rem), 8.75rem)'
-                  : isSearchOpen || searchQuery
+                  ? 'max(calc(env(safe-area-inset-top, 0px) + 7.75rem), 8.75rem)'
+                  : carpetaActiva !== 'todas' && (isSearchOpen || searchQuery)
                   ? 'max(calc(env(safe-area-inset-top, 0px) + 7.5rem), 8.5rem)'
                   : 'max(calc(env(safe-area-inset-top, 0px) + 4.75rem), 5.75rem)',
             }}
