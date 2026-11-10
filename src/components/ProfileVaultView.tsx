@@ -38,7 +38,7 @@ import {
   calculateAgeFromBirthDate,
   formatBirthDateMask,
 } from '../services/userProfileService';
-import { signOutFromFirebase } from '../services/firebaseAuthService';
+import { signOutFromFirebase, syncUserProfile } from '../services/firebaseAuthService';
 import { signInWithNativeGoogle } from '../services/nativeGoogleAuthService';
 import { themeService, VaultTheme } from '../services/themeService';
 import { CURRENT_APP_VERSION as APP_VERSION } from '../version';
@@ -246,8 +246,8 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanFirst = editFirst.trim();
-    const cleanLast = editLast.trim();
+    const cleanFirst = editFirst.replace(/\s+/g, ' ').trim();
+    const cleanLast = editLast.replace(/\s+/g, ' ').trim();
     const cleanEmail = editEmail.trim().toLowerCase();
 
     if (!cleanFirst) {
@@ -279,7 +279,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     const isEmailChanging = currentEmail && cleanEmail !== currentEmail;
 
     // Save profile directly preserving original authProvider ('google.com' or 'password')
-    userProfileService.saveUserProfile({
+    const savedProfile = userProfileService.saveUserProfile({
       firstName: cleanFirst,
       lastName: cleanLast,
       birthDate: editBirthDate || undefined,
@@ -290,6 +290,34 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       authProvider: profile?.authProvider || 'password',
     });
 
+    // Sincronizar también en localStorage de cuenta registrada y Firestore para que el nombre completo persista
+    try {
+      const acctKey = `vault_registered_acct_${cleanEmail}`;
+      const rawAcct = localStorage.getItem(acctKey);
+      if (rawAcct) {
+        const parsedAcct = JSON.parse(rawAcct);
+        parsedAcct.firstName = cleanFirst;
+        parsedAcct.lastName = cleanLast;
+        localStorage.setItem(acctKey, JSON.stringify(parsedAcct));
+      }
+    } catch {}
+
+    try {
+      const b64Email = btoa(cleanEmail).replace(/=/g, '');
+      const prefix = savedProfile.authProvider === 'google.com' ? 'google_' : 'vault_';
+      syncUserProfile(`${prefix}${b64Email}`, {
+        firstName: savedProfile.firstName,
+        lastName: savedProfile.lastName,
+        birthDate: savedProfile.birthDate,
+        age: savedProfile.age,
+        email: savedProfile.email,
+        emailVerified: true,
+        photoURL: savedProfile.photoURL,
+        authProvider: savedProfile.authProvider,
+      }).catch(() => {});
+    } catch {}
+
+    setProfile(savedProfile);
     setIsEditing(false);
     showToast(isEmailChanging ? 'Correo confirmado y actualizado' : 'Perfil actualizado correctamente', 'success');
   };
@@ -298,14 +326,21 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     if (isChangingGoogle) return;
     setIsChangingGoogle(true);
     try {
+      const typedFirst = editFirst.replace(/\s+/g, ' ').trim();
+      const typedLast = editLast.replace(/\s+/g, ' ').trim();
       const res = await signInWithNativeGoogle();
       if (res.success && res.profile) {
         const newEmail = res.profile.email.trim().toLowerCase();
         const handle = newEmail.split('@')[0] || 'Usuario';
-        const cleanFirstName =
+        const googleFirst =
           res.profile.firstName ||
           handle.charAt(0).toUpperCase() + handle.slice(1);
-        const cleanLastName = res.profile.lastName || '';
+        // Si el usuario ya escribió dos nombres en la caja de texto "Nombre" (ej. "José Manuel"), conservarlos
+        const cleanFirstName =
+          typedFirst && typedFirst.includes(' ')
+            ? typedFirst
+            : googleFirst;
+        const cleanLastName = res.profile.lastName || typedLast || '';
         const cleanPhotoURL = res.profile.photoURL || '';
 
         // Actualizar con los datos de la nueva cuenta de Google seleccionada

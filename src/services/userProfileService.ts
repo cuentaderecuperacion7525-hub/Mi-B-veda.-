@@ -130,8 +130,13 @@ class UserProfileService {
     }
 
     const profile: UserProfile = {
-      firstName: data.firstName.trim(),
-      lastName: data.lastName !== undefined ? data.lastName.trim() : (isSameAccount ? existing?.lastName || '' : ''),
+      firstName: data.firstName.replace(/\s+/g, ' ').trim(),
+      lastName:
+        data.lastName !== undefined
+          ? data.lastName.replace(/\s+/g, ' ').trim()
+          : isSameAccount
+          ? existing?.lastName || ''
+          : '',
       birthDate: data.birthDate !== undefined ? data.birthDate.trim() : (isSameAccount ? existing?.birthDate : undefined),
       age: numAge,
       email: cleanEmail,
@@ -181,8 +186,9 @@ class UserProfileService {
 
   public getInitials(profile: UserProfile | null): string {
     if (!profile) return 'YO';
-    const f = profile.firstName?.[0] || '';
-    const l = profile.lastName?.[0] || '';
+    const firstParts = (profile.firstName || '').trim().split(/\s+/).filter(Boolean);
+    const f = firstParts[0]?.[0] || '';
+    const l = profile.lastName?.trim()?.[0] || firstParts[1]?.[0] || '';
     const combined = `${f}${l}`.toUpperCase();
     if (combined) return combined;
     if (profile.email) return profile.email.slice(0, 2).toUpperCase();

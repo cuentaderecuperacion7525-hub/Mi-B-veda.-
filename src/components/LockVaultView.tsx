@@ -95,16 +95,29 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   });
 
   useEffect(() => {
-    return userProfileService.subscribe((p) => {
+    const syncProfile = () => {
+      const latest = userProfileService.getUserProfile();
+      setUserProfile(latest);
+    };
+    syncProfile();
+    window.addEventListener('storage', syncProfile);
+    window.addEventListener('focus', syncProfile);
+    const unsub = userProfileService.subscribe((p) => {
       setUserProfile(p);
       if (!p) {
         setAuthViewMode('keypad');
       }
     });
+    return () => {
+      unsub();
+      window.removeEventListener('storage', syncProfile);
+      window.removeEventListener('focus', syncProfile);
+    };
   }, []);
 
-  // Solo toma el nombre (sin los apellidos) exclusivamente para el saludo de esta ventana
-  const userDisplayName = userProfile?.firstName?.trim() || 'Jose Manuel';
+  // Toma todos los nombres escritos en la caja de texto "Nombre" (ej. "José Manuel"), sin recortar el segundo nombre
+  const userDisplayName =
+    userProfile?.firstName?.replace(/\s+/g, ' ').trim() || 'José Manuel';
 
   // Saludo dinámico según la hora local del dispositivo (Buenos días, Buenas tardes, Buenas noches)
   const getTimeGreeting = (): string => {
@@ -921,25 +934,42 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       ) : authViewMode === 'welcome' && isRegisteredUser ? (
         /* ==================== PANTALLA DE BIENVENIDA (ESTILO BANCOMER / BBVA) ==================== */
         <div className="relative w-full max-w-sm sm:max-w-md mx-auto flex flex-col justify-between min-h-[85vh] py-6 px-4 select-none animate-in fade-in duration-300">
-          {/* 1. Header con Iniciar sesión centrado */}
+          {/* 1. Header con Iniciar sesión centrado (18 px) */}
           <div className="w-full flex items-center justify-center relative pt-2 pb-4">
             <h1
-              className="text-base sm:text-lg font-medium tracking-wide text-center"
-              style={{ color: 'var(--theme-text-muted, #94a3b8)' }}
+              className="text-[18px] font-medium tracking-wide text-center"
+              style={{
+                fontSize: '18px',
+                color: 'var(--theme-text-muted, #94a3b8)',
+              }}
             >
               Iniciar sesión
             </h1>
           </div>
 
-          {/* 2. Zona central: Saludo según la hora y Avatar con iniciales */}
+          {/* 2. Zona central: Saludo según la hora (20 px) y Nombre completo de la caja Nombre (28 px) con Avatar */}
           <div className="w-full my-auto py-8 px-2">
             <div className="flex items-center justify-between gap-4">
-              <h2
-                className="text-3xl sm:text-4xl font-serif font-bold tracking-tight leading-tight"
-                style={{ color: 'var(--theme-text-main, #ffffff)' }}
-              >
-                {getTimeGreeting()}, {userDisplayName}
-              </h2>
+              <div className="flex flex-col text-left min-w-0">
+                <span
+                  className="text-[20px] font-medium tracking-normal leading-snug"
+                  style={{
+                    fontSize: '20px',
+                    color: 'var(--theme-text-muted, #94a3b8)',
+                  }}
+                >
+                  {getTimeGreeting()}
+                </span>
+                <h2
+                  className="text-[28px] font-serif font-bold tracking-tight leading-tight mt-0.5 break-words"
+                  style={{
+                    fontSize: '28px',
+                    color: 'var(--theme-text-main, #ffffff)',
+                  }}
+                >
+                  {userDisplayName}
+                </h2>
+              </div>
 
               <div
                 className="w-16 h-16 rounded-full flex items-center justify-center text-white font-medium text-2xl shadow-xl shrink-0 border border-white/20 select-none overflow-hidden"
