@@ -113,11 +113,12 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // PDF specific states
+  // PDF & Document zoom states
   const [pdfDoc, setPdfDoc] = useState<any | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pdfScale, setPdfScale] = useState<number>(1);
+  const [displayScale, setDisplayScale] = useState<number>(1);
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
   const [visiblePages, setVisiblePages] = useState<Set<number>>(new Set([1, 2]));
 
@@ -146,13 +147,26 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     }
   }, [showMenu]);
 
-  // Refs for cleanup and lazy loading
+  // Refs for cleanup, lazy loading, and 2-finger pinch-to-zoom
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
+  const basePageDimsRef = useRef<Map<number, { width: number; height: number }>>(new Map());
   const renderTasksRef = useRef<Map<number, any>>(new Map());
   const pdfDocRef = useRef<any | null>(null);
   const arrayBufferRef = useRef<ArrayBuffer | null>(null);
+
+  const pdfScaleRef = useRef<number>(1);
+  const liveScaleRef = useRef<number>(1);
+  const isPinchingDocRef = useRef<boolean>(false);
+  const pinchStartDistRef = useRef<number>(0);
+  const pinchStartScaleRef = useRef<number>(1);
+  const pinchOriginRef = useRef<{
+    contentX: number;
+    contentY: number;
+    viewportX: number;
+    viewportY: number;
+  }>({ contentX: 0, contentY: 0, viewportX: 0, viewportY: 0 });
 
   // Double tap detection for zoom reset to width
   const lastTapRef = useRef<number>(0);
@@ -178,6 +192,7 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     });
     canvasRefs.current.clear();
     pageRefs.current.clear();
+    basePageDimsRef.current.clear();
 
     // Destroy pdf.js document
     if (pdfDocRef.current) {
@@ -208,6 +223,10 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     setWordHtml('');
     setNumPages(0);
     setCurrentPage(1);
+    setPdfScale(1);
+    setDisplayScale(1);
+    pdfScaleRef.current = 1;
+    liveScaleRef.current = 1;
 
     async function loadItem() {
       try {
@@ -378,7 +397,59 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     };
   }, [isPdf, pdfDoc, numPages]);
 
-  // Render individual visible page in its canvas (REQ 2 & 3)
+  // Synchronously resize all PDF page containers & canvases during pinch or button zoom
+  const applyScaleToDomSynchronously = useCallback((targetScale: number) => {
+    const defaultDims = basePageDimsRef.current.get(1);
+    pageRefs.current.forEach((pageDiv, pageNum) => {
+      const dims = basePageDimsRef.current.get(pageNum) || defaultDims;
+      if (!dims) return;
+      const w = Math.floor(dims.width * targetScale);
+      const h = Math.floor(dims.height * targetScale);
+      pageDiv.style.width = `${w}px`;
+      pageDiv.style.height = `${h}px`;
+      const canvas = canvasRefs.current.get(pageNum);
+      if (canvas) {
+        canvas.style.width = `${w}px`;
+        canvas.style.height = `${h}px`;
+      }
+    });
+  }, []);
+
+  // Helper to update zoom from buttons or double-tap while keeping viewport center stable
+  const updateZoomScale = useCallback(
+    (nextScaleRaw: number) => {
+      const clamped = Math.min(4.0, Math.max(0.6, Number(nextScaleRaw.toFixed(2))));
+      const prevScale = liveScaleRef.current || 1;
+      liveScaleRef.current = clamped;
+      pdfScaleRef.current = clamped;
+      setDisplayScale(clamped);
+      setPdfScale(clamped);
+
+      if (containerRef.current) {
+        const container = containerRef.current;
+        const rect = container.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const contentX = container.scrollLeft + centerX;
+        const contentY = container.scrollTop + centerY;
+        const ratio = clamped / prevScale;
+
+        if (isPdf) {
+          applyScaleToDomSynchronously(clamped);
+        }
+
+        requestAnimationFrame(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollLeft = Math.max(0, contentX * ratio - centerX);
+            containerRef.current.scrollTop = Math.max(0, contentY * ratio - centerY);
+          }
+        });
+      }
+    },
+    [isPdf, applyScaleToDomSynchronously]
+  );
+
+  // Render individual visible page in its canvas without white flicker (REQ 2 & 3)
   const renderPage = useCallback(
     async (pageNumber: number) => {
       if (!pdfDoc) return;
@@ -402,23 +473,41 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
         const unscaledViewport = page.getViewport({ scale: 1 });
         const scaleToFit = Math.min(
           3.5,
-          Math.max(0.4, (containerWidth - 28) / unscaledViewport.width)
+          Math.max(0.4, (containerWidth - 24) / unscaledViewport.width)
         );
+        const baseViewport = page.getViewport({ scale: scaleToFit });
+        basePageDimsRef.current.set(pageNumber, {
+          width: baseViewport.width,
+          height: baseViewport.height,
+        });
+
+        const activeScale = liveScaleRef.current || pdfScale;
+        const cssW = Math.floor(baseViewport.width * activeScale);
+        const cssH = Math.floor(baseViewport.height * activeScale);
+        containerDiv.style.width = `${cssW}px`;
+        containerDiv.style.height = `${cssH}px`;
+        canvas.style.width = `${cssW}px`;
+        canvas.style.height = `${cssH}px`;
+
         const finalScale = scaleToFit * pdfScale;
         const viewport = page.getViewport({ scale: finalScale });
 
-        const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-        canvas.width = Math.floor(viewport.width * dpr);
-        canvas.height = Math.floor(viewport.height * dpr);
-        canvas.style.width = `${Math.floor(viewport.width)}px`;
-        canvas.style.height = `${Math.floor(viewport.height)}px`;
+        // Cap DPR so zoomed canvases stay crisp without exceeding mobile GPU texture limits
+        const rawDpr = Math.min(window.devicePixelRatio || 1, 2.5);
+        const maxCanvasDim = 2600;
+        const maxSide = Math.max(viewport.width, viewport.height, 1);
+        const dpr = Math.min(rawDpr, maxCanvasDim / maxSide);
 
-        const ctx = canvas.getContext('2d', { alpha: false });
-        if (!ctx) return;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = Math.max(1, Math.floor(viewport.width * dpr));
+        tempCanvas.height = Math.max(1, Math.floor(viewport.height * dpr));
+
+        const tempCtx = tempCanvas.getContext('2d', { alpha: false });
+        if (!tempCtx) return;
+        tempCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         const renderContext = {
-          canvasContext: ctx,
+          canvasContext: tempCtx,
           viewport: viewport,
         };
 
@@ -426,6 +515,16 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
         renderTasksRef.current.set(pageNumber, renderTask);
         await renderTask.promise;
         renderTasksRef.current.delete(pageNumber);
+
+        // Atomically transfer rendered high-DPI page to visible canvas (zero white flash)
+        canvas.width = tempCanvas.width;
+        canvas.height = tempCanvas.height;
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (ctx) {
+          ctx.drawImage(tempCanvas, 0, 0);
+        }
+        tempCanvas.width = 0;
+        tempCanvas.height = 0;
       } catch (err: any) {
         if (err?.name !== 'RenderingCancelledException') {
           console.warn(`Error rendering PDF page ${pageNumber}:`, err);
@@ -443,11 +542,96 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     });
   }, [isPdf, pdfDoc, visiblePages, pdfScale, renderPage]);
 
+  // 2-Finger Pinch-to-Zoom Handlers on Document Container
+  const handleContentTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (showMenu) {
+      setShowMenu(false);
+    }
+
+    if (e.touches.length === 2 && containerRef.current) {
+      isPinchingDocRef.current = true;
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      pinchStartDistRef.current = Math.hypot(
+        t1.clientX - t2.clientX,
+        t1.clientY - t2.clientY
+      );
+      pinchStartScaleRef.current = liveScaleRef.current || pdfScaleRef.current || 1;
+
+      const rect = containerRef.current.getBoundingClientRect();
+      const midX = (t1.clientX + t2.clientX) / 2 - rect.left;
+      const midY = (t1.clientY + t2.clientY) / 2 - rect.top;
+
+      pinchOriginRef.current = {
+        viewportX: midX,
+        viewportY: midY,
+        contentX: containerRef.current.scrollLeft + midX,
+        contentY: containerRef.current.scrollTop + midY,
+      };
+    }
+  };
+
+  const handleContentTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (e.touches.length === 2 && isPinchingDocRef.current && containerRef.current) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+
+      if (pinchStartDistRef.current > 8) {
+        const factor = dist / pinchStartDistRef.current;
+        const nextScale = Math.min(
+          4.0,
+          Math.max(0.6, pinchStartScaleRef.current * factor)
+        );
+        liveScaleRef.current = nextScale;
+        setDisplayScale(Number(nextScale.toFixed(2)));
+
+        if (isPdf) {
+          applyScaleToDomSynchronously(nextScale);
+        }
+
+        const rect = containerRef.current.getBoundingClientRect();
+        const curMidX = (t1.clientX + t2.clientX) / 2 - rect.left;
+        const curMidY = (t1.clientY + t2.clientY) / 2 - rect.top;
+        const scaleRatio = nextScale / pinchStartScaleRef.current;
+
+        containerRef.current.scrollLeft = Math.max(
+          0,
+          pinchOriginRef.current.contentX * scaleRatio - curMidX
+        );
+        containerRef.current.scrollTop = Math.max(
+          0,
+          pinchOriginRef.current.contentY * scaleRatio - curMidY
+        );
+      }
+    }
+  };
+
+  const handleContentTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (isPinchingDocRef.current && e.touches.length < 2) {
+      isPinchingDocRef.current = false;
+      const committed = Math.min(
+        4.0,
+        Math.max(0.6, Number(liveScaleRef.current.toFixed(2)))
+      );
+      liveScaleRef.current = committed;
+      pdfScaleRef.current = committed;
+      setDisplayScale(committed);
+      setPdfScale(committed);
+      lastTapRef.current = 0;
+    }
+  };
+
   // Double tap to reset zoom or toggle width fit (REQ 4)
   const handleDoubleTap = () => {
+    if (isPinchingDocRef.current) return;
     const now = Date.now();
     if (now - lastTapRef.current < 320) {
-      setPdfScale((prev) => (prev > 1.05 ? 1 : 1.75));
+      const target = liveScaleRef.current > 1.08 ? 1 : 1.8;
+      updateZoomScale(target);
       lastTapRef.current = 0;
     } else {
       lastTapRef.current = now;
@@ -696,8 +880,8 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
             </button>
           )}
 
-          {/* Opciones específicas de Zoom para PDF */}
-          {isPdf && (
+          {/* Opciones de Control de Zoom para Documentos */}
+          {(isPdf || isWord || isTxt) && (
             <>
               <div className="h-[1px] my-1 mx-1" style={{ backgroundColor: dividerColor }} />
               <div
@@ -710,7 +894,7 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
               <div className="flex items-center justify-between px-2 py-1 gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setPdfScale((prev) => Math.max(0.6, Number((prev - 0.25).toFixed(2))))}
+                  onClick={() => updateZoomScale(displayScale - 0.25)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
                   style={{ backgroundColor: iconBoxBg, color: textMain }}
                   title="Alejar"
@@ -721,17 +905,17 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => setPdfScale(1)}
+                  onClick={() => updateZoomScale(1)}
                   className="px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold transition-colors cursor-pointer"
                   style={{ backgroundColor: iconBoxBg, color: primaryAccent }}
                   title="Restablecer al 100%"
                 >
-                  {Math.round(pdfScale * 100)}%
+                  {Math.round(displayScale * 100)}%
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setPdfScale((prev) => Math.min(3, Number((prev + 0.25).toFixed(2))))}
+                  onClick={() => updateZoomScale(displayScale + 0.25)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
                   style={{ backgroundColor: iconBoxBg, color: textMain }}
                   title="Acercar"
@@ -1178,10 +1362,14 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
       {/* Apartado de opciones desplegable en la esquina superior derecha (3 puntitos) */}
       {renderOptionsMenu()}
 
-      {/* CONTENIDO PRINCIPAL */}
+      {/* CONTENIDO PRINCIPAL CON SOPORTE TÁCTIL DE 2 DEDOS (PINCH-TO-ZOOM) Y DESPLAZAMIENTO FLUIDO */}
       <div
         ref={containerRef}
         onClick={handleDoubleTap}
+        onTouchStart={handleContentTouchStart}
+        onTouchMove={handleContentTouchMove}
+        onTouchEnd={handleContentTouchEnd}
+        onTouchCancel={handleContentTouchEnd}
         style={{
           backgroundColor: isLight ? '#e2e8f0' : '#0a121d',
           touchAction: 'pan-x pan-y',
@@ -1191,7 +1379,7 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
       >
         {/* 1. PDF CANVAS RENDERER (REQ 1, 2, 3, 4, 5) */}
         {isPdf && numPages > 0 && (
-          <div className="flex flex-col items-center gap-4 py-4 px-2 min-h-full">
+          <div className="w-fit min-w-full flex flex-col items-center gap-4 py-4 px-2 min-h-full">
             {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
               <div
                 key={pageNum}
@@ -1200,7 +1388,7 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
                   if (el) pageRefs.current.set(pageNum, el);
                   else pageRefs.current.delete(pageNum);
                 }}
-                className="relative bg-white rounded-lg overflow-hidden flex items-center justify-center transition-transform"
+                className="relative bg-white rounded-lg overflow-hidden flex items-center justify-center shrink-0"
                 style={{
                   minHeight: '280px',
                   boxShadow: isLight
@@ -1227,7 +1415,13 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
 
         {/* 2. WORD (.docx) HTML CONVERSION (REQ 8) */}
         {isWord && (
-          <div className="max-w-3xl mx-auto p-4 sm:p-8">
+          <div
+            className="mx-auto p-4 sm:p-8 transition-none"
+            style={{
+              width: displayScale > 1 ? `${Math.round(displayScale * 100)}%` : '100%',
+              maxWidth: displayScale > 1 ? 'none' : '48rem',
+            }}
+          >
             <div
               style={{
                 backgroundColor: isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(0, 229, 255, 0.1)',
@@ -1239,14 +1433,21 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
               Vista simplificada. Para ver el formato original, abre el menú de 3 puntos y selecciona <b>Sacar de la bóveda</b>.
             </div>
 
-            <div className="bg-white text-slate-900 rounded-2xl p-6 sm:p-10 shadow-xl leading-relaxed text-sm space-y-4">
+            <div
+              className="bg-white text-slate-900 rounded-2xl p-6 sm:p-10 shadow-xl leading-relaxed space-y-4"
+              style={{ fontSize: `${Math.round(14 * displayScale)}px` }}
+            >
               {wordHtml ? (
                 <div
                   className="prose max-w-none text-slate-900"
+                  style={{ fontSize: `${Math.round(14 * displayScale)}px` }}
                   dangerouslySetInnerHTML={{ __html: wordHtml }}
                 />
               ) : textContent ? (
-                <pre className="whitespace-pre-wrap font-sans text-slate-800 leading-relaxed">
+                <pre
+                  className="whitespace-pre-wrap font-sans text-slate-800 leading-relaxed"
+                  style={{ fontSize: `${Math.round(14 * displayScale)}px` }}
+                >
                   {textContent}
                 </pre>
               ) : (
@@ -1258,7 +1459,13 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
 
         {/* 3. TXT VIEWER (REQ 7) */}
         {isTxt && (
-          <div className="max-w-4xl mx-auto p-4 sm:p-8">
+          <div
+            className="mx-auto p-4 sm:p-8"
+            style={{
+              width: displayScale > 1 ? `${Math.round(displayScale * 100)}%` : '100%',
+              maxWidth: displayScale > 1 ? 'none' : '56rem',
+            }}
+          >
             <div
               className="flex items-center justify-between mb-3 text-xs"
               style={{ color: isLight ? '#475569' : '#94a3b8' }}
@@ -1286,7 +1493,7 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
             >
               <pre
                 style={{
-                  fontSize: `${txtFontSize}px`,
+                  fontSize: `${Math.max(10, Math.round(txtFontSize * displayScale))}px`,
                   lineHeight: '1.65',
                   color: isLight ? '#0f172a' : '#e2e8f0',
                 }}
@@ -1299,8 +1506,8 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
         )}
       </div>
 
-      {/* Control flotante discreto de zoom en la esquina inferior derecha para lectura de PDF */}
-      {isPdf && numPages > 0 && !showMenu && (
+      {/* Control flotante discreto de zoom en la esquina inferior derecha */}
+      {(isPdf || isWord || isTxt) && !showMenu && (
         <div
           style={{
             backgroundColor: isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(10, 18, 29, 0.94)',
@@ -1313,7 +1520,7 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setPdfScale((prev) => Math.max(0.6, Number((prev - 0.25).toFixed(2))));
+              updateZoomScale(displayScale - 0.25);
             }}
             style={{ color: isLight ? '#0f172a' : '#f8fafc' }}
             className="p-1.5 rounded-full hover:opacity-75 transition-opacity cursor-pointer"
@@ -1325,19 +1532,19 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setPdfScale(1);
+              updateZoomScale(1);
             }}
             style={{ color: isLight ? '#0284c7' : '#00e5ff' }}
             className="px-2 py-0.5 text-[11px] font-mono font-bold transition-colors cursor-pointer"
             title="Restablecer zoom al 100%"
           >
-            {Math.round(pdfScale * 100)}%
+            {Math.round(displayScale * 100)}%
           </button>
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setPdfScale((prev) => Math.min(3, Number((prev + 0.25).toFixed(2))));
+              updateZoomScale(displayScale + 0.25);
             }}
             style={{ color: isLight ? '#0f172a' : '#f8fafc' }}
             className="p-1.5 rounded-full hover:opacity-75 transition-opacity cursor-pointer"
