@@ -320,6 +320,13 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   const mouseStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (
+      activeItem?.record.category === 'document' ||
+      activeItem?.record.category === 'audio' ||
+      activeItem?.record.mimeType?.startsWith('audio/')
+    ) {
+      return;
+    }
     if (showMoreMenu) {
       setShowMoreMenu(false);
     }
@@ -363,6 +370,13 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    if (
+      activeItem?.record.category === 'document' ||
+      activeItem?.record.category === 'audio' ||
+      activeItem?.record.mimeType?.startsWith('audio/')
+    ) {
+      return;
+    }
     if (e.touches.length === 2 && isPinchingRef.current) {
       hasMovedRef.current = true;
       const t1 = e.touches[0];
@@ -413,6 +427,15 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
+    if (
+      activeItem?.record.category === 'document' ||
+      activeItem?.record.category === 'audio' ||
+      activeItem?.record.mimeType?.startsWith('audio/')
+    ) {
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+      return;
+    }
     setIsInteracting(false);
 
     if (isPinchingRef.current) {
@@ -518,6 +541,13 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   const lastTapRef = useRef<number>(0);
 
   const handlePhotoTap = (e?: React.MouseEvent) => {
+    if (
+      activeItem?.record.category === 'document' ||
+      activeItem?.record.category === 'audio' ||
+      activeItem?.record.mimeType?.startsWith('audio/')
+    ) {
+      return;
+    }
     if (e) {
       e.stopPropagation();
     }
@@ -1594,33 +1624,67 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
             onExport={handleExport}
             isExporting={isExporting}
             showToast={showToast}
-            onShowDetails={() => setShowDetails(!showDetails)}
+            onShowDetails={() => setShowDetails((prev) => !prev)}
+            onShare={handleShare}
+            onMove={() => {
+              setNewFolderInputOpen(false);
+              setIsMoveModalOpen(true);
+            }}
+            onCopy={() => {
+              setNewFolderInputOpen(false);
+              setIsCopyModalOpen(true);
+            }}
+            onToggleFavorite={async () => {
+              const nextFav = !activeItem.record.isFavorite;
+              await onToggleFavorite(activeItem.id, nextFav);
+              showToast(
+                nextFav ? 'Agregado a Favoritos' : 'Quitado de Favoritos',
+                'success'
+              );
+            }}
+            onRename={handleOpenRenameModal}
+            onDeleteRequest={() => setShowDeleteConfirm(true)}
           />
         )}
 
-        {/* Details Flyout */}
+        {/* Details Flyout adaptado a ambos temas y con z-index superior a DocumentReader */}
         {showDetails && !isImmersive && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="absolute right-4 top-16 z-40 w-72 bg-slate-900/95 border border-slate-800 rounded-2xl p-4 shadow-2xl backdrop-blur-md text-xs space-y-3"
-          >
-            <h5 className="font-semibold text-slate-200 border-b border-slate-800 pb-2">Información del archivo</h5>
-            <div className="flex items-center gap-2 text-slate-400">
-              <Calendar className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span>{new Date(activeItem.record.timestamp).toLocaleString()}</span>
+          <>
+            <div
+              className="fixed inset-0 z-[64] bg-transparent"
+              onClick={() => setShowDetails(false)}
+            />
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="vault-more-menu-panel fixed right-4 top-[calc(var(--safe-top,env(safe-area-inset-top,0px))+3.6rem)] z-[65] w-72 bg-[#0e1626]/98 border border-slate-800 rounded-2xl p-4 shadow-2xl backdrop-blur-xl text-xs space-y-3 animate-in fade-in zoom-in-95 duration-150"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <h5 className="font-semibold text-slate-200">Información del archivo</h5>
+                <button
+                  type="button"
+                  onClick={() => setShowDetails(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2 text-slate-400">
+                <Calendar className="w-4 h-4 text-[#00e5ff] shrink-0" />
+                <span>{new Date(activeItem.record.timestamp).toLocaleString()}</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-400">
+                <HardDrive className="w-4 h-4 text-[#00e5ff] shrink-0" />
+                <span>Tamaño cifrado: {formatBytes(activeItem.record.size)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-400">
+                <Folder className="w-4 h-4 text-[#00e5ff] shrink-0" />
+                <span>Álbum: {activeItem.record.album || 'General'}</span>
+              </div>
+              <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-800/80">
+                Cifrado: AES-GCM 256 bits · Almacenado localmente en IndexedDB.
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-slate-400">
-              <HardDrive className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span>Tamaño cifrado: {formatBytes(activeItem.record.size)}</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-400">
-              <Folder className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span>Álbum: {activeItem.record.album || 'General'}</span>
-            </div>
-            <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-800/80">
-              Cifrado: AES-GCM 256 bits · Almacenado localmente en IndexedDB.
-            </div>
-          </div>
+          </>
         )}
       </div>
 
@@ -1628,12 +1692,16 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       {showMoreMenu && !isImmersive && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-transparent"
+            className="fixed inset-0 z-[55] bg-transparent"
             onClick={() => setShowMoreMenu(false)}
           />
           <div
             onClick={(e) => e.stopPropagation()}
-            className="vault-more-menu-panel fixed bottom-[76px] left-5 right-5 sm:left-auto sm:right-6 sm:w-80 z-50 bg-[#0e1626]/95 backdrop-blur-2xl rounded-[28px] shadow-[0_16px_48px_rgba(0,0,0,0.85)] border border-slate-800/90 overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200"
+            className={`vault-more-menu-panel fixed z-[60] bg-[#0e1626]/95 backdrop-blur-2xl rounded-[28px] shadow-[0_16px_48px_rgba(0,0,0,0.85)] border border-slate-800/90 overflow-hidden animate-in fade-in duration-200 ${
+              isVideo
+                ? 'top-[calc(var(--safe-top,env(safe-area-inset-top,0px))+3.45rem)] right-4 w-72 zoom-in-95'
+                : 'bottom-[76px] left-5 right-5 sm:left-auto sm:right-6 sm:w-80 slide-in-from-bottom-3'
+            }`}
           >
             <div className="vault-more-menu-list flex flex-col divide-y divide-slate-800/80">
               {/* 1. Girar (solo para imágenes) */}
@@ -1685,6 +1753,18 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
                 className="vault-more-menu-item w-full px-6 py-4 text-left text-[15px] font-medium text-slate-100 hover:text-[#00e5ff] active:opacity-75 transition-colors cursor-pointer"
               >
                 Cambiar nombre
+              </button>
+
+              {/* 5. Información del archivo */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMoreMenu(false);
+                  setShowDetails((prev) => !prev);
+                }}
+                className="vault-more-menu-item w-full px-6 py-4 text-left text-[15px] font-medium text-slate-100 hover:text-[#00e5ff] active:opacity-75 transition-colors cursor-pointer"
+              >
+                Información del archivo
               </button>
             </div>
           </div>

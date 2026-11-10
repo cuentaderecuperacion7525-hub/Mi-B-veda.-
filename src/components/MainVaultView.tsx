@@ -4042,7 +4042,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 }}
                 className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
               >
-                <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg shadow-black/60 border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                <span
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap backdrop-blur-md border ${
+                    currentTheme === 'light'
+                      ? 'bg-white text-slate-900 border-slate-300 shadow-slate-300/60'
+                      : 'bg-[#090d16]/95 text-white border-cyan-500/30 shadow-black/60'
+                  }`}
+                >
                   Nueva carpeta
                 </span>
                 <div className="vault-fab-circle-primary w-12 h-12 rounded-full bg-[#00e5ff] hover:bg-[#00cce6] text-black flex items-center justify-center shadow-lg shadow-cyan-500/40 border border-cyan-200/50 transition-all">
@@ -4067,7 +4073,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                 }}
                 className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
               >
-                <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg shadow-black/60 border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                <span
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap backdrop-blur-md border ${
+                    currentTheme === 'light'
+                      ? 'bg-white text-slate-900 border-slate-300 shadow-slate-300/60'
+                      : 'bg-[#090d16]/95 text-white border-cyan-500/30 shadow-black/60'
+                  }`}
+                >
                   {activeCategory === 'video' ? 'Grabar video' : 'Abrir cámara'}
                 </span>
                 <div className="vault-fab-circle-primary w-12 h-12 rounded-full bg-[#00e5ff] hover:bg-[#00cce6] text-black flex items-center justify-center shadow-lg shadow-cyan-500/30 border border-cyan-300/50 transition-all">
@@ -4092,7 +4104,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   }}
                   className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
                 >
-                  <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg shadow-black/60 border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                  <span
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap backdrop-blur-md border ${
+                      currentTheme === 'light'
+                        ? 'bg-white text-slate-900 border-slate-300 shadow-slate-300/60'
+                        : 'bg-[#090d16]/95 text-white border-cyan-500/30 shadow-black/60'
+                    }`}
+                  >
                     Añadir fotos
                   </span>
                   <div className="vault-fab-circle-blue w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 border border-blue-400/40 transition-all">
@@ -4114,7 +4132,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   }}
                   className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
                 >
-                  <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg shadow-black/60 border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                  <span
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap backdrop-blur-md border ${
+                      currentTheme === 'light'
+                        ? 'bg-white text-slate-900 border-slate-300 shadow-slate-300/60'
+                        : 'bg-[#090d16]/95 text-white border-cyan-500/30 shadow-black/60'
+                    }`}
+                  >
                     Añadir videos
                   </span>
                   <div className="vault-fab-circle-indigo w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 border border-indigo-400/40 transition-all">
@@ -4136,7 +4160,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   }}
                   className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
                 >
-                  <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                  <span
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap backdrop-blur-md border ${
+                      currentTheme === 'light'
+                        ? 'bg-white text-slate-900 border-slate-300 shadow-slate-300/60'
+                        : 'bg-[#090d16]/95 text-white border-cyan-500/30'
+                    }`}
+                  >
                     Añadir audios
                   </span>
                   <div className="vault-fab-circle-amber w-12 h-12 rounded-full bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center shadow-lg shadow-amber-500/30 border border-amber-300/40 transition-all">
@@ -4161,7 +4191,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   }}
                   className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
                 >
-                  <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                  <span
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap backdrop-blur-md border ${
+                      currentTheme === 'light'
+                        ? 'bg-white text-slate-900 border-slate-300 shadow-slate-300/60'
+                        : 'bg-[#090d16]/95 text-white border-cyan-500/30'
+                    }`}
+                  >
                     Añadir aplicaciones
                   </span>
                   <div className="vault-fab-circle-emerald w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center shadow-lg shadow-emerald-500/30 border border-emerald-300/40 transition-all">
@@ -4186,7 +4222,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   }}
                   className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
                 >
-                  <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                  <span
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap backdrop-blur-md border ${
+                      currentTheme === 'light'
+                        ? 'bg-white text-slate-900 border-slate-300 shadow-slate-300/60'
+                        : 'bg-[#090d16]/95 text-white border-cyan-500/30'
+                    }`}
+                  >
                     Añadir documentos
                   </span>
                   <div className="vault-fab-circle-blue w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 border border-blue-400/40 transition-all">
@@ -4209,7 +4251,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
                   }}
                   className="flex items-center gap-3 group cursor-pointer active:scale-95 transition-transform"
                 >
-                  <span className="px-3.5 py-1.5 rounded-full bg-[#090d16]/95 text-white text-xs font-semibold shadow-lg border border-cyan-500/30 whitespace-nowrap backdrop-blur-md">
+                  <span
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap backdrop-blur-md border ${
+                      currentTheme === 'light'
+                        ? 'bg-white text-slate-900 border-slate-300 shadow-slate-300/60'
+                        : 'bg-[#090d16]/95 text-white border-cyan-500/30'
+                    }`}
+                  >
                     Otros archivos
                   </span>
                   <div className="vault-fab-circle-docs w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 text-[#00e5ff] flex items-center justify-center shadow-lg shadow-black/40 border border-slate-700 transition-all">

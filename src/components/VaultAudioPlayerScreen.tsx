@@ -7,6 +7,7 @@ import {
 } from '../services/vaultAudioEngine';
 import { registerBackHandler } from '../services/backButtonService';
 import { formatSize as formatBytes } from '../utils/formatUtils';
+import { themeService, VaultTheme } from '../services/themeService';
 
 interface VaultAudioPlayerScreenProps {
   activeItem: DecryptedVaultItem;
@@ -72,6 +73,23 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
   const [isQueueOpen, setIsQueueOpen] = useState<boolean>(false);
   const [sheetDragY, setSheetDragY] = useState<number>(0);
   const sheetDragStartYRef = useRef<number | null>(null);
+  const [currentTheme, setCurrentTheme] = useState<VaultTheme>(themeService.getTheme());
+
+  useEffect(() => {
+    const unsubscribe = themeService.subscribe((t) => setCurrentTheme(t));
+    return unsubscribe;
+  }, []);
+
+  const isLightTheme = currentTheme === 'light';
+  const sheetBg = isLightTheme ? '#ffffff' : '#0e1626';
+  const sheetBorder = isLightTheme ? '1px solid #cbd5e1' : '1px solid rgba(0, 229, 255, 0.22)';
+  const sheetHandleBg = isLightTheme ? '#94a3b8' : '#64748b';
+  const sheetPrimaryText = isLightTheme ? '#0f172a' : '#f8fafc';
+  const sheetSecondaryText = isLightTheme ? '#64748b' : '#94a3b8';
+  const sheetAccentText = isLightTheme ? '#0284c7' : '#00e5ff';
+  const sheetActiveRowBg = isLightTheme ? 'rgba(2, 132, 199, 0.1)' : 'rgba(0, 229, 255, 0.12)';
+  const sheetPillBg = isLightTheme ? '#f1f5f9' : 'rgba(0, 229, 255, 0.14)';
+  const sheetDangerColor = isLightTheme ? '#dc2626' : '#f87171';
 
   // Marquee measurement refs and states
   const marqueeContainerRef = useRef<HTMLDivElement | null>(null);
@@ -948,12 +966,12 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
         )}
       </div>
 
-      {/* HOJA INFERIOR: COLA DE REPRODUCCIÓN (Queue) */}
+      {/* HOJA INFERIOR: COLA DE REPRODUCCIÓN (Queue) adaptada al tema de la aplicación */}
       {isQueueOpen && (
         <div
           onClick={() => setIsQueueOpen(false)}
           className="fixed inset-0 z-50 flex flex-col justify-end transition-opacity duration-200"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+          style={{ backgroundColor: isLightTheme ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0, 0, 0, 0.65)' }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -961,20 +979,24 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
             onPointerMove={handleSheetPointerMove}
             onPointerUp={handleSheetPointerUp}
             onPointerCancel={handleSheetPointerUp}
-            className="w-full max-w-[430px] mx-auto rounded-t-[28px] pt-3 pb-6 max-h-[70dvh] flex flex-col transition-transform duration-200 animate-in slide-in-from-bottom"
+            className="vault-more-menu-panel w-full max-w-[430px] mx-auto rounded-t-[28px] pt-3 pb-6 max-h-[70dvh] flex flex-col transition-transform duration-200 animate-in slide-in-from-bottom shadow-2xl"
             style={{
-              backgroundColor: '#7A4640',
+              backgroundColor: sheetBg,
+              borderTop: sheetBorder,
               transform: `translateY(${sheetDragY}px)`,
             }}
           >
             {/* Indicador de arrastre arriba */}
-            <div className="w-10 h-1 rounded-full mx-auto mb-3 opacity-45" style={{ backgroundColor: '#F6E8E5' }} />
+            <div
+              className="w-10 h-1 rounded-full mx-auto mb-3 opacity-60"
+              style={{ backgroundColor: sheetHandleBg }}
+            />
 
             <div className="px-6 pb-3 flex items-center justify-between">
-              <span className="text-[16px] font-medium" style={{ color: '#F6E8E5' }}>
+              <span className="text-[16px] font-semibold" style={{ color: sheetPrimaryText }}>
                 Cola de reproducción ({audioItems.length})
               </span>
-              <span className="text-[13px]" style={{ color: '#C9A6A2' }}>
+              <span className="text-[13px] font-medium" style={{ color: sheetSecondaryText }}>
                 {activeItem.record.album || 'General'}
               </span>
             </div>
@@ -995,14 +1017,14 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                     aria-label={`Reproducir ${cleanTitle}`}
                     className="w-full min-h-[56px] px-3 rounded-2xl flex items-center justify-between gap-3 text-left transition-colors cursor-pointer"
                     style={{
-                      backgroundColor: isCurrent ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
-                      color: isCurrent ? '#FFFFFF' : '#F6E8E5',
+                      backgroundColor: isCurrent ? sheetActiveRowBg : 'transparent',
+                      color: isCurrent ? sheetAccentText : sheetPrimaryText,
                     }}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <span
-                        className="w-6 text-center text-[14px] shrink-0"
-                        style={{ color: isCurrent ? '#FFFFFF' : '#C9A6A2' }}
+                        className="w-6 text-center text-[14px] shrink-0 font-medium"
+                        style={{ color: isCurrent ? sheetAccentText : sheetSecondaryText }}
                       >
                         {idx + 1}
                       </span>
@@ -1010,13 +1032,13 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                         <p
                           className="text-[15px] truncate"
                           style={{
-                            color: isCurrent ? '#FFFFFF' : '#F6E8E5',
-                            fontWeight: isCurrent ? 700 : 400,
+                            color: isCurrent ? sheetAccentText : sheetPrimaryText,
+                            fontWeight: isCurrent ? 700 : 500,
                           }}
                         >
                           {cleanTitle}
                         </p>
-                        <p className="text-[12px] truncate" style={{ color: '#C9A6A2' }}>
+                        <p className="text-[12px] truncate" style={{ color: sheetSecondaryText }}>
                           {formatBytes(item.record.size)}
                         </p>
                       </div>
@@ -1028,7 +1050,7 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                         height="20"
                         viewBox="0 0 24 24"
                         fill="none"
-                        stroke="#FFFFFF"
+                        stroke={sheetAccentText}
                         strokeWidth="1.8"
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -1047,12 +1069,12 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
         </div>
       )}
 
-      {/* MENÚ DE OPCIONES (tres puntitos) - Hoja inferior #7A4640, esquinas superiores 28px */}
+      {/* MENÚ DE OPCIONES (tres puntitos) adaptado al tema de la aplicación */}
       {isOptionsOpen && (
         <div
           onClick={() => setIsOptionsOpen(false)}
           className="fixed inset-0 z-50 flex flex-col justify-end transition-opacity duration-200"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+          style={{ backgroundColor: isLightTheme ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0, 0, 0, 0.65)' }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1060,19 +1082,20 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
             onPointerMove={handleSheetPointerMove}
             onPointerUp={handleSheetPointerUp}
             onPointerCancel={handleSheetPointerUp}
-            className="w-full max-w-[430px] mx-auto rounded-t-[28px] pt-3 pb-6 transition-transform duration-200 animate-in slide-in-from-bottom"
+            className="vault-more-menu-panel w-full max-w-[430px] mx-auto rounded-t-[28px] pt-3 pb-6 transition-transform duration-200 animate-in slide-in-from-bottom shadow-2xl"
             style={{
-              backgroundColor: '#7A4640',
+              backgroundColor: sheetBg,
+              borderTop: sheetBorder,
               transform: `translateY(${sheetDragY}px)`,
             }}
           >
             {/* Indicador de arrastre arriba */}
             <div
-              className="w-10 h-1 rounded-full mx-auto mb-2 opacity-45"
-              style={{ backgroundColor: '#F6E8E5' }}
+              className="w-10 h-1 rounded-full mx-auto mb-2 opacity-60"
+              style={{ backgroundColor: sheetHandleBg }}
             />
 
-            <div className="flex flex-col">
+            <div className="vault-more-menu-list flex flex-col">
               {/* 1. Sacar a mi dispositivo */}
               <button
                 type="button"
@@ -1082,15 +1105,15 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                   onExport();
                 }}
                 aria-label="Sacar a mi dispositivo"
-                className="w-full h-[56px] px-6 flex items-center gap-4 text-left active:bg-white/10 transition-colors cursor-pointer"
-                style={{ color: '#F6E8E5' }}
+                className="vault-more-menu-item w-full h-[56px] px-6 flex items-center gap-4 text-left transition-colors cursor-pointer"
+                style={{ color: sheetPrimaryText }}
               >
                 <svg
                   width="22"
                   height="22"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#F6E8E5"
+                  stroke={sheetAccentText}
                   strokeWidth="1.8"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1099,7 +1122,9 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                <span className="text-[16px] font-normal">Sacar a mi dispositivo</span>
+                <span className="text-[16px] font-medium" style={{ color: sheetPrimaryText }}>
+                  Sacar a mi dispositivo
+                </span>
               </button>
 
               {/* 2. Compartir */}
@@ -1110,15 +1135,15 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                   onShare();
                 }}
                 aria-label="Compartir"
-                className="w-full h-[56px] px-6 flex items-center gap-4 text-left active:bg-white/10 transition-colors cursor-pointer"
-                style={{ color: '#F6E8E5' }}
+                className="vault-more-menu-item w-full h-[56px] px-6 flex items-center gap-4 text-left transition-colors cursor-pointer"
+                style={{ color: sheetPrimaryText }}
               >
                 <svg
                   width="22"
                   height="22"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#F6E8E5"
+                  stroke={sheetAccentText}
                   strokeWidth="1.8"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1129,7 +1154,9 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                   <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
                   <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                 </svg>
-                <span className="text-[16px] font-normal">Compartir</span>
+                <span className="text-[16px] font-medium" style={{ color: sheetPrimaryText }}>
+                  Compartir
+                </span>
               </button>
 
               {/* 3. Copiar */}
@@ -1140,15 +1167,15 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                   onCopy();
                 }}
                 aria-label="Copiar"
-                className="w-full h-[56px] px-6 flex items-center gap-4 text-left active:bg-white/10 transition-colors cursor-pointer"
-                style={{ color: '#F6E8E5' }}
+                className="vault-more-menu-item w-full h-[56px] px-6 flex items-center gap-4 text-left transition-colors cursor-pointer"
+                style={{ color: sheetPrimaryText }}
               >
                 <svg
                   width="22"
                   height="22"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#F6E8E5"
+                  stroke={sheetAccentText}
                   strokeWidth="1.8"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1156,7 +1183,9 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                 </svg>
-                <span className="text-[16px] font-normal">Copiar</span>
+                <span className="text-[16px] font-medium" style={{ color: sheetPrimaryText }}>
+                  Copiar
+                </span>
               </button>
 
               {/* 4. Velocidad de reproducción (0.75x -> 1x -> 1.25x -> 1.5x -> 2x) */}
@@ -1167,8 +1196,8 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                   setPlaybackRate(nextRate);
                 }}
                 aria-label={`Velocidad de reproducción: ${playbackRate}x`}
-                className="w-full h-[56px] px-6 flex items-center justify-between gap-4 text-left active:bg-white/10 transition-colors cursor-pointer"
-                style={{ color: '#F6E8E5' }}
+                className="vault-more-menu-item w-full h-[56px] px-6 flex items-center justify-between gap-4 text-left transition-colors cursor-pointer"
+                style={{ color: sheetPrimaryText }}
               >
                 <div className="flex items-center gap-4">
                   <svg
@@ -1176,7 +1205,7 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                     height="22"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#F6E8E5"
+                    stroke={sheetAccentText}
                     strokeWidth="1.8"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -1184,17 +1213,19 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                     <path d="M12 2a10 10 0 1 0 10 10" />
                     <polyline points="12 6 12 12 16 14" />
                   </svg>
-                  <span className="text-[16px] font-normal">Velocidad de reproducción</span>
+                  <span className="text-[16px] font-medium" style={{ color: sheetPrimaryText }}>
+                    Velocidad de reproducción
+                  </span>
                 </div>
                 <span
-                  className="text-[15px] font-medium px-2.5 py-1 rounded-full"
-                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.12)', color: '#FFFFFF' }}
+                  className="text-[14px] font-semibold px-3 py-1 rounded-full"
+                  style={{ backgroundColor: sheetPillBg, color: sheetAccentText }}
                 >
                   {playbackRate}x
                 </span>
               </button>
 
-              {/* 5. Eliminar (texto e ícono en rojo suave #FFB4AB) */}
+              {/* 5. Eliminar */}
               <button
                 type="button"
                 onClick={() => {
@@ -1202,15 +1233,15 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                   onDeleteRequest();
                 }}
                 aria-label="Eliminar"
-                className="w-full h-[56px] px-6 flex items-center gap-4 text-left active:bg-white/10 transition-colors cursor-pointer"
-                style={{ color: '#FFB4AB' }}
+                className="w-full h-[56px] px-6 flex items-center gap-4 text-left transition-colors cursor-pointer"
+                style={{ color: sheetDangerColor }}
               >
                 <svg
                   width="22"
                   height="22"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#FFB4AB"
+                  stroke={sheetDangerColor}
                   strokeWidth="1.8"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1220,7 +1251,7 @@ export const VaultAudioPlayerScreen: React.FC<VaultAudioPlayerScreenProps> = ({
                   <line x1="10" y1="11" x2="10" y2="17" />
                   <line x1="14" y1="11" x2="14" y2="17" />
                 </svg>
-                <span className="text-[16px] font-normal" style={{ color: '#FFB4AB' }}>
+                <span className="text-[16px] font-semibold" style={{ color: sheetDangerColor }}>
                   Eliminar
                 </span>
               </button>

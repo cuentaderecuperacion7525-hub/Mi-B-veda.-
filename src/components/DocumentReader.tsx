@@ -16,9 +16,18 @@ import {
   Layers,
   ArrowLeft,
   Info,
+  MoreVertical,
+  Share2,
+  Folder,
+  CopyPlus,
+  Heart,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 import { DecryptedVaultItem } from './PhotoViewerModal';
 import { formatSize as formatBytes } from '../utils/formatUtils';
+import { themeService, VaultTheme } from '../services/themeService';
+import { registerBackHandler } from '../services/backButtonService';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Use embedded bundled worker via relative/inline path or data/blob or workerSrc
@@ -46,6 +55,12 @@ interface DocumentReaderProps {
   isExporting: boolean;
   showToast: (msg: string, type?: 'info' | 'success' | 'alert' | 'error') => void;
   onShowDetails?: () => void;
+  onShare?: () => void;
+  onMove?: () => void;
+  onCopy?: () => void;
+  onToggleFavorite?: () => void;
+  onRename?: () => void;
+  onDeleteRequest?: () => void;
 }
 
 export const DocumentReader: React.FC<DocumentReaderProps> = ({
@@ -57,10 +72,23 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
   isExporting,
   showToast,
   onShowDetails,
+  onShare,
+  onMove,
+  onCopy,
+  onToggleFavorite,
+  onRename,
+  onDeleteRequest,
 }) => {
   const filename = activeItem.record.name || 'documento';
   const lowerName = filename.toLowerCase();
   const mimeType = (activeItem.record.mimeType || '').toLowerCase();
+
+  // Theme support (Light / Cyan Dark)
+  const [currentTheme, setCurrentTheme] = useState<VaultTheme>(() => themeService.getTheme());
+  useEffect(() => {
+    return themeService.subscribe((t) => setCurrentTheme(t));
+  }, []);
+  const isLight = currentTheme === 'light';
 
   // Detect format
   const isPdf = lowerName.endsWith('.pdf') || mimeType.includes('pdf');
@@ -101,6 +129,22 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
 
   // Word specific states
   const [wordHtml, setWordHtml] = useState<string>('');
+
+  // 3-dots dropdown menu state
+  const [showMenu, setShowMenu] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (showMenu) {
+      return registerBackHandler(
+        'document_options_menu',
+        () => {
+          setShowMenu(false);
+          return true;
+        },
+        99
+      );
+    }
+  }, [showMenu]);
 
   // Refs for cleanup and lazy loading
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -419,18 +463,399 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     }
   };
 
+  const renderOptionsMenu = () => {
+    if (!showMenu) return null;
+    const primaryAccent = isLight ? '#0284c7' : '#00e5ff';
+    const textMain = isLight ? '#0f172a' : '#f8fafc';
+    const textMuted = isLight ? '#64748b' : '#94a3b8';
+    const dividerColor = isLight ? '#e2e8f0' : 'rgba(51, 65, 85, 0.7)';
+    const iconBoxBg = isLight ? '#f1f5f9' : 'rgba(255, 255, 255, 0.06)';
+
+    return (
+      <>
+        <div
+          className="fixed inset-0 z-40"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowMenu(false);
+          }}
+        />
+
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: isLight ? 'rgba(255, 255, 255, 0.98)' : 'rgba(14, 22, 38, 0.98)',
+            borderColor: isLight ? '#cbd5e1' : 'rgba(0, 229, 255, 0.25)',
+            color: textMain,
+            boxShadow: isLight
+              ? '0 16px 40px -4px rgba(15, 23, 42, 0.18), 0 4px 12px -2px rgba(15, 23, 42, 0.08)'
+              : '0 16px 48px rgba(0, 0, 0, 0.85), 0 0 24px rgba(0, 229, 255, 0.08)',
+          }}
+          className="vault-more-menu-panel absolute top-[calc(var(--safe-top,env(safe-area-inset-top,0px))+3.45rem)] right-3 z-50 w-68 max-h-[80vh] overflow-y-auto no-scrollbar border rounded-2xl p-2 backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-150 select-none space-y-0.5"
+        >
+          {/* 1. Sacar de la bóveda */}
+          <button
+            type="button"
+            onClick={() => {
+              setShowMenu(false);
+              onExport();
+            }}
+            disabled={isExporting}
+            className="vault-more-menu-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left text-xs cursor-pointer"
+            style={{ color: textMain }}
+          >
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+              style={{
+                backgroundColor: isLight ? 'rgba(2, 132, 199, 0.12)' : 'rgba(0, 229, 255, 0.15)',
+                color: primaryAccent,
+              }}
+            >
+              <Download className="w-4 h-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold" style={{ color: textMain }}>
+                Sacar de la bóveda
+              </p>
+              <p className="text-[10px] font-normal" style={{ color: textMuted }}>
+                Guardar en tu dispositivo
+              </p>
+            </div>
+          </button>
+
+          <div className="h-[1px] my-1 mx-1" style={{ backgroundColor: dividerColor }} />
+
+          {/* 2. Compartir */}
+          {onShare && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowMenu(false);
+                onShare();
+              }}
+              className="vault-more-menu-item w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left text-xs cursor-pointer"
+              style={{ color: textMain }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                style={{ backgroundColor: iconBoxBg, color: textMain }}
+              >
+                <Share2 className="w-4 h-4" />
+              </div>
+              <span className="font-medium" style={{ color: textMain }}>
+                Compartir
+              </span>
+            </button>
+          )}
+
+          {/* 3. Mover */}
+          {onMove && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowMenu(false);
+                onMove();
+              }}
+              className="vault-more-menu-item w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left text-xs cursor-pointer"
+              style={{ color: textMain }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                style={{ backgroundColor: iconBoxBg, color: textMain }}
+              >
+                <Folder className="w-4 h-4" />
+              </div>
+              <span className="font-medium" style={{ color: textMain }}>
+                Mover a carpeta
+              </span>
+            </button>
+          )}
+
+          {/* 4. Copiar */}
+          {onCopy && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowMenu(false);
+                onCopy();
+              }}
+              className="vault-more-menu-item w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left text-xs cursor-pointer"
+              style={{ color: textMain }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                style={{ backgroundColor: iconBoxBg, color: textMain }}
+              >
+                <CopyPlus className="w-4 h-4" />
+              </div>
+              <span className="font-medium" style={{ color: textMain }}>
+                Copiar a carpeta
+              </span>
+            </button>
+          )}
+
+          {/* 5. Favoritos */}
+          {onToggleFavorite && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowMenu(false);
+                onToggleFavorite();
+              }}
+              className="vault-more-menu-item w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left text-xs cursor-pointer"
+              style={{ color: textMain }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                style={{
+                  backgroundColor: iconBoxBg,
+                  color: activeItem.record.isFavorite ? '#ef4444' : textMain,
+                }}
+              >
+                <Heart
+                  className={`w-4 h-4 ${activeItem.record.isFavorite ? 'fill-red-500 text-red-500' : ''}`}
+                />
+              </div>
+              <span className="font-medium" style={{ color: textMain }}>
+                {activeItem.record.isFavorite ? 'Quitar de Favoritos' : 'Agregar a Favoritos'}
+              </span>
+            </button>
+          )}
+
+          {/* 6. Cambiar nombre */}
+          {onRename && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowMenu(false);
+                onRename();
+              }}
+              className="vault-more-menu-item w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left text-xs cursor-pointer"
+              style={{ color: textMain }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                style={{ backgroundColor: iconBoxBg, color: textMain }}
+              >
+                <Edit2 className="w-4 h-4" />
+              </div>
+              <span className="font-medium" style={{ color: textMain }}>
+                Cambiar nombre
+              </span>
+            </button>
+          )}
+
+          {/* 7. Detalles del archivo */}
+          {onShowDetails && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowMenu(false);
+                onShowDetails();
+              }}
+              className="vault-more-menu-item w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left text-xs cursor-pointer"
+              style={{ color: textMain }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                style={{ backgroundColor: iconBoxBg, color: textMain }}
+              >
+                <Info className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium" style={{ color: textMain }}>
+                  Detalles del archivo
+                </p>
+                <p className="text-[10px]" style={{ color: textMuted }}>
+                  {formatBytes(activeItem.record.size)}
+                </p>
+              </div>
+            </button>
+          )}
+
+          {/* 8. Pantalla completa */}
+          {(isPdf || isWord || isTxt) && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowMenu(false);
+                setIsFullScreen(!isFullScreen);
+              }}
+              className="vault-more-menu-item w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left text-xs cursor-pointer"
+              style={{ color: textMain }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                style={{ backgroundColor: iconBoxBg, color: textMain }}
+              >
+                {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </div>
+              <span className="font-medium" style={{ color: textMain }}>
+                {isFullScreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              </span>
+            </button>
+          )}
+
+          {/* Opciones específicas de Zoom para PDF */}
+          {isPdf && (
+            <>
+              <div className="h-[1px] my-1 mx-1" style={{ backgroundColor: dividerColor }} />
+              <div
+                className="px-3 pt-1 text-[10px] font-semibold uppercase tracking-wider"
+                style={{ color: textMuted }}
+              >
+                Control de Zoom
+              </div>
+
+              <div className="flex items-center justify-between px-2 py-1 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPdfScale((prev) => Math.max(0.6, Number((prev - 0.25).toFixed(2))))}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                  style={{ backgroundColor: iconBoxBg, color: textMain }}
+                  title="Alejar"
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                  <span>Alejar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPdfScale(1)}
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold transition-colors cursor-pointer"
+                  style={{ backgroundColor: iconBoxBg, color: primaryAccent }}
+                  title="Restablecer al 100%"
+                >
+                  {Math.round(pdfScale * 100)}%
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPdfScale((prev) => Math.min(3, Number((prev + 0.25).toFixed(2))))}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                  style={{ backgroundColor: iconBoxBg, color: textMain }}
+                  title="Acercar"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                  <span>Acercar</span>
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Opciones específicas para TXT */}
+          {isTxt && (
+            <>
+              <div className="h-[1px] my-1 mx-1" style={{ backgroundColor: dividerColor }} />
+              <button
+                type="button"
+                onClick={() => {
+                  handleCopyTxt();
+                  setShowMenu(false);
+                }}
+                className="vault-more-menu-item w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left text-xs cursor-pointer"
+                style={{ color: textMain }}
+              >
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: iconBoxBg, color: textMain }}
+                >
+                  {isCopied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                </div>
+                <span className="font-medium" style={{ color: textMain }}>
+                  {isCopied ? '¡Texto copiado!' : 'Copiar todo el texto'}
+                </span>
+              </button>
+
+              <div className="flex items-center justify-between px-3 py-1.5">
+                <span className="text-[11px]" style={{ color: textMuted }}>
+                  Tamaño letra
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setTxtFontSize((prev) => Math.max(11, prev - 2))}
+                    className="w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center cursor-pointer"
+                    style={{ backgroundColor: iconBoxBg, color: textMain }}
+                  >
+                    A-
+                  </button>
+                  <span className="text-xs font-mono px-1.5" style={{ color: textMain }}>
+                    {txtFontSize}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTxtFontSize((prev) => Math.min(26, prev + 2))}
+                    className="w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center cursor-pointer"
+                    style={{ backgroundColor: iconBoxBg, color: textMain }}
+                  >
+                    A+
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 9. Eliminar */}
+          {onDeleteRequest && (
+            <>
+              <div className="h-[1px] my-1 mx-1" style={{ backgroundColor: dividerColor }} />
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMenu(false);
+                  onDeleteRequest();
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-rose-500/10 transition-colors text-left text-xs cursor-pointer"
+                style={{ color: isLight ? '#e11d48' : '#fb7185' }}
+              >
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                  style={{
+                    backgroundColor: 'rgba(244, 63, 94, 0.12)',
+                    color: isLight ? '#e11d48' : '#fb7185',
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <span className="font-semibold" style={{ color: isLight ? '#e11d48' : '#fb7185' }}>
+                  Eliminar
+                </span>
+              </button>
+            </>
+          )}
+        </div>
+      </>
+    );
+  };
+
   // 1. ERROR STATE (REQ 10)
   if (errorMessage) {
     return (
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full h-full flex flex-col items-center justify-center p-6 bg-[#121214] text-white select-none text-center"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: isLight ? '#f1f5f9' : '#060b14',
+          color: isLight ? '#0f172a' : '#f8fafc',
+        }}
+        className="w-full h-full flex flex-col items-center justify-center p-6 select-none text-center"
       >
-        <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mb-4 shadow-lg shadow-rose-950/40">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mb-4 shadow-lg">
           <AlertCircle className="w-8 h-8" />
         </div>
-        <h3 className="text-base font-bold text-white mb-2">{errorMessage}</h3>
-        <p className="text-xs text-slate-400 max-w-sm mb-6 leading-relaxed">
+        <h3
+          className="text-base font-bold mb-2"
+          style={{ color: isLight ? '#0f172a' : '#f8fafc' }}
+        >
+          {errorMessage}
+        </h3>
+        <p
+          className="text-xs max-w-sm mb-6 leading-relaxed"
+          style={{ color: isLight ? '#475569' : '#94a3b8' }}
+        >
           El archivo está cifrado de forma segura en tu bóveda. Puedes exportarlo directamente a tu teléfono para abrirlo con una aplicación compatible.
         </p>
         <button
@@ -439,8 +864,10 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
           disabled={isExporting}
           className="px-6 py-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
         >
-          <Download className="w-4 h-4" />
-          <span>{isExporting ? 'Sacando a tu dispositivo…' : 'Sacar a mi dispositivo'}</span>
+          <Download className="w-4 h-4 text-white" />
+          <span className="text-white">
+            {isExporting ? 'Sacando a tu dispositivo…' : 'Sacar a mi dispositivo'}
+          </span>
         </button>
       </div>
     );
@@ -451,20 +878,48 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     return (
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full h-full flex flex-col items-center justify-center p-6 bg-[#121214] text-white select-none text-center"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: isLight ? '#f1f5f9' : '#060b14',
+          color: isLight ? '#0f172a' : '#f8fafc',
+        }}
+        className="w-full h-full flex flex-col items-center justify-center p-6 select-none text-center"
       >
-        <div className="w-14 h-14 rounded-2xl bg-sky-500/10 border border-sky-500/30 text-sky-400 flex items-center justify-center mb-4 shadow-lg">
+        <div
+          className="w-14 h-14 rounded-2xl border flex items-center justify-center mb-4 shadow-lg"
+          style={{
+            backgroundColor: isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(0, 229, 255, 0.1)',
+            borderColor: isLight ? 'rgba(2, 132, 199, 0.25)' : 'rgba(0, 229, 255, 0.25)',
+            color: isLight ? '#0284c7' : '#00e5ff',
+          }}
+        >
           <Loader2 className="w-7 h-7 animate-spin" />
         </div>
-        <h4 className="text-sm font-bold text-white mb-1.5">{loadingMessage}</h4>
-        <p className="text-xs text-slate-400 truncate max-w-[260px] font-mono">
+        <h4
+          className="text-sm font-bold mb-1.5"
+          style={{ color: isLight ? '#0f172a' : '#f8fafc' }}
+        >
+          {loadingMessage}
+        </h4>
+        <p
+          className="text-xs truncate max-w-[260px] font-mono"
+          style={{ color: isLight ? '#475569' : '#94a3b8' }}
+        >
           {filename}
         </p>
         {loadingProgress > 0 && (
-          <div className="w-48 bg-slate-800 rounded-full h-1.5 mt-4 overflow-hidden">
+          <div
+            className="w-48 rounded-full h-1.5 mt-4 overflow-hidden"
+            style={{ backgroundColor: isLight ? '#cbd5e1' : '#1e293b' }}
+          >
             <div
-              className="bg-sky-400 h-full rounded-full transition-all duration-150"
-              style={{ width: `${loadingProgress}%` }}
+              className="h-full rounded-full transition-all duration-150"
+              style={{
+                width: `${loadingProgress}%`,
+                backgroundColor: isLight ? '#0284c7' : '#00e5ff',
+              }}
             />
           </div>
         )}
@@ -481,45 +936,88 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     return (
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full h-full flex flex-col justify-between bg-[#121214] text-white select-none p-4 sm:p-6"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: isLight ? '#f1f5f9' : '#060b14',
+          color: isLight ? '#0f172a' : '#f8fafc',
+        }}
+        className="fixed inset-0 z-50 flex flex-col justify-between select-none overflow-hidden"
       >
-        {/* Compact Header (REQ 11 & 12) */}
-        <div className="w-full flex items-center justify-between py-2 border-b border-white/10 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
+        {/* Header con 3 puntitos en esquina superior derecha */}
+        <header
+          style={{
+            backgroundColor: isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(6, 11, 20, 0.95)',
+            borderColor: isLight ? '#cbd5e1' : 'rgba(51, 65, 85, 0.75)',
+            color: isLight ? '#0f172a' : '#f8fafc',
+          }}
+          className="w-full px-4 safe-top-sticky py-3 border-b flex items-center justify-between shrink-0 backdrop-blur-md z-30"
+        >
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
             {onClose && (
               <button
                 type="button"
                 onClick={onClose}
-                className="p-2 -ml-2 text-white hover:text-sky-400 transition-colors cursor-pointer"
+                style={{ color: isLight ? '#0f172a' : '#f8fafc' }}
+                className="p-1.5 -ml-1 active:scale-95 transition-all cursor-pointer shrink-0"
                 aria-label="Volver"
               >
-                <ArrowLeft className="w-5 h-5 text-white" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
             )}
-            <div className="text-left min-w-0">
-              <h4 className="text-sm font-bold text-white truncate max-w-[220px] sm:max-w-md">
+            <div className="text-left min-w-0 flex-1">
+              <h4
+                className="text-[15px] font-semibold truncate leading-tight"
+                style={{ color: isLight ? '#0f172a' : '#f8fafc' }}
+              >
                 {filename}
               </h4>
-              <p className="text-[11px] text-slate-400 truncate">
+              <p
+                className="text-[11px] truncate pt-0.5"
+                style={{ color: isLight ? '#475569' : '#94a3b8' }}
+              >
                 {new Date(activeItem.record.timestamp).toLocaleDateString()} · {formatBytes(activeItem.record.size)}
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onExport}
-            disabled={isExporting}
-            className="px-4 py-2 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
-          >
-            <Download className="w-4 h-4" />
-            <span>Sacar</span>
-          </button>
-        </div>
+          <div className="flex items-center shrink-0 ml-2 relative">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMenu((prev) => !prev);
+              }}
+              style={{
+                color: showMenu ? (isLight ? '#0284c7' : '#00e5ff') : isLight ? '#0f172a' : '#f8fafc',
+                backgroundColor: showMenu
+                  ? isLight
+                    ? 'rgba(2, 132, 199, 0.1)'
+                    : 'rgba(0, 229, 255, 0.12)'
+                  : 'transparent',
+              }}
+              className="p-2 rounded-xl transition-all cursor-pointer active:scale-95"
+              aria-label="Más opciones"
+              title="Más opciones"
+            >
+              <MoreVertical className="w-5 h-5" strokeWidth={2} />
+            </button>
+          </div>
+        </header>
+
+        {renderOptionsMenu()}
 
         {/* Big Icon & Metadata card (REQ 9) */}
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center my-auto">
-          <div className="w-24 h-24 rounded-3xl bg-sky-500/10 border border-sky-500/25 text-sky-400 flex items-center justify-center mb-5 shadow-2xl">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center my-auto overflow-y-auto">
+          <div
+            className="w-24 h-24 rounded-3xl border flex items-center justify-center mb-5 shadow-xl"
+            style={{
+              backgroundColor: isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(0, 229, 255, 0.1)',
+              borderColor: isLight ? 'rgba(2, 132, 199, 0.25)' : 'rgba(0, 229, 255, 0.25)',
+              color: isLight ? '#0284c7' : '#00e5ff',
+            }}
+          >
             {isSpreadsheet ? (
               <FileSpreadsheet className="w-12 h-12" />
             ) : isPresentation ? (
@@ -531,29 +1029,41 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
             )}
           </div>
 
-          <h3 className="text-lg font-bold text-white mb-1.5 break-all max-w-md">
+          <h3
+            className="text-lg font-bold mb-1.5 break-all max-w-md"
+            style={{ color: isLight ? '#0f172a' : '#f8fafc' }}
+          >
             {filename}
           </h3>
-          <p className="text-xs text-slate-400 mb-6">
+          <p className="text-xs mb-6" style={{ color: isLight ? '#475569' : '#94a3b8' }}>
             Archivo cifrado con AES-256 en tu caja fuerte
           </p>
 
-          <div className="w-full max-w-sm bg-white/5 border border-white/10 rounded-2xl p-4 text-left text-xs space-y-2.5 mb-6">
+          <div
+            style={{
+              backgroundColor: isLight ? '#ffffff' : '#0a121d',
+              borderColor: isLight ? '#cbd5e1' : 'rgba(51, 65, 85, 0.75)',
+            }}
+            className="w-full max-w-sm border rounded-2xl p-4 text-left text-xs space-y-2.5 mb-6 shadow-sm"
+          >
             <div className="flex justify-between">
-              <span className="text-slate-400">Tipo de archivo:</span>
-              <span className="font-semibold text-white uppercase">
+              <span style={{ color: isLight ? '#64748b' : '#94a3b8' }}>Tipo de archivo:</span>
+              <span
+                className="font-semibold uppercase"
+                style={{ color: isLight ? '#0f172a' : '#f8fafc' }}
+              >
                 {filename.split('.').pop() || 'Archivo'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Tamaño del archivo:</span>
-              <span className="font-semibold text-white">
+              <span style={{ color: isLight ? '#64748b' : '#94a3b8' }}>Tamaño del archivo:</span>
+              <span className="font-semibold" style={{ color: isLight ? '#0f172a' : '#f8fafc' }}>
                 {formatBytes(activeItem.record.size)}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Carpeta:</span>
-              <span className="font-semibold text-slate-300">
+              <span style={{ color: isLight ? '#64748b' : '#94a3b8' }}>Carpeta:</span>
+              <span className="font-semibold" style={{ color: isLight ? '#334155' : '#cbd5e1' }}>
                 {activeItem.record.album || 'General'}
               </span>
             </div>
@@ -565,8 +1075,10 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
             disabled={isExporting}
             className="w-full max-w-sm py-3.5 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer"
           >
-            <Download className="w-5 h-5" />
-            <span>{isExporting ? 'Sacando a tu dispositivo…' : 'Sacar a mi dispositivo'}</span>
+            <Download className="w-5 h-5 text-white" />
+            <span className="text-white">
+              {isExporting ? 'Sacando a tu dispositivo…' : 'Sacar a mi dispositivo'}
+            </span>
           </button>
         </div>
       </div>
@@ -577,37 +1089,59 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className={`fixed inset-0 z-50 flex flex-col bg-[#18181b] text-white select-none overflow-hidden transition-all ${
-        isFullScreen ? 'p-0' : 'p-0'
-      }`}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+      style={{
+        backgroundColor: isLight ? '#f1f5f9' : '#060b14',
+        color: isLight ? '#0f172a' : '#f8fafc',
+      }}
+      className="fixed inset-0 z-50 flex flex-col select-none overflow-hidden transition-all"
     >
-      {/* HEADER COMPACTO UNIFICADO (REQ 11 & 12) */}
-      <header className="w-full px-4 safe-top-sticky py-3 bg-[#0f1115]/95 border-b border-white/10 flex items-center justify-between text-white shrink-0 backdrop-blur-md z-30">
+      {/* HEADER COMPACTO ADAPTADO AL TEMA CON MENÚ DE 3 PUNTITOS A LA DERECHA */}
+      <header
+        style={{
+          backgroundColor: isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(6, 11, 20, 0.95)',
+          borderColor: isLight ? '#cbd5e1' : 'rgba(51, 65, 85, 0.75)',
+          color: isLight ? '#0f172a' : '#f8fafc',
+        }}
+        className="w-full px-4 safe-top-sticky py-3 border-b flex items-center justify-between shrink-0 backdrop-blur-md z-30 shadow-xs"
+      >
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 -ml-1 text-white hover:text-sky-400 active:scale-95 transition-all cursor-pointer shrink-0"
+              style={{ color: isLight ? '#0f172a' : '#f8fafc' }}
+              className="p-1.5 -ml-1 active:scale-95 transition-all cursor-pointer shrink-0"
               aria-label="Volver"
             >
-              <ArrowLeft className="w-5 h-5 text-white" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
           )}
 
-          {/* Nombre en blanco en una sola línea (REQ 11) y metadatos en gris claro */}
+          {/* Nombre del documento y metadatos */}
           <div className="min-w-0 flex-1 text-left">
-            <h4 className="text-[15px] font-semibold text-white truncate leading-tight">
+            <h4
+              className="text-[15px] font-semibold truncate leading-tight"
+              style={{ color: isLight ? '#0f172a' : '#f8fafc' }}
+            >
               {filename}
             </h4>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-300 font-normal leading-tight pt-0.5 truncate">
+            <div
+              className="flex items-center gap-1.5 text-[11px] font-normal leading-tight pt-0.5 truncate"
+              style={{ color: isLight ? '#475569' : '#94a3b8' }}
+            >
               <span>{new Date(activeItem.record.timestamp).toLocaleDateString()}</span>
               <span>·</span>
               <span>{activeItem.record.album || 'General'}</span>
               {isPdf && numPages > 0 && (
                 <>
                   <span>·</span>
-                  <span className="font-semibold text-sky-400">
+                  <span
+                    className="font-semibold"
+                    style={{ color: isLight ? '#0284c7' : '#00e5ff' }}
+                  >
                     {currentPage} / {numPages}
                   </span>
                 </>
@@ -616,85 +1150,44 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
           </div>
         </div>
 
-        {/* Acciones del encabezado: Sacar en azul (REQ 12), Zoom y Pantalla completa */}
-        <div className="flex items-center gap-1.5 shrink-0 ml-2">
-          {isPdf && (
-            <>
-              <button
-                type="button"
-                onClick={() => setPdfScale((prev) => Math.max(0.6, prev - 0.2))}
-                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                title="Alejar (Zoom -)"
-              >
-                <ZoomOut className="w-4 h-4 text-white" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setPdfScale((prev) => Math.min(3, prev + 0.2))}
-                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                title="Acercar (Zoom +)"
-              >
-                <ZoomIn className="w-4 h-4 text-white" />
-              </button>
-            </>
-          )}
-
-          {isTxt && (
-            <>
-              <button
-                type="button"
-                onClick={() => setTxtFontSize((prev) => Math.max(11, prev - 2))}
-                className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors cursor-pointer"
-                title="Reducir letra"
-              >
-                A-
-              </button>
-              <button
-                type="button"
-                onClick={() => setTxtFontSize((prev) => Math.min(26, prev + 2))}
-                className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors cursor-pointer"
-                title="Aumentar letra"
-              >
-                A+
-              </button>
-              <button
-                type="button"
-                onClick={handleCopyTxt}
-                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                title="Copiar texto"
-              >
-                {isCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-white" />}
-              </button>
-            </>
-          )}
-
+        {/* Esquina superior derecha: Botón de 3 puntitos */}
+        <div className="flex items-center shrink-0 ml-2 relative">
           <button
             type="button"
-            onClick={() => setIsFullScreen(!isFullScreen)}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-            title={isFullScreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMenu((prev) => !prev);
+            }}
+            style={{
+              color: showMenu ? (isLight ? '#0284c7' : '#00e5ff') : isLight ? '#0f172a' : '#f8fafc',
+              backgroundColor: showMenu
+                ? isLight
+                  ? 'rgba(2, 132, 199, 0.1)'
+                  : 'rgba(0, 229, 255, 0.12)'
+                : 'transparent',
+            }}
+            className="p-2 rounded-xl transition-all cursor-pointer active:scale-95"
+            aria-label="Más opciones"
+            title="Más opciones"
           >
-            {isFullScreen ? <Minimize2 className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}
-          </button>
-
-          {/* Botón Sacar en AZUL puro (REQ 12) */}
-          <button
-            type="button"
-            onClick={onExport}
-            disabled={isExporting}
-            className="px-3.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 active:bg-sky-600 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-md cursor-pointer ml-1"
-          >
-            <Download className="w-3.5 h-3.5 text-white" />
-            <span>Sacar</span>
+            <MoreVertical className="w-5 h-5" strokeWidth={2} />
           </button>
         </div>
       </header>
+
+      {/* Apartado de opciones desplegable en la esquina superior derecha (3 puntitos) */}
+      {renderOptionsMenu()}
 
       {/* CONTENIDO PRINCIPAL */}
       <div
         ref={containerRef}
         onClick={handleDoubleTap}
-        className="flex-1 w-full h-full overflow-y-auto overflow-x-auto bg-[#1c1d21] relative custom-scrollbar select-text"
+        style={{
+          backgroundColor: isLight ? '#e2e8f0' : '#0a121d',
+          touchAction: 'pan-x pan-y',
+          WebkitOverflowScrolling: 'touch',
+        }}
+        className="flex-1 w-full h-full overflow-y-auto overflow-x-auto relative custom-scrollbar select-text"
       >
         {/* 1. PDF CANVAS RENDERER (REQ 1, 2, 3, 4, 5) */}
         {isPdf && numPages > 0 && (
@@ -707,10 +1200,12 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
                   if (el) pageRefs.current.set(pageNum, el);
                   else pageRefs.current.delete(pageNum);
                 }}
-                className="relative bg-white rounded-lg shadow-xl overflow-hidden flex items-center justify-center transition-transform"
+                className="relative bg-white rounded-lg overflow-hidden flex items-center justify-center transition-transform"
                 style={{
                   minHeight: '280px',
-                  boxShadow: '0 8px 30px -4px rgba(0, 0, 0, 0.45)',
+                  boxShadow: isLight
+                    ? '0 6px 24px -4px rgba(15, 23, 42, 0.18), 0 2px 6px -1px rgba(15, 23, 42, 0.08)'
+                    : '0 8px 30px -4px rgba(0, 0, 0, 0.55)',
                 }}
               >
                 <canvas
@@ -733,8 +1228,15 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
         {/* 2. WORD (.docx) HTML CONVERSION (REQ 8) */}
         {isWord && (
           <div className="max-w-3xl mx-auto p-4 sm:p-8">
-            <div className="mb-4 p-3 bg-sky-500/10 border border-sky-500/20 rounded-xl text-xs text-sky-300">
-              Vista simplificada. Para ver el formato original, usa <b>Sacar a mi dispositivo</b>.
+            <div
+              style={{
+                backgroundColor: isLight ? 'rgba(2, 132, 199, 0.1)' : 'rgba(0, 229, 255, 0.1)',
+                borderColor: isLight ? 'rgba(2, 132, 199, 0.25)' : 'rgba(0, 229, 255, 0.22)',
+                color: isLight ? '#0369a1' : '#38bdf8',
+              }}
+              className="mb-4 p-3 border rounded-xl text-xs"
+            >
+              Vista simplificada. Para ver el formato original, abre el menú de 3 puntos y selecciona <b>Sacar de la bóveda</b>.
             </div>
 
             <div className="bg-white text-slate-900 rounded-2xl p-6 sm:p-10 shadow-xl leading-relaxed text-sm space-y-4">
@@ -757,26 +1259,38 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
         {/* 3. TXT VIEWER (REQ 7) */}
         {isTxt && (
           <div className="max-w-4xl mx-auto p-4 sm:p-8">
-            <div className="flex items-center justify-between mb-3 text-xs text-slate-400">
+            <div
+              className="flex items-center justify-between mb-3 text-xs"
+              style={{ color: isLight ? '#475569' : '#94a3b8' }}
+            >
               <span>Codificación: {textEncoding.toUpperCase()}</span>
               <button
                 type="button"
                 onClick={() =>
                   setTextEncoding((prev) => (prev === 'utf-8' ? 'latin1' : 'utf-8'))
                 }
-                className="underline hover:text-white cursor-pointer"
+                style={{ color: isLight ? '#0284c7' : '#00e5ff' }}
+                className="underline font-medium cursor-pointer"
               >
                 Cambiar a {textEncoding === 'utf-8' ? 'Latin-1 (ANSI)' : 'UTF-8'}
               </button>
             </div>
 
-            <div className="bg-[#121316] border border-white/10 rounded-2xl p-5 sm:p-8 shadow-xl">
+            <div
+              style={{
+                backgroundColor: isLight ? '#ffffff' : '#0f172a',
+                borderColor: isLight ? '#cbd5e1' : 'rgba(51, 65, 85, 0.75)',
+                color: isLight ? '#0f172a' : '#e2e8f0',
+              }}
+              className="border rounded-2xl p-5 sm:p-8 shadow-xl"
+            >
               <pre
                 style={{
                   fontSize: `${txtFontSize}px`,
                   lineHeight: '1.65',
+                  color: isLight ? '#0f172a' : '#e2e8f0',
                 }}
-                className="whitespace-pre-wrap break-words font-mono text-slate-200 select-text"
+                className="whitespace-pre-wrap break-words font-mono select-text"
               >
                 {textContent}
               </pre>
@@ -784,6 +1298,55 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
           </div>
         )}
       </div>
+
+      {/* Control flotante discreto de zoom en la esquina inferior derecha para lectura de PDF */}
+      {isPdf && numPages > 0 && !showMenu && (
+        <div
+          style={{
+            backgroundColor: isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(10, 18, 29, 0.94)',
+            borderColor: isLight ? '#cbd5e1' : 'rgba(0, 229, 255, 0.25)',
+            color: isLight ? '#0f172a' : '#f8fafc',
+          }}
+          className="fixed bottom-6 right-4 z-40 border backdrop-blur-xl rounded-full px-2 py-1 flex items-center gap-1 shadow-xl"
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPdfScale((prev) => Math.max(0.6, Number((prev - 0.25).toFixed(2))));
+            }}
+            style={{ color: isLight ? '#0f172a' : '#f8fafc' }}
+            className="p-1.5 rounded-full hover:opacity-75 transition-opacity cursor-pointer"
+            title="Alejar zoom"
+          >
+            <ZoomOut className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPdfScale(1);
+            }}
+            style={{ color: isLight ? '#0284c7' : '#00e5ff' }}
+            className="px-2 py-0.5 text-[11px] font-mono font-bold transition-colors cursor-pointer"
+            title="Restablecer zoom al 100%"
+          >
+            {Math.round(pdfScale * 100)}%
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPdfScale((prev) => Math.min(3, Number((prev + 0.25).toFixed(2))));
+            }}
+            style={{ color: isLight ? '#0f172a' : '#f8fafc' }}
+            className="p-1.5 rounded-full hover:opacity-75 transition-opacity cursor-pointer"
+            title="Acercar zoom"
+          >
+            <ZoomIn className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
