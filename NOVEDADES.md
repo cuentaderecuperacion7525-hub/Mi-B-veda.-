@@ -1,4 +1,4 @@
-- Lanzamiento oficial: Versión 1.0.0 de Bóveda Segura con suite de protección completa.
+- Actualización v1.0.2: Rediseño visual de la pantalla de inicio de sesión con estilo minimalista, botones redondeados y accesibilidad.
 - Cifrado militar local: Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones.
 - Visor de documentos PDF: Renderizado local por canvas con desplazamiento continuo y carga perezosa.
 - Reproductor de audio: Sonido de fondo, marquesina continua y soporte de carátulas ID3.

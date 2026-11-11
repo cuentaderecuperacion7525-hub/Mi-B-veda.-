@@ -10,13 +10,13 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const APP_VERSION = '1.0.1';
+export const APP_VERSION = '1.0.2';
 export const CURRENT_APP_VERSION = APP_VERSION;
-export const CURRENT_BUILD_NUMBER = 2001;
-export const CURRENT_RELEASE_DATE = '9 de noviembre de 2026';
+export const CURRENT_BUILD_NUMBER = 2002;
+export const CURRENT_RELEASE_DATE = '10 de noviembre de 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
-  'Actualización v1.0.1: Corrección de margen en pestañas de Aplicaciones y mejoras de actualización.',
+  'Actualización v1.0.2: Rediseño visual de la pantalla de inicio de sesión con estilo minimalista, botones redondeados y accesibilidad.',
   'Cifrado militar local AES-256 para fotos, videos, audios, documentos y aplicaciones.',
   'Visor de documentos PDF local integrado con renderizado por canvas.',
   'Reproductor de audio integrado con modo segundo plano y controles avanzados.',
