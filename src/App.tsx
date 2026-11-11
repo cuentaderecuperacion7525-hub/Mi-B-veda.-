@@ -100,7 +100,6 @@ export default function App() {
 
   // Lock Vault Action
   const lockVault = useCallback(() => {
-    // Strictly forbid locking while picking files, authenticating Google account, or running backup operations
     if (
       (window as any).__isPickingFile ||
       (window as any).__isProcessingBackup ||
@@ -108,9 +107,6 @@ export default function App() {
     ) {
       return;
     }
-    // CRITICAL: NEVER lock if the vault is not in 'unlocked' state!
-    // During registration ('register') or setup ('setup'), the user has not finished onboarding;
-    // locking would switch them to LockVaultView and corrupt the onboarding flow.
     if (vaultStatusRef.current !== 'unlocked') {
       return;
     }
@@ -124,7 +120,7 @@ export default function App() {
     setIsSettingsOpen(false);
   }, []);
 
-  // Memoized unlock handler with extended post-unlock immunity grace period (20 seconds)
+  // Unlock handler
   const handleUnlock = useCallback((key: CryptoKey, pin?: string) => {
     const now = Date.now();
     (window as any).__lastUnlockTime = now;
@@ -186,16 +182,12 @@ export default function App() {
         if (forceRegister) {
           setVaultStatus('register');
         } else if (isInit === 'true' && saltHex && testIvHex && testCipherHex) {
-          // Ya existen datos y la bóveda está inicializada: salta directo a la pantalla de Autenticación
           setVaultStatus('locked');
         } else if (!isRegistered) {
-          // Primera vez que se abre la app (no existen datos guardados): muestra Registro Inicial / Bienvenido
           setVaultStatus('register');
         } else {
-          // Usuario registrado pero pendiente de configurar PIN o clave
           setVaultStatus('setup');
         }
-        // Auto-limpieza en segundo plano de la papelera (elementos mayores a 30 días)
         autoPurgeTrash(30).catch(() => {});
         testFirestoreConnection().catch(() => {});
       } catch (err) {
@@ -210,7 +202,7 @@ export default function App() {
     initBackButtonListener();
   }, [showToast]);
 
-  // Bloqueo al Voltear el Teléfono Boca Abajo (Flip to Lock / Face-Down)
+  // Flip to Lock / Face-Down
   useEffect(() => {
     if (vaultStatus !== 'unlocked') return;
 
@@ -240,9 +232,8 @@ export default function App() {
     };
   }, [showToast]);
 
-  // Detección automática de actualizaciones al entrar a la aplicación
+  // Detección de actualizaciones
   useEffect(() => {
-    // Si la app acaba de actualizarse, mostrar saludo de confirmación
     if (sessionStorage.getItem('vault_just_updated') === 'true') {
       sessionStorage.removeItem('vault_just_updated');
       setTimeout(() => {
@@ -250,330 +241,107 @@ export default function App() {
       }, 700);
     }
 
-    if (!updateService.isAutoCheckEnabled()) return;
-
-    // Comprobar actualizaciones tras 1.5s para no competir con el arranque inicial
-    const timer = setTimeout(async () => {
+    const checkUpdates = async () => {
       try {
         const res = await updateService.checkForUpdates();
         if (res.hasUpdate) {
           setPendingUpdateInfo(res);
-          if (!updateService.isUpdateDismissed(res.latestVersion)) {
+
+          const lastNotified = localStorage.getItem('vault_last_update_notified_version');
+          if (lastNotified !== res.latestVersion) {
             setShowUpdateBanner(true);
+            localStorage.setItem('vault_last_update_notified_version', res.latestVersion || '');
           }
         }
-      } catch (e) {
-        console.warn('Error al verificar actualizaciones al entrar:', e);
-      }
-    }, 1500);
-
-    return () => clearTimeout(timer);
+      } catch {}
+    };
+    checkUpdates();
   }, [showToast]);
 
-  // Suscribirse a eventos de actualización
-  useEffect(() => {
-    return updateService.subscribe((res) => {
-      if (res.hasUpdate) {
-        setPendingUpdateInfo(res);
-        if (
-          !updateService.isUpdateDismissed(res.latestVersion) &&
-          !isViewingUpdatesRef.current &&
-          sessionStorage.getItem('vault_updates_menu_active') !== 'true'
-        ) {
-          setShowUpdateBanner(true);
-        }
-      }
-    });
-  }, []);
-
-  // App privacy blur shield and immediate locking when minimizing or switching apps (ONLY when unlocked)
-  useEffect(() => {
-    let appStateHandle: any = null;
-
-    const isUserPickingFiles = () => {
-      if ((window as any).__isPickingFile || (window as any).__isAuthenticatingGoogle) return true;
-      const startTime = (window as any).__filePickingStartTime || 0;
-      if (startTime > 0 && Date.now() - startTime < 180000) return true; // 3 min grace window while picking files
-      const googleAuthStart = (window as any).__googleAuthStartTime || 0;
-      if (googleAuthStart > 0 && Date.now() - googleAuthStart < 180000) return true;
-      return false;
-    };
-
-    const handleMinimizeOrBackground = () => {
-      if (isUserPickingFiles() || (window as any).__isProcessingBackup || (window as any).__isAuthenticatingGoogle) {
-        return;
-      }
-      // CRITICAL: NEVER lock if in 'register' or 'setup' mode!
-      // The user is legitimately minimizing to retrieve their verification code from Gmail.
-      if (vaultStatusRef.current !== 'unlocked') {
-        return;
-      }
-      if (lockOnTabSwitchRef.current) {
-        lockVault();
-      }
-    };
-
-    if (CapacitorApp && typeof CapacitorApp.addListener === 'function') {
-      try {
-        CapacitorApp.addListener('appStateChange', (state) => {
-          if (!isUserPickingFiles()) {
-            setIsPrivacyBlurActive(!state.isActive && vaultStatusRef.current === 'unlocked');
-          }
-          if (!state.isActive) {
-            handleMinimizeOrBackground();
-          } else {
-            setIsPrivacyBlurActive(false);
-            window.dispatchEvent(new CustomEvent('vault_app_resumed'));
-          }
-        }).then((h) => {
-          appStateHandle = h;
-        }).catch(() => {});
-      } catch {}
-    }
-
-    const handleDocVisibility = () => {
-      const isHidden = document.visibilityState === 'hidden';
-      if (!isUserPickingFiles()) {
-        setIsPrivacyBlurActive(isHidden && vaultStatusRef.current === 'unlocked');
-      }
-      if (isHidden) {
-        handleMinimizeOrBackground();
-      } else {
-        setIsPrivacyBlurActive(false);
-        window.dispatchEvent(new CustomEvent('vault_app_resumed'));
-      }
-    };
-
-    const handleWindowBlur = () => {
-      if (!isUserPickingFiles() && vaultStatusRef.current === 'unlocked') {
-        setIsPrivacyBlurActive(true);
-      }
-      handleMinimizeOrBackground();
-    };
-
-    const handleWindowFocus = () => {
-      setIsPrivacyBlurActive(false);
-      window.dispatchEvent(new CustomEvent('vault_app_resumed'));
-    };
-
-    const handlePageHide = () => {
-      handleMinimizeOrBackground();
-    };
-
-    document.addEventListener('visibilitychange', handleDocVisibility);
-    window.addEventListener('blur', handleWindowBlur);
-    window.addEventListener('focus', handleWindowFocus);
-    window.addEventListener('pagehide', handlePageHide);
-
-    return () => {
-      if (appStateHandle && typeof appStateHandle.remove === 'function') {
-        appStateHandle.remove();
-      }
-      document.removeEventListener('visibilitychange', handleDocVisibility);
-      window.removeEventListener('blur', handleWindowBlur);
-      window.removeEventListener('focus', handleWindowFocus);
-      window.removeEventListener('pagehide', handlePageHide);
-    };
-  }, [lockVault]);
-
-  // Inactivity auto-lock
-  useEffect(() => {
-    const mins = Number(autoLockMinutes);
-    if (vaultStatus !== 'unlocked' || isNaN(mins) || mins <= 0) {
-      if (inactivityTimerRef.current) {
-        window.clearTimeout(inactivityTimerRef.current);
-        inactivityTimerRef.current = null;
-      }
-      return;
-    }
-
-    const resetTimer = () => {
-      if (inactivityTimerRef.current) {
-        window.clearTimeout(inactivityTimerRef.current);
-      }
-      if (
-        (window as any).__isProcessingBackup ||
-        (window as any).__isPickingFile ||
-        (window as any).__isAuthenticatingGoogle
-      ) {
-        // Pause auto-lock completely during backup generation/restoration, Google auth, or file picking
-        return;
-      }
-      inactivityTimerRef.current = window.setTimeout(() => {
-        lockVault();
-      }, mins * 60 * 1000);
-    };
-
-    resetTimer();
-
-    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'pointerdown', 'click'];
-    activityEvents.forEach((evt) => window.addEventListener(evt, resetTimer, { passive: true }));
-
-    return () => {
-      if (inactivityTimerRef.current) {
-        window.clearTimeout(inactivityTimerRef.current);
-        inactivityTimerRef.current = null;
-      }
-      activityEvents.forEach((evt) => window.removeEventListener(evt, resetTimer));
-    };
-  }, [vaultStatus, autoLockMinutes, lockVault]);
-
-  // Robust File Picker protection: keeps auto-lock completely paused while Android File Picker is active
-  useEffect(() => {
-    const handleFilePickerClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target) return;
-
-      const isFileInput = target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'file';
-      const isLabelForFile = target.closest('label') && target.closest('label')?.querySelector('input[type="file"]');
-
-      if (isFileInput || isLabelForFile) {
-        (window as any).__isPickingFile = true;
-        (window as any).__filePickingStartTime = Date.now();
-      }
-    };
-
-    // When the user finishes picking or cancels, reset the flag safely with a 4s grace window
-    const handleFileChangeOrCancel = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (target && target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'file') {
-        setTimeout(() => {
-          (window as any).__isPickingFile = false;
-        }, 4000);
-      }
-    };
-
-    window.addEventListener('click', handleFilePickerClick, true);
-    window.addEventListener('change', handleFileChangeOrCancel, true);
-    window.addEventListener('cancel', handleFileChangeOrCancel, true);
-
-    return () => {
-      window.removeEventListener('click', handleFilePickerClick, true);
-      window.removeEventListener('change', handleFileChangeOrCancel, true);
-      window.removeEventListener('cancel', handleFileChangeOrCancel, true);
-    };
-  }, []);
-
-
-  // Panic key: Escape locks immediately
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && vaultStatus === 'unlocked' && !isSettingsOpen) {
-        lockVault();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [vaultStatus, isSettingsOpen, lockVault]);
-
-  // Reset Vault Handler
   const handleResetVault = async () => {
     try {
       await clearVaultDatabase();
+      await disableBiometrics();
+      await disableRecoveryKey();
+      await clearDuressPinHash();
       await clearAllStoredLocalBackups();
-      try {
-        sessionStorage.removeItem('vault_session_pin');
-        sessionStorage.removeItem('vault_is_duress_mode');
-      } catch {}
-      disableBiometrics();
-      disableRecoveryKey();
-      clearDuressPinHash();
+      localStorage.removeItem('vault_initialized');
       localStorage.removeItem('vault_salt');
       localStorage.removeItem('vault_test_iv');
       localStorage.removeItem('vault_test_cipher');
-      localStorage.removeItem('vault_initialized');
-      localStorage.removeItem('vault_pin_length');
-      localStorage.removeItem('nullvault_lockout_until');
-      localStorage.removeItem('nullvault_failed_streak');
-
       userProfileService.clearProfile();
-      setMasterKey(null);
-      setSessionPin(null);
-      setIsSettingsOpen(false);
-      setVaultStatus('register');
-      showToast('Bóveda restablecida por completo', 'alert');
-    } catch (err) {
-      console.error('Error resetting vault:', err);
-      showToast('Error al restablecer la bóveda', 'error');
-    }
+    } catch {}
+    setMasterKey(null);
+    setSessionPin(null);
+    setIsSettingsOpen(false);
+    setVaultStatus('register');
+    showToast('La bóveda ha sido formateada por completo.', 'info');
   };
 
-  // Preference change listeners
   const handleAutoLockChange = (mins: number) => {
     setAutoLockMinutes(mins);
-    localStorage.setItem('vault_autolock_mins', mins.toString());
+    try {
+      localStorage.setItem('vault_autolock_mins', String(mins));
+    } catch {}
   };
 
   const handleLockOnTabSwitchChange = (enabled: boolean) => {
     setLockOnTabSwitch(enabled);
-    localStorage.setItem('vault_lock_on_tab_switch', enabled ? 'true' : 'false');
+    try {
+      localStorage.setItem('vault_lock_on_tab_switch', String(enabled));
+    } catch {}
   };
 
   return (
     <div
-      className="min-h-screen flex flex-col font-sans select-none w-full max-w-full overflow-x-hidden transition-colors duration-250 relative"
+      className="relative min-h-screen w-full select-none overflow-hidden transition-colors"
       style={{
         backgroundColor: 'var(--theme-bg-main, #060b14)',
-        color: 'var(--theme-text-main, #f8fafc)',
+        color: 'var(--theme-text-main, #ffffff)',
       }}
     >
-      {/* Resplandor ambiental cian unificado para toda la aplicación */}
-      <div className="fixed inset-0 pointer-events-none flex justify-center items-center overflow-hidden z-0">
-        <div
-          className="w-[520px] h-[520px] rounded-full blur-[140px] transition-all duration-700"
-          style={{
-            backgroundColor: 'var(--theme-primary, #00e5ff)',
-            opacity: 0.16,
-          }}
-        />
-      </div>
-
-      {/* Toast Notification Layer */}
       <ToastContainer toasts={toasts} />
 
-      {/* Screen Routing */}
-      {vaultStatus === 'checking' && (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+      {vaultStatus === 'checking' ? (
+        <div className="flex h-screen w-full items-center justify-center bg-[#060b14] text-white">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#00e5ff]/10 border border-[#00e5ff]/30 flex items-center justify-center text-[#00e5ff] shadow-[0_0_30px_rgba(0,229,255,0.2)] animate-pulse">
+              <Shield className="w-6 h-6 stroke-[2]" />
+            </div>
+            <span className="text-xs font-semibold text-slate-400">Verificando estado de seguridad...</span>
+          </div>
         </div>
-      )}
-
-      {vaultStatus === 'register' && (
+      ) : vaultStatus === 'register' ? (
         <InitialRegisterView
-          onComplete={() => setVaultStatus('setup')}
+          onComplete={() => {
+            setVaultStatus('setup');
+          }}
           showToast={showToast}
         />
-      )}
-
-      {vaultStatus === 'setup' && (
+      ) : vaultStatus === 'setup' ? (
         <SetupVaultView
-          onSetupComplete={(key, pin) => handleUnlock(key, pin)}
+          onSetupComplete={(key, pin) => {
+            handleUnlock(key, pin);
+          }}
           showToast={showToast}
         />
-      )}
-
-      {vaultStatus === 'locked' && (
+      ) : vaultStatus === 'locked' ? (
         <LockVaultView
           onUnlock={handleUnlock}
-          onResetVaultRequest={handleResetVault}
+          onResetVaultRequest={() => {
+            setVaultStatus('setup');
+          }}
           showToast={showToast}
         />
-      )}
-
-      {vaultStatus === 'unlocked' && masterKey && (
+      ) : (
         <>
           <MainVaultView
-            masterKey={masterKey}
+            masterKey={masterKey!}
             sessionPin={sessionPin}
+            refreshTrigger={vaultRefreshTrigger}
+            showToast={showToast}
             onLock={lockVault}
             onOpenSettings={() => setIsSettingsOpen(true)}
-            showToast={showToast}
-            refreshTrigger={vaultRefreshTrigger}
-            autoLockMinutes={autoLockMinutes}
-            onAutoLockChange={handleAutoLockChange}
-            lockOnTabSwitch={lockOnTabSwitch}
-            onLockOnTabSwitchChange={handleLockOnTabSwitchChange}
             onMasterKeyUpdated={(newKey, newPin) => {
               setMasterKey(newKey);
               if (newPin) {

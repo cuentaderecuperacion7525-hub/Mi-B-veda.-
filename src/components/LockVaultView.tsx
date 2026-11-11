@@ -934,20 +934,21 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       ) : authViewMode === 'welcome' && isRegisteredUser ? (
         /* ==================== PANTALLA DE BIENVENIDA (ESTILO BANCOMER / BBVA) ==================== */
         <div className="relative w-full max-w-sm sm:max-w-md mx-auto flex flex-col justify-between min-h-[85vh] py-6 px-4 select-none animate-in fade-in duration-300">
-          {/* 1. Header con Iniciar sesión centrado (18 px) */}
+          {/* 1. Header con Iniciar sesión centrado (20 px, 700 bold) */}
           <div className="w-full flex items-center justify-center relative pt-2 pb-4">
             <h1
-              className="text-[18px] font-medium tracking-wide text-center"
+              className="text-[20px] font-bold tracking-wide text-center"
               style={{
-                fontSize: '18px',
-                color: 'var(--theme-text-muted, #94a3b8)',
+                fontSize: '20px',
+                fontWeight: 700,
+                color: '#0F1B3D',
               }}
             >
               Iniciar sesión
             </h1>
           </div>
 
-          {/* 2. Zona central: Saludo según la hora (20 px) y Nombre completo de la caja Nombre (28 px) con Avatar */}
+          {/* 2. Zona central: Saludo a la izquierda (#1F2A44), Nombre (28 px serif bold #0F1B3D) y Avatar (76 px, iniciales 28 px) */}
           <div className="w-full my-auto py-8 px-2">
             <div className="flex items-center justify-between gap-4">
               <div className="flex flex-col text-left min-w-0">
@@ -955,7 +956,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   className="text-[20px] font-medium tracking-normal leading-snug"
                   style={{
                     fontSize: '20px',
-                    color: 'var(--theme-text-muted, #94a3b8)',
+                    color: '#1F2A44',
                   }}
                 >
                   {getTimeGreeting()}
@@ -964,7 +965,8 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   className="text-[28px] font-serif font-bold tracking-tight leading-tight mt-0.5 break-words"
                   style={{
                     fontSize: '28px',
-                    color: 'var(--theme-text-main, #ffffff)',
+                    fontWeight: 700,
+                    color: '#0F1B3D',
                   }}
                 >
                   {userDisplayName}
@@ -972,9 +974,12 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
               </div>
 
               <div
-                className="w-16 h-16 rounded-full flex items-center justify-center text-white font-medium text-2xl shadow-xl shrink-0 border border-white/20 select-none overflow-hidden"
+                className="w-[76px] h-[76px] rounded-full flex items-center justify-center text-white font-medium text-[28px] shadow-xl shrink-0 border border-white/20 select-none overflow-hidden"
                 style={{
-                  background: userProfile?.avatarColor || '#5b9bd5',
+                  width: '76px',
+                  height: '76px',
+                  fontSize: '28px',
+                  background: userProfile?.avatarColor || 'linear-gradient(135deg, #FF8000, #F59E0B)',
                 }}
               >
                 {userProfile?.photoURL ? (
@@ -998,36 +1003,101 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
             )}
           </div>
 
-          {/* 3. Zona inferior: Botones de acción (huella solo si está vinculada) */}
-          <div className="w-full flex flex-col gap-3.5 pb-4 px-1">
-            {isBioEnrolled && (
-              <button
-                type="button"
-                onClick={handleBiometricClick}
-                disabled={isBioLoading}
-                className="w-full py-4 px-6 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.98] text-[#0b2149] font-bold text-base shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-75 border border-slate-200/80 dark:border-transparent"
-              >
-                {isBioLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin text-[#0b2149]" />
-                    <span>Verificando huella...</span>
-                  </>
-                ) : (
-                  <span>Entra con biometria</span>
-                )}
-              </button>
-            )}
+          {/* 3. Zona inferior: Botón biometría (principal), Botón contraseña (secundario) y Enlaces */}
+          <div className="w-full flex flex-col gap-[12px] pb-4 px-1">
+            {/* Botón Principal: Entra con biometría (Relleno sólido #0F1B3D, texto blanco 18px 600, icono Fingerprint 22px, pill 64px) */}
+            <button
+              type="button"
+              onClick={handleBiometricClick}
+              disabled={isBioLoading}
+              className="w-full h-[64px] rounded-full bg-[#0F1B3D] hover:bg-[#162550] active:scale-[0.99] text-white font-semibold text-[18px] transition-all flex items-center justify-center gap-[10px] cursor-pointer disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2"
+              style={{
+                height: '64px',
+                backgroundColor: '#0F1B3D',
+                color: '#ffffff',
+                fontSize: '18px',
+                fontWeight: 600,
+                borderRadius: '9999px',
+                boxShadow: '0 10px 24px rgba(15,27,61,0.28)',
+              }}
+            >
+              {isBioLoading ? (
+                <>
+                  <Loader2 className="w-[22px] h-[22px] animate-spin text-white" />
+                  <span>Verificando huella...</span>
+                </>
+              ) : (
+                <>
+                  <Fingerprint className="w-[22px] h-[22px] shrink-0 text-white" style={{ width: '22px', height: '22px' }} />
+                  <span>Entra con biometría</span>
+                </>
+              )}
+            </button>
 
+            {/* Botón Secundario: Entra con contraseña (Fondo transparente, borde 1.5px #0F1B3D, texto #0F1B3D 18px 600, pill 64px) */}
             <button
               type="button"
               onClick={() => {
                 setErrorMessage(null);
                 setAuthViewMode('keypad');
               }}
-              className="w-full py-4 px-6 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.98] text-[#0b2149] font-bold text-base shadow-xl transition-all flex items-center justify-center cursor-pointer border border-slate-200/80 dark:border-transparent"
+              className="w-full h-[64px] rounded-full bg-transparent border-[1.5px] border-[#0F1B3D] hover:bg-[#0F1B3D]/5 active:scale-[0.99] text-[#0F1B3D] font-semibold text-[18px] transition-all flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2"
+              style={{
+                height: '64px',
+                backgroundColor: 'transparent',
+                borderWidth: '1.5px',
+                borderColor: '#0F1B3D',
+                color: '#0F1B3D',
+                fontSize: '18px',
+                fontWeight: 600,
+                borderRadius: '9999px',
+              }}
             >
               <span>Entra con contraseña</span>
             </button>
+
+            {/* Enlaces nuevos debajo de los botones (8px margen sup, centrados, subrayados, color #0F1B3D, min height 44px) */}
+            <div className="mt-[8px] flex flex-col items-center justify-center">
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleOpenForgotPin();
+                }}
+                className="inline-flex items-center justify-center min-h-[44px] px-2 text-[16px] font-semibold underline text-[#0F1B3D] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2 rounded-lg"
+                style={{
+                  color: '#0F1B3D',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  textDecoration: 'underline',
+                  minHeight: '44px',
+                }}
+              >
+                ¿Olvidaste tu contraseña?
+              </a>
+
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (onGoToRegister) {
+                    onGoToRegister();
+                  } else if (onResetVaultRequest) {
+                    onResetVaultRequest();
+                  }
+                }}
+                className="inline-flex items-center justify-center min-h-[44px] px-2 text-[15px] font-normal underline text-[#0F1B3D] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2 rounded-lg"
+                style={{
+                  color: '#0F1B3D',
+                  fontSize: '15px',
+                  fontWeight: 400,
+                  textDecoration: 'underline',
+                  minHeight: '44px',
+                }}
+              >
+                ¿No eres {userDisplayName}? Cambiar usuario
+              </a>
+            </div>
           </div>
         </div>
       ) : (
