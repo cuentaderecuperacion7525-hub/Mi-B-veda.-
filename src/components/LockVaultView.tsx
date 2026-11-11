@@ -1005,69 +1005,69 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
           {/* 3. Zona inferior: Botón biometría (principal), Botón contraseña (secundario) y Enlaces */}
           <div className="w-full flex flex-col gap-[12px] pb-4 px-1">
-            {/* Botón Principal: Entra con biometría (Relleno sólido #0F1B3D, texto BLANCO PURO #ffffff 16px 600, icono Fingerprint 22px blanco, pill 54px) */}
+            {/* Botón Principal: Entra con biometría (Relleno sólido #0F1B3D, texto BLANCO PURO #ffffff en 18px peso 600, icono Fingerprint 22px blanco, 10px sep, pill 64px, sombra 0 10px 24px rgba(15,27,61,.28)) */}
             <button
               type="button"
               onClick={handleBiometricClick}
               disabled={isBioLoading}
-              className="w-full h-[54px] rounded-full bg-[#0F1B3D] hover:bg-[#162550] active:scale-[0.99] text-white font-semibold text-[16px] transition-all flex items-center justify-center gap-[10px] cursor-pointer disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2"
+              className="vault-primary-bio-btn w-full h-[64px] rounded-full bg-[#0F1B3D] hover:bg-[#162550] active:scale-[0.99] transition-all flex items-center justify-center gap-[10px] cursor-pointer disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2"
               style={{
-                height: '54px',
+                height: '64px',
                 backgroundColor: '#0F1B3D',
                 color: '#ffffff',
-                fontSize: '16px',
+                fontSize: '18px',
                 fontWeight: 600,
                 borderRadius: '9999px',
-                boxShadow: '0 8px 20px rgba(15,27,61,0.25)',
+                boxShadow: '0 10px 24px rgba(15,27,61,0.28)',
               }}
             >
               {isBioLoading ? (
                 <>
-                  <Loader2 className="w-[20px] h-[20px] animate-spin text-white shrink-0" style={{ color: '#ffffff' }} />
-                  <span className="text-white font-semibold" style={{ color: '#ffffff' }}>Verificando huella...</span>
+                  <Loader2 className="w-[22px] h-[22px] animate-spin text-white shrink-0" style={{ color: '#ffffff' }} />
+                  <span className="text-white font-semibold" style={{ color: '#ffffff', fontSize: '18px', fontWeight: 600 }}>Verificando huella...</span>
                 </>
               ) : (
                 <>
                   <Fingerprint className="w-[22px] h-[22px] shrink-0 text-white" style={{ width: '22px', height: '22px', color: '#ffffff', stroke: '#ffffff' }} />
-                  <span className="text-white font-semibold" style={{ color: '#ffffff', fontSize: '16px', fontWeight: 600 }}>Entra con biometría</span>
+                  <span className="text-white font-semibold" style={{ color: '#ffffff', fontSize: '18px', fontWeight: 600 }}>Entra con biometría</span>
                 </>
               )}
             </button>
 
-            {/* Botón Secundario: Entra con contraseña (Fondo transparente, borde 1.5px #0F1B3D, texto #0F1B3D 16px 600, pill 54px) */}
+            {/* Botón Secundario: Entra con contraseña (Fondo transparente, borde 1.5px #0F1B3D, texto #0F1B3D 18px peso 600, pill 64px) */}
             <button
               type="button"
               onClick={() => {
                 setErrorMessage(null);
                 setAuthViewMode('keypad');
               }}
-              className="w-full h-[54px] rounded-full bg-transparent border-[1.5px] border-[#0F1B3D] hover:bg-[#0F1B3D]/5 active:scale-[0.99] text-[#0F1B3D] font-semibold text-[16px] transition-all flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2"
+              className="w-full h-[64px] rounded-full bg-transparent border-[1.5px] border-[#0F1B3D] hover:bg-[#0F1B3D]/5 active:scale-[0.99] text-[#0F1B3D] font-semibold transition-all flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2"
               style={{
-                height: '54px',
+                height: '64px',
                 backgroundColor: 'transparent',
                 borderWidth: '1.5px',
                 borderColor: '#0F1B3D',
                 color: '#0F1B3D',
-                fontSize: '16px',
+                fontSize: '18px',
                 fontWeight: 600,
                 borderRadius: '9999px',
               }}
             >
-              <span style={{ color: '#0F1B3D', fontSize: '16px', fontWeight: 600 }}>Entra con contraseña</span>
+              <span style={{ color: '#0F1B3D', fontSize: '18px', fontWeight: 600 }}>Entra con contraseña</span>
             </button>
 
             {/* Enlaces nuevos debajo de los botones (8px margen sup, centrados, subrayados, color #0F1B3D, min height 44px) */}
-            <div className="mt-[8px] flex flex-col items-center justify-center">
+            <div className="mt-[8px] flex flex-col items-center justify-center gap-1">
               <a
                 href="#"
                 onClick={(e) => {
                   e.preventDefault();
                   handleOpenForgotPin();
                 }}
-                className="inline-flex items-center justify-center min-h-[44px] px-2 text-[15px] font-semibold underline text-[#0F1B3D] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2 rounded-lg"
+                className="inline-flex items-center justify-center min-h-[44px] px-2 text-[16px] font-semibold underline text-[#0F1B3D] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2 rounded-lg"
                 style={{
                   color: '#0F1B3D',
-                  fontSize: '15px',
+                  fontSize: '16px',
                   fontWeight: 600,
                   textDecoration: 'underline',
                   minHeight: '44px',
@@ -1086,10 +1086,10 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                     onResetVaultRequest();
                   }
                 }}
-                className="inline-flex items-center justify-center min-h-[44px] px-2 text-[14px] font-normal underline text-[#0F1B3D] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2 rounded-lg"
+                className="inline-flex items-center justify-center min-h-[44px] px-2 text-[15px] font-normal underline text-[#0F1B3D] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2 rounded-lg"
                 style={{
                   color: '#0F1B3D',
-                  fontSize: '14px',
+                  fontSize: '15px',
                   fontWeight: 400,
                   textDecoration: 'underline',
                   minHeight: '44px',

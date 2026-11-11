@@ -356,7 +356,11 @@ nav.fixed button.vault-nav-btn-inactive svg {
 [data-theme="light"] .vault-file-type-badge,
 [data-theme="light"] .vault-file-type-badge *,
 [data-theme="light"] .bg-\[\#00e5ff\] *,
-[data-theme="light"] button.bg-\[\#00e5ff\] {
+[data-theme="light"] button.bg-\[\#00e5ff\],
+.vault-primary-bio-btn,
+.vault-primary-bio-btn *,
+[data-theme="light"] .vault-primary-bio-btn,
+[data-theme="light"] .vault-primary-bio-btn * {
   color: #ffffff !important;
   stroke: #ffffff !important;
 }
@@ -400,7 +404,7 @@ nav.fixed button.vault-nav-btn-inactive svg {
 }
 
 /* Convert text-white on regular content to dark slate #0f172a */
-[data-theme="light"] [class*="text-white"]:not(.vault-file-type-badge):not(.vault-file-type-badge *):not(button[class*="from-"]):not(button[class*="from-"] *):not([class*="from-blue-"]):not([class*="from-blue-"] *):not(button[class*="bg-gradient-"] *):not(button[class*="bg-rose-"]):not(button[class*="bg-rose-"] *):not(button[class*="bg-red-"]):not(button[class*="bg-red-"] *):not(button[class*="bg-emerald-"]):not(button[class*="bg-emerald-"] *):not(button[class*="bg-blue-"]):not(button[class*="bg-blue-"] *):not(button[class*="bg-sky-"]):not(button[class*="bg-purple-"]):not(button[class*="bg-indigo-"]):not(span[class*="bg-rose-"]):not(span[class*="bg-red-"]):not(span[class*="bg-emerald-"]):not(span[class*="bg-blue-"]):not(.bg-\[\#00e5ff\] *):not(button.bg-\[\#00e5ff\]):not(button[class*="bg-zinc-100"]):not(button[class*="bg-zinc-100"] *) {
+[data-theme="light"] [class*="text-white"]:not(.vault-file-type-badge):not(.vault-file-type-badge *):not(button[class*="from-"]):not(button[class*="from-"] *):not([class*="from-blue-"]):not([class*="from-blue-"] *):not(button[class*="bg-gradient-"] *):not(button[class*="bg-rose-"]):not(button[class*="bg-rose-"] *):not(button[class*="bg-red-"]):not(button[class*="bg-red-"] *):not(button[class*="bg-emerald-"]):not(button[class*="bg-emerald-"] *):not(button[class*="bg-blue-"]):not(button[class*="bg-blue-"] *):not(button[class*="bg-sky-"]):not(button[class*="bg-purple-"]):not(button[class*="bg-indigo-"]):not(span[class*="bg-rose-"]):not(span[class*="bg-red-"]):not(span[class*="bg-emerald-"]):not(span[class*="bg-blue-"]):not(.bg-\[\#00e5ff\] *):not(button.bg-\[\#00e5ff\]):not(button[class*="bg-zinc-100"]):not(button[class*="bg-zinc-100"] *):not(.vault-primary-bio-btn):not(.vault-primary-bio-btn *) {
   color: #0f172a !important;
 }
 
@@ -1100,4 +1104,23 @@ button.vault-video-btn-minimal {
   background-color: #6A3A35 !important;
   color: #F6E8E5 !important;
 }
+
+/* 22. Strict White Text & Icon Rule for Primary Biometrics Button */
+button.vault-primary-bio-btn,
+button.vault-primary-bio-btn *,
+button.vault-primary-bio-btn span,
+button.vault-primary-bio-btn svg,
+[data-theme="light"] button.vault-primary-bio-btn,
+[data-theme="light"] button.vault-primary-bio-btn *,
+[data-theme="light"] button.vault-primary-bio-btn span,
+[data-theme="light"] button.vault-primary-bio-btn svg,
+[data-theme="cyan"] button.vault-primary-bio-btn,
+[data-theme="cyan"] button.vault-primary-bio-btn *,
+[data-theme="cyan"] button.vault-primary-bio-btn span,
+[data-theme="cyan"] button.vault-primary-bio-btn svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  fill: none !important;
+}
+
 
